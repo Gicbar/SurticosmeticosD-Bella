@@ -207,10 +207,10 @@ export default function PublicCatalogPage({ products, categories }) {
               </div>
               <Button className="w-full bg-gradient-to-r from-violet-600 to-pink-600 text-white hover:shadow-lg transition-all h-10 text-sm font-medium">
                 <Sparkles className="w-4 h-4 mr-2" />
-                Agendar Pedido por WhatsApp
+                Agenda Tu Pedido por WhatsApp
               </Button>
               <p className="text-xs text-gray-500 text-center mt-2 font-medium">
-                Te contactaremos para confirmar tu pedido
+                Te confirmaremos tu pedido una vez nos contactes
               </p>
             </div>
           )}

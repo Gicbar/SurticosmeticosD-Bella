@@ -1,0 +1,56 @@
+# --- Node ---
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# --- Next.js ---
+.next/
+out/
+dist/
+.cache/
+.vercel/
+
+# --- Environment variables ---
+.env
+.env.*
+!.env.example
+
+# --- Supabase ---
+supabase/.temp
+supabase/.branches
+
+# --- Logs ---
+logs
+*.log
+*.log.*
+tsconfig.tsbuildinfo
+
+# --- OS / Editor files ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- Build outputs ---
+build/
+coverage/
+public/build/
+
+# --- Images generated locally ---
+public/uploads/
+public/temp/
+
+# --- TypeScript ---
+*.tsbuildinfo
+
+# --- Misc ---
+*.local
+*.bak
+*.tmp

@@ -7,8 +7,8 @@ export async function middleware(request: NextRequest) {
 
 export const config = {
   matcher: [
-    // Aplica el middleware a todo excepto a rutas y archivos públicos
-    "/((?!_next/static|_next/image|favicon.ico|videos/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|mp4|webm|ogg)$).*)",
+    // ❗ Excluimos /catalog antes que todo lo demás
+    "/((?!catalog|_next/static|_next/image|favicon.ico|videos/|.*\\.(?:svg|png|jpg|jpeg|gif|webp|mp4|webm|ogg)$).*)",
   ],
 }
 

@@ -1,6 +1,5 @@
 "use client"
-
-import React, { useState, useEffect } from "react";
+import { useState, useEffect } from "react"
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
@@ -19,7 +18,7 @@ export default function PublicCatalogPage({ products, categories }) {
   const [showCart, setShowCart] = useState(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 500);
+    const timer = setTimeout(() => setLoading(false), 500); 
     return () => clearTimeout(timer);
   }, []);
 

@@ -1,9 +1,9 @@
 import { requireAuth,getUserPermissions } from "@/lib/auth"
 import { createClient } from "@/lib/supabase/server"
 import { Button } from "@/components/ui/button"
-import { Plus, Truck, Package, Phone, Mail, MapPin } from "lucide-react"
+import { Plus, Truck, Package, Phone, Mail } from "lucide-react"
 import { SuppliersTable } from "@/components/suppliers-table"
-import { StatCard } from "@/components/stat-card"
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import Link from "next/link"
 import { redirect } from "next/navigation" 
 
@@ -18,6 +18,48 @@ export default async function SuppliersPage() {
   await requireAuth()
   const supabase = await createClient()
 
+  // ✅ COMPONENTE STATCARD
+function StatCard({
+  title,
+  value,
+  icon,
+  variant = "default",
+  subtitle = null
+}: {
+  title: string
+  value: string | number
+  icon: React.ReactNode
+  variant?: "default" | "primary" | "accent"
+  subtitle?: string | null
+}) {
+  const variants = {
+    default: "text-muted-foreground",
+    primary: "text-primary",
+    accent: "text-chart-4",
+  };
+
+  return (
+    <Card className="card group hover:shadow-md transition-shadow">
+      <CardHeader className="card-header flex flex-row items-center justify-between pb-2">
+        <CardTitle className="card-title text-xs uppercase tracking-wide text-muted-foreground">
+          {title}
+        </CardTitle>
+        <div className={`h-5 w-5 ${variants[variant]} group-hover:scale-110 transition-transform duration-200`}>
+          {icon}
+        </div>
+      </CardHeader>
+      <CardContent>
+        <div className="text-xl md:text-2xl font-bold text-foreground">
+          {value}
+        </div>
+        {subtitle && (
+          <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
   const { data: suppliers } = await supabase
     .from("suppliers")
     .select("*")
@@ -29,21 +71,19 @@ export default async function SuppliersPage() {
   const proveedoresConEmail = suppliers?.filter(s => s.email).length || 0
 
   return (
-    <div className="flex-1 flex flex-col bg-card/70 backdrop-blur-md p-4 md:p-6 rounded-2xl shadow-inner border border-border/20">
+    <div className="dashboard-page-container">
       {/* Header Premium */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 pb-4 border-b border-border">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-primary/10 group">
-            <Truck className="h-6 w-6 icon-inventory group-hover:scale-110 transition-transform" />
-          </div>
-          <div>
-            <h1 className="dashboard-title">Proveedores</h1>
-            <p className="dashboard-subtitle mt-1">
-              {totalProveedores} proveedores • {proveedoresConContacto} con contacto • {proveedoresConTelefono} con teléfono
-            </p>
-          </div>
+      <div className="dashboard-toolbar">
+        <div className="dashboard-header">
+          <h1 className="dashboard-title">
+            <Truck className="dashboard-title-icon" />
+            Proveedores
+          </h1>
+          <p className="dashboard-subtitle">
+            {totalProveedores} proveedores • {proveedoresConContacto} con contacto • {proveedoresConTelefono} con teléfono
+          </p>
         </div>
-        <Button asChild className="group w-full md:w-auto bg-gradient-to-r from-primary to-accent hover:from-accent hover:to-primary transition-all duration-300 shadow-md">
+        <Button asChild className="btn-action-new">
           <Link href="/dashboard/suppliers/new">
             <Plus className="h-4 w-4 mr-2 group-hover:rotate-90 transition-transform" />
             Nuevo Proveedor

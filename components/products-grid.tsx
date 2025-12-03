@@ -1,17 +1,16 @@
 "use client"
-
 import { useState } from "react"
-import { Card, CardContent, CardHeader } from "@/components/ui/card"
+import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Badge } from "@/components/ui/badge"
-import { Edit, Trash2, Search, Package } from "lucide-react"
+import { Edit, Trash2, Search, Package, Sparkles } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
 import { showConfirm, showSuccess, showError } from "@/lib/sweetalert"
-import { Separator } from "@/components/ui/separator" 
+import { Separator } from "@/components/ui/separator"
 
 type Product = {
   id: string
@@ -50,21 +49,26 @@ function SearchInput({ value, onChange, placeholder, icon }: {
 
 // Componente Badge de Stock
 function StockBadge({ current, min }: { current: number; min: number }) {
-  const stockStatus = current === 0 ? "out-stock" : current <= min ? "low-stock" : "in-stock"
-  const stockText = current === 0 ? "Sin Stock" : current <= min ? `Stock Bajo (${current})` : "En Stock"
-  
+  const stockStatus = current === 0 ? "out-stock" : current <= min ? "low-stock" : "in-stock";
+  const stockText = current === 0 ? "Sin Stock" : current <= min ? `Stock Bajo (${current})` : "En Stock";
+
+  const badgeClasses = {
+    "out-stock": "badge-destructive",
+    "low-stock": "badge-warning",
+    "in-stock": "badge-success",
+  };
+
   return (
-    <Badge className={`badge-stock ${stockStatus}`}>
+    <Badge className={`badge ${badgeClasses[stockStatus]}`}>
       <Package className="h-3 w-3 mr-1" />
       {stockText}
     </Badge>
-  )
+  );
 }
 
 export function ProductsGrid({ products }: { products: Product[] }) {
   const router = useRouter()
   const [searchTerm, setSearchTerm] = useState("")
-
   const filteredProducts = products.filter((product) => {
     const search = searchTerm.toLowerCase()
     return (
@@ -79,11 +83,9 @@ export function ProductsGrid({ products }: { products: Product[] }) {
       `¿Eliminar "${name}"?`,
       "Esta acción no se puede deshacer"
     )
-
     if (confirmed) {
       const supabase = createClient()
       const { error } = await supabase.from("products").delete().eq("id", id)
-
       if (error) {
         showError(error.message, "Error al eliminar")
       } else {
@@ -106,9 +108,12 @@ export function ProductsGrid({ products }: { products: Product[] }) {
       {/* Grid */}
       <div className="grid gap-4 grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
         {filteredProducts.map((product) => (
-          <Card key={product.id} className="card-dashboard group overflow-hidden">
+          <Card
+            key={product.id}
+            className="card group overflow-hidden border border-border/30 hover:shadow-lg transition-all duration-300 bg-card/80 backdrop-blur-sm"
+          >
             {/* Imagen */}
-            <div className="aspect-[1/1] relative bg-muted overflow-hidden">
+            <div className="aspect-[1/1] relative bg-muted overflow-hidden rounded-t-xl">
               {product.image_url ? (
                 <Image
                   src={product.image_url}
@@ -118,8 +123,8 @@ export function ProductsGrid({ products }: { products: Product[] }) {
                   sizes="(max-width: 640px) 50vw, (max-width: 768px) 33vw, (max-width: 1024px) 25vw, 16vw"
                 />
               ) : (
-                <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-secondary to-accent/20">
-                  <Package className="h-12 w-12 text-muted-foreground/50" />
+                <div className="w-full h-full flex items-center justify-center text-primary bg-gradient-to-br from-muted to-secondary/20">
+                  <Sparkles className="w-6 h-6" />
                 </div>
               )}
             </div>
@@ -128,7 +133,7 @@ export function ProductsGrid({ products }: { products: Product[] }) {
             <CardContent className="p-4 space-y-3">
               {/* Nombre y descripción */}
               <div className="space-y-1">
-                <h3 className="font-semibold text-sm text-foreground tracking-tight line-clamp-1">
+                <h3 className="font-semibold text-sm text-foreground tracking-tight line-clamp-1 group-hover:text-primary transition-colors">
                   {product.name}
                 </h3>
                 {product.description && (
@@ -145,31 +150,28 @@ export function ProductsGrid({ products }: { products: Product[] }) {
                     <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                       Código
                     </span>
-                    <span className="text-[11px] font-mono text-foreground">{product.barcode}</span>
+                    <span className="text-[11px] font-mono text-foreground bg-secondary/20 px-1.5 py-0.5 rounded">
+                      {product.barcode}
+                    </span>
                   </div>
                 )}
-                
                 {product.categories && (
                   <div className="flex justify-between items-center">
                     <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                       Categoría
                     </span>
-                    <span className="text-[11px] font-medium text-foreground truncate max-w-[60%]">
+                    <span className="text-[11px] font-medium text-foreground truncate max-w-[60%] bg-accent/10 px-1.5 py-0.5 rounded">
                       {product.categories.name}
                     </span>
                   </div>
                 )}
-
                 <div className="flex justify-between items-center">
                   <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                     Stock
                   </span>
                   <StockBadge current={product.current_stock} min={product.min_stock} />
                 </div>
-
                 <Separator className="my-1" />
-
-                {/* Precio */}
                 <div className="flex justify-between items-center">
                   <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                     Precio
@@ -191,7 +193,7 @@ export function ProductsGrid({ products }: { products: Product[] }) {
                   asChild
                   variant="outline"
                   size="xs"
-                  className="flex-1 group"
+                  className="flex-1 group border-primary/30 hover:bg-primary/10 hover:border-primary/50"
                 >
                   <Link href={`/dashboard/products/${product.id}/edit`}>
                     <Edit className="h-3 w-3 mr-1 group-hover:scale-110 transition-transform" />
@@ -201,7 +203,7 @@ export function ProductsGrid({ products }: { products: Product[] }) {
                 <Button
                   variant="outline"
                   size="xs"
-                  className="px-2 group hover:bg-destructive/10 hover:border-destructive transition-all"
+                  className="px-2 group hover:bg-destructive/10 hover:border-destructive transition-all border-destructive/30"
                   onClick={() => handleDelete(product.id, product.name)}
                 >
                   <Trash2 className="h-3 w-3 group-hover:text-destructive transition-colors" />
@@ -215,8 +217,10 @@ export function ProductsGrid({ products }: { products: Product[] }) {
       {/* Estado vacío */}
       {filteredProducts.length === 0 && (
         <div className="py-12 flex items-center justify-center">
-          <div className="text-center max-w-xs">
-            <Package className="h-16 w-16 text-muted-foreground/40 mx-auto mb-4" />
+          <div className="text-center max-w-xs space-y-3">
+            <div className="w-20 h-20 mx-auto flex items-center justify-center rounded-full bg-gradient-to-br from-secondary to-primary/20">
+              <Package className="h-10 w-10 text-primary/50" />
+            </div>
             <p className="text-base font-medium text-muted-foreground">
               No se encontraron productos
             </p>

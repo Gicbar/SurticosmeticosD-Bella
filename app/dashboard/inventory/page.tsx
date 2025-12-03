@@ -17,10 +17,11 @@ function formatCurrency(amount: number): string {
 }
 
 
-function StatCard({ 
-  title, 
-  value, 
-  icon, 
+  // ✅ COMPONENTE STATCARD
+function StatCard({
+  title,
+  value,
+  icon,
   variant = "default",
   subtitle = null
 }: {
@@ -31,23 +32,23 @@ function StatCard({
   subtitle?: string | null
 }) {
   const variants = {
-    default: "icon-inventory",
+    default: "text-muted-foreground",
     primary: "text-primary",
     accent: "text-chart-4",
-  }
-  
+  };
+
   return (
-    <Card className="card-dashboard group">
-      <CardHeader className="card-header-dashboard flex flex-row items-center justify-between pb-2">
-        <CardTitle className="card-title-dashboard text-xs uppercase tracking-wide">
+    <Card className="card group hover:shadow-md transition-shadow">
+      <CardHeader className="card-header flex flex-row items-center justify-between pb-2">
+        <CardTitle className="card-title text-xs uppercase tracking-wide text-muted-foreground">
           {title}
         </CardTitle>
-        <div className={`${variants[variant]} group-hover:scale-110 transition-transform duration-200`}>
+        <div className={`h-5 w-5 ${variants[variant]} group-hover:scale-110 transition-transform duration-200`}>
           {icon}
         </div>
       </CardHeader>
       <CardContent>
-        <div className="card-value-dashboard text-xl md:text-2xl font-bold">
+        <div className="text-xl md:text-2xl font-bold text-foreground">
           {value}
         </div>
         {subtitle && (
@@ -55,7 +56,7 @@ function StatCard({
         )}
       </CardContent>
     </Card>
-  )
+  );
 }
 
 // ✅ PÁGINA PRINCIPAL - STATS SOLO STOCK > 0, TABLA TODOS LOS LOTES
@@ -86,22 +87,20 @@ export default async function InventoryPage() {
   const totalStock = activeBatches.reduce((sum, b) => sum + b.remaining_quantity, 0)
 
   return (
-    <div className="flex-1 flex flex-col bg-card/70 backdrop-blur-md p-4 md:p-6 rounded-2xl shadow-inner border border-border/20">
+    <div className="dashboard-page-container">
       {/* Header Premium */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 pb-4 border-b border-border">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-primary/10 group">
-            <TrendingUp className="h-6 w-6 icon-inventory group-hover:scale-110 transition-transform" />
-          </div>
-          <div>
-            <h1 className="dashboard-title">Inventario</h1>
-            <p className="dashboard-subtitle mt-1">
-              {totalLotes} lotes activos con stock disponible
-            </p>
-          </div>
+      <div className="dashboard-toolbar">
+        <div className="dashboard-header">
+          <h1 className="dashboard-title">
+            <TrendingUp className="dashboard-title-icon" />
+            Inventario
+          </h1>
+          <p className="dashboard-subtitle">
+            {totalLotes} lotes activos con stock disponible
+          </p>
         </div>
         <PurchaseBatchDialog>
-          <Button className="group w-full md:w-auto bg-gradient-to-r from-primary to-accent hover:from-accent hover:to-primary transition-all duration-300 shadow-md">
+          <Button className="btn-action-new">
             <Plus className="h-4 w-4 mr-2 group-hover:rotate-90 transition-transform" />
             Nueva Compra
           </Button>

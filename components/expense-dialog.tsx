@@ -102,7 +102,7 @@ export function ExpenseDialog({ expense, children }: { expense?: Expense; childr
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
-      <DialogContent className="sm:max-w-[500px] bg-card/90 backdrop-blur-md border border-border/30">
+      <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             {expense ? (

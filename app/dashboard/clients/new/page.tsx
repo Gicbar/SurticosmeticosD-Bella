@@ -1,8 +1,7 @@
-import { requireAuth } from "@/lib/auth"
 import { ClientForm } from "@/components/client-form"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
-import { ArrowLeft, UserPlus } from "lucide-react"
+import { ArrowLeft, UserPlus,Users } from "lucide-react"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 
 export default function NewClientPage() {
@@ -15,8 +14,12 @@ export default function NewClientPage() {
             <ArrowLeft className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
           </Link>
         </Button>
-        <div>
-          <h1 className="dashboard-title">Nuevo Cliente</h1>
+        
+        <div className="dashboard-header">
+          <h1 className="dashboard-title flex items-center gap-3">
+            <Users className="dashboard-title-icon h-7 w-7 icon-products" />
+            Nuevo Cliente
+          </h1>
           <p className="dashboard-subtitle mt-1">
             Registra un nuevo cliente para tus ventas
           </p>

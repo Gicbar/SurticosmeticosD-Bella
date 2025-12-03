@@ -3,25 +3,14 @@
 import { useEffect, useState } from "react"
 import { usePathname, useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
-import { 
-  LogOut, 
-  ChevronDown, 
-  Bell, 
-  Slash,
-  Menu // Icono para mobile si lo necesitas a futuro
-} from "lucide-react"
+import { LogOut, ChevronDown, Bell, Slash, Menu } from "lucide-react"
 import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel,
+  DropdownMenuSeparator, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { Button } from "@/components/ui/button"
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar"
 
-// Mapa para nombres bonitos en las migas de pan
 const ROUTE_NAMES: Record<string, string> = {
   dashboard: "Resumen",
   pos: "Punto de Venta",
@@ -42,7 +31,6 @@ export function DashboardHeader() {
   const [user, setUser] = useState<any>(null)
   const [scrolled, setScrolled] = useState(false)
 
-  // Detectar scroll para efecto "glass"
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 10)
     window.addEventListener("scroll", handleScroll)
@@ -53,7 +41,6 @@ export function DashboardHeader() {
     const supabase = createClient()
     const fetchUser = async () => {
       const { data } = await supabase.auth.getUser()
-      console.log(data)
       if (data?.user) setUser(data.user)
     }
     fetchUser()
@@ -65,7 +52,6 @@ export function DashboardHeader() {
     router.push("/auth/login")
   }
 
-  // Generador de Migas de Pan (Breadcrumbs)
   const generateBreadcrumbs = () => {
     const paths = pathname.split('/').filter(Boolean)
     const displayPaths = paths.length > 1 && paths[0] === 'dashboard' ? paths.slice(1) : paths
@@ -93,58 +79,44 @@ export function DashboardHeader() {
     <header 
       className={`
         sticky top-0 z-30 flex h-16 w-full items-center justify-between px-6
-        transition-all duration-200 ease-in-out
+        transition-all duration-300 ease-in-out
         ${scrolled 
           ? "bg-background/80 backdrop-blur-lg border-b border-border/50 shadow-sm" 
           : "bg-transparent border-b border-transparent"
         }
       `}
     >
-      {/* 📍 IZQUIERDA: Breadcrumbs */}
       <div className="flex items-center gap-4">
-        {/* Botón Menú Mobile (Visible solo en mobile) */}
         <Button variant="ghost" size="icon" className="md:hidden -ml-2">
           <Menu className="h-5 w-5" />
         </Button>
-
         <div className="flex flex-col justify-center">
            {generateBreadcrumbs()}
         </div>
       </div>
 
-      {/* 👤 DERECHA: Perfil y Acciones */}
       <div className="flex items-center gap-3">
-        
-        {/* Notificaciones */}
-        <Button 
-          variant="ghost" 
-          size="icon" 
-          className="relative h-9 w-9 rounded-full text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors"
-        >
+        <Button variant="ghost" size="icon" className="relative h-9 w-9 rounded-full text-muted-foreground hover:text-primary hover:bg-primary/5 transition-colors">
           <Bell className="h-4 w-4" />
-          {/* Dot de notificación */}
           <span className="absolute top-2.5 right-2.5 h-1.5 w-1.5 rounded-full bg-destructive ring-2 ring-background" />
         </Button>
 
         <div className="h-5 w-px bg-border/60 mx-1 hidden sm:block" />
 
-        {/* Dropdown Usuario */}
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <Button variant="ghost" className="group flex items-center gap-3 pl-2 pr-1 py-1 h-auto rounded-full hover:bg-secondary/50 transition-all">
               <div className="flex flex-col items-end hidden sm:flex">
                 <span className="text-xs font-semibold text-foreground group-hover:text-primary transition-colors">
-                   {user?.email?.email || 'Usuario'}
+                   {user?.email?.split('@')[0] || 'Usuario'}
                 </span>
               </div>
-              
               <Avatar className="h-8 w-8 border-2 border-background shadow-sm group-hover:border-primary/20 transition-colors">
                 <AvatarImage src={user?.user_metadata?.avatar_url} />
                 <AvatarFallback className="bg-gradient-to-br from-primary to-accent text-primary-foreground text-xs font-bold">
                   {user?.email?.charAt(0).toUpperCase() || 'D'}
                 </AvatarFallback>
               </Avatar>
-              
               <ChevronDown className="h-3 w-3 text-muted-foreground opacity-50 group-hover:opacity-100 transition-opacity" />
             </Button>
           </DropdownMenuTrigger>
@@ -157,11 +129,7 @@ export function DashboardHeader() {
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator className="bg-border/50" />
-            <DropdownMenuSeparator className="bg-border/50" />
-            <DropdownMenuItem 
-              onClick={handleLogout}
-              className="rounded-lg cursor-pointer text-destructive focus:text-destructive focus:bg-destructive/10"
-            >
+            <DropdownMenuItem onClick={handleLogout} className="rounded-lg cursor-pointer text-destructive focus:text-destructive focus:bg-destructive/10">
               <LogOut className="mr-2 h-4 w-4" />
               <span>Cerrar Sesión</span>
             </DropdownMenuItem>

@@ -65,7 +65,7 @@ export function CategoryDialog({ category, children }: { category?: Category; ch
     }
   }
 
-  return (
+  return ( 
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">

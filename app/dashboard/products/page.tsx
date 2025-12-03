@@ -33,22 +33,21 @@ export default async function ProductsPage() {
     })) || []
 
   return (
-    <div className="flex-1 flex flex-col bg-card/70 backdrop-blur-md p-4 md:p-6 rounded-2xl shadow-inner border border-border/20">
+    <div className="dashboard-page-container">
       {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 pb-4 border-b border-border">
-        <div>
+      <div className="dashboard-toolbar">
+        <div className="dashboard-header">
           <h1 className="dashboard-title flex items-center gap-3">
-            <Package className="h-7 w-7 icon-products" />
+            <Package className="dashboard-title-icon h-7 w-7 icon-products" />
             Catálogo de Productos
           </h1>
           <p className="dashboard-subtitle mt-1">
             Gestión completa de <span>{productsWithStock.length} productos</span>
           </p>
         </div>
-        <Button className="group w-full md:w-auto bg-gradient-to-r from-primary to-accent hover:from-accent hover:to-primary transition-all duration-300 shadow-md">
-                      
-          <Link href="/dashboard/products/new" className="flex items-center gap-2">
-            <Plus className="h-4 w-4 mr-2 group-hover:rotate-90 transition-transform" />
+        <Button className="btn-action-new">
+          <Link href="/dashboard/products/new" className="flex items-center relative z-10">
+            <Plus className="icon-plus"/>
             Nuevo Producto
           </Link>
         </Button>

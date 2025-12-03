@@ -1,10 +1,9 @@
 import { requireAuth,getUserPermissions } from "@/lib/auth"
 import { createClient } from "@/lib/supabase/server"
 import { Button } from "@/components/ui/button"
-import { Plus, Users, UserPlus,Phone ,Mail,Percent  } from "lucide-react"
+import { Plus, Users, UserPlus  } from "lucide-react"
 import { ClientsTable } from "@/components/clients-table"
 import Link from "next/link"
-import { StatCard } from "@/components/stat-card" 
 import { redirect } from "next/navigation" 
 
 export default async function ClientsPage() {
@@ -27,56 +26,22 @@ export default async function ClientsPage() {
     <div className="flex-1 flex flex-col bg-card/70 backdrop-blur-md p-4 md:p-6 rounded-2xl shadow-inner border border-border/20">
       {/* Header Premium */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 pb-4 border-b border-border">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-primary/10 group">
-            <Users className="h-6 w-6 icon-inventory group-hover:scale-110 transition-transform" />
-          </div>
-          <div>
-            <h1 className="dashboard-title">Clientes</h1>
-            <p className="dashboard-subtitle mt-1">
-              {totalClientes} clientes registrados • {clientesConEmail} con email • {clientesConTelefono} con teléfono
-            </p>
-          </div>
+        
+        <div className="dashboard-header">
+          <h1 className="dashboard-title flex items-center gap-3">
+            <Users className="dashboard-title-icon h-7 w-7 icon-products" />
+            Clientes
+          </h1>
+          <p className="dashboard-subtitle mt-1">
+            {totalClientes} clientes registrados • {clientesConEmail} con email • {clientesConTelefono} con teléfono
+          </p>
         </div>
-        <Button
-          asChild
-          className="group w-full md:w-auto bg-gradient-to-r from-primary to-accent hover:from-accent hover:to-primary transition-all duration-300 shadow-md"
-        >
+        <Button  asChild  className="btn-action-new">
           <Link href="/dashboard/clients/new">
-            <Plus className="h-4 w-4 mr-2 group-hover:rotate-90 transition-transform" />
+            <Plus  className="icon-plus"/>
             Nuevo Cliente
           </Link>
         </Button>
-      </div>
-
-      {/* Stats Cards Premium */}
-      <div className="grid gap-4 md:gap-5 md:grid-cols-2 lg:grid-cols-4 mb-6">
-        <StatCard 
-          title="Total Clientes" 
-          value={totalClientes} 
-          icon={<Users className="h-5 w-5" />} 
-          variant="primary"
-          subtitle="Registros activos"
-        />
-        <StatCard 
-          title="Con Contacto" 
-          value={clientesConTelefono} 
-          icon={<Phone className="h-5 w-5" />} 
-          subtitle="Teléfono registrado"
-        />
-        <StatCard 
-          title="Con Email" 
-          value={clientesConEmail} 
-          icon={<Mail className="h-5 w-5" />} 
-          variant="accent"
-          subtitle="Email válido"
-        />
-        <StatCard 
-          title="Tasa de Contacto" 
-          value={`${totalClientes > 0 ? Math.round((clientesConTelefono / totalClientes) * 100) : 0}%`} 
-          icon={<Percent className="h-5 w-5" />} 
-          subtitle="Clientes alcanzables"
-        />
       </div>
 
       {/* Tabla o Estado Vacío Premium */}

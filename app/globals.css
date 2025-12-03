@@ -4,119 +4,111 @@
 @custom-variant dark (&:is(.dark *));
 
 /* ============================================================
-   🌸 Variables de Tema - SurtiCosméticos D’Bella
-   Paleta Premium: Nude suave + Malva definido + Dorado
+   ✨ Variables - Estilo "Iridescent Beauty" (Inspirado en RSNL)
+   Paleta: Orquídea Profundo, Rosa Cuarzo, Oro Champán.
    ============================================================ */
 
 :root {
-  /* Colores base - Fondo NUDE muy suave */
-  --background: oklch(0.97 0.008 40); /* Beige/nude casi neutro */
-  --foreground: oklch(0.28 0.02 30);  /* Gris oscuro cálido */
-  
-  /* Cards & Popovers */
-  --card: oklch(0.99 0.005 50);
-  --card-foreground: oklch(0.28 0.02 30);
-  --popover: oklch(0.99 0.005 50);
-  --popover-foreground: oklch(0.28 0.02 30);
-  
-  /* Primarios - Malva definido */
-  --primary: oklch(0.62 0.15 330); /* Malva medio-saturado */
-  --primary-foreground: oklch(0.99 0 0);
-  
-  /* Secundarios - Rosa polvo */
-  --secondary: oklch(0.94 0.03 340); /* Rosa muy apagado */
-  --secondary-foreground: oklch(0.35 0.04 330);
-  
-  /* Gradientes para títulos - Definidos y cortos */
-  --gradient-start: oklch(0.60 0.18 320); /* Morado vibrante */
-  --gradient-middle: oklch(0.58 0.20 340); /* Magenta suave */
-  --gradient-end: oklch(0.55 0.18 20);   /* Coral nude */
-  
-  /* Estados */
-  --muted: oklch(0.92 0.01 45);
-  --muted-foreground: oklch(0.58 0.02 40);
-  --accent: oklch(0.88 0.08 70); /* Dorado suave */
-  --accent-foreground: oklch(0.35 0.06 50);
-  --destructive: oklch(0.58 0.22 25);
-  --destructive-foreground: oklch(0.99 0 0);
-  
-  /* Bordes & UI */
-  --border: oklch(0.85 0.03 40); /* Beige medio */
-  --input: oklch(0.85 0.03 40);
-  --ring: oklch(0.68 0.12 330);
-  
-  /* Gráficos */
-  --chart-1: oklch(0.65 0.18 330);
-  --chart-2: oklch(0.70 0.12 70);
-  --chart-3: oklch(0.55 0.16 10);
-  --chart-4: oklch(0.65 0.12 180);
-  --chart-5: oklch(0.62 0.18 280);
-  
-  /* Dimensiones */
-  --radius: 0.75rem;
+  /* FONDO: Un blanco con un tinte casi imperceptible de lavanda */
+  --background: oklch(0.98 0.005 320); 
+  --foreground: oklch(0.25 0.04 310); /* Gris berenjena oscuro */
+
+  /* CARDS: Cristal pulido */
+  --card: oklch(1 0 0 / 0.7);
+  --card-foreground: oklch(0.25 0.04 310);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.25 0.04 310);
+
+  /* PRIMARIO: "Royal Mauve" - Gradiente base */
+  --primary: oklch(0.60 0.18 320); /* Morado orquídea vibrante */
+  --primary-foreground: oklch(0.98 0.01 320);
+
+  /* SECUNDARIO: "Rose Quartz" */
+  --secondary: oklch(0.92 0.04 340); 
+  --secondary-foreground: oklch(0.40 0.10 330);
+
+  /* ACENTO: "Champagne Gold" - Para detalles finos */
+  --accent: oklch(0.88 0.12 85); 
+  --accent-foreground: oklch(0.35 0.08 50);
+
+  /* TEXTO GRADIENTES (Para títulos) */
+  --text-gradient-start: oklch(0.30 0.08 310);
+  --text-gradient-end: oklch(0.55 0.15 330);
+
+  /* ESTADOS */
+  --muted: oklch(0.96 0.01 320);
+  --muted-foreground: oklch(0.55 0.05 310);
+  --destructive: oklch(0.60 0.20 20);
+  --destructive-foreground: oklch(0.98 0 0);
+
+  --border: oklch(0.92 0.02 320);
+  --input: oklch(0.95 0.01 320);
+  --ring: oklch(0.60 0.18 320);
+
+  /* Chart Colors (Tonos Joya) */
+  --chart-1: oklch(0.60 0.18 320); /* Amethyst */
+  --chart-2: oklch(0.70 0.15 10);  /* Coral */
+  --chart-3: oklch(0.75 0.15 60);  /* Topaz */
+  --chart-4: oklch(0.65 0.12 180); /* Turquoise */
+  --chart-5: oklch(0.60 0.10 280); /* Sapphire */
+
+  --radius: 0.75rem; 
   
   /* Sidebar */
-  --sidebar: oklch(0.97 0.008 40);
-  --sidebar-foreground: oklch(0.28 0.02 30);
-  --sidebar-primary: oklch(0.62 0.15 330);
-  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar: oklch(0.98 0.005 320);
+  --sidebar-foreground: oklch(0.30 0.04 310);
+  --sidebar-primary: oklch(0.60 0.18 320);
+  --sidebar-primary-foreground: oklch(0.98 0 0);
   --sidebar-accent: oklch(0.94 0.03 340);
-  --sidebar-accent-foreground: oklch(0.35 0.04 330);
-  --sidebar-border: oklch(0.85 0.03 40);
-  --sidebar-ring: oklch(0.68 0.12 330);
+  --sidebar-accent-foreground: oklch(0.30 0.05 330);
+  --sidebar-border: oklch(0.92 0.02 320);
+  --sidebar-ring: oklch(0.60 0.18 320);
 }
 
 .dark {
-  /* Fondo oscuro gris neutro */
-  --background: oklch(0.18 0.01 250);
-  --foreground: oklch(0.92 0.01 330);
+  /* MODO OSCURO: "Deep Cosmic" */
+  --background: oklch(0.12 0.03 300);
+  --foreground: oklch(0.92 0.01 320);
+
+  --card: oklch(0.16 0.03 300 / 0.6);
+  --card-foreground: oklch(0.92 0.01 320);
+  --popover: oklch(0.16 0.03 300);
+  --popover-foreground: oklch(0.92 0.01 320);
+
+  --primary: oklch(0.70 0.18 330);
+  --primary-foreground: oklch(0.12 0.03 300);
+
+  --secondary: oklch(0.25 0.06 330);
+  --secondary-foreground: oklch(0.90 0.02 330);
   
-  --card: oklch(0.22 0.02 260);
-  --card-foreground: oklch(0.92 0.01 330);
-  --popover: oklch(0.22 0.02 260);
-  --popover-foreground: oklch(0.92 0.01 330);
+  --accent: oklch(0.30 0.08 300);
+  --accent-foreground: oklch(0.90 0.02 320);
+
+  --text-gradient-start: oklch(0.95 0.02 320);
+  --text-gradient-end: oklch(0.80 0.10 330);
+
+  --muted: oklch(0.20 0.03 300);
+  --muted-foreground: oklch(0.65 0.04 310);
   
-  --primary: oklch(0.75 0.18 340); /* Malva claro */
-  --primary-foreground: oklch(0.18 0.01 250);
+  --destructive: oklch(0.60 0.20 20);
+  --destructive-foreground: oklch(0.95 0 0);
+
+  --border: oklch(0.22 0.04 300);
+  --input: oklch(0.22 0.04 300);
+  --ring: oklch(0.70 0.18 330);
   
-  --secondary: oklch(0.30 0.04 340); /* Rosa oscuro */
-  --secondary-foreground: oklch(0.92 0.01 330);
-  
-  /* Gradientes oscuros - Vibrantes */
-  --gradient-start: oklch(0.80 0.22 320); /* Lavanda brillante */
-  --gradient-middle: oklch(0.78 0.25 10);  /* Rosa intenso */
-  --gradient-end: oklch(0.75 0.22 340);   /* Magenta claro */
-  
-  --muted: oklch(0.30 0.02 260);
-  --muted-foreground: oklch(0.70 0.02 330);
-  --accent: oklch(0.65 0.10 70); /* Dorado medio */
-  --accent-foreground: oklch(0.92 0.01 330);
-  --destructive: oklch(0.58 0.22 25);
-  --destructive-foreground: oklch(0.92 0.01 330);
-  
-  --border: oklch(0.35 0.04 260);
-  --input: oklch(0.35 0.04 260);
-  --ring: oklch(0.72 0.15 330);
-  
-  --chart-1: oklch(0.75 0.18 340);
-  --chart-2: oklch(0.65 0.10 70);
-  --chart-3: oklch(0.72 0.18 10);
-  --chart-4: oklch(0.70 0.12 180);
-  --chart-5: oklch(0.68 0.18 280);
-  
-  --sidebar: oklch(0.18 0.01 250);
-  --sidebar-foreground: oklch(0.92 0.01 330);
-  --sidebar-primary: oklch(0.75 0.18 340);
-  --sidebar-primary-foreground: oklch(0.18 0.01 250);
-  --sidebar-accent: oklch(0.30 0.04 340);
-  --sidebar-accent-foreground: oklch(0.92 0.01 330);
-  --sidebar-border: oklch(0.35 0.04 260);
-  --sidebar-ring: oklch(0.72 0.15 330);
+  --sidebar: oklch(0.10 0.03 300);
+  --sidebar-foreground: oklch(0.90 0.01 320);
+  --sidebar-primary: oklch(0.70 0.18 330);
+  --sidebar-primary-foreground: oklch(0.12 0.03 300);
+  --sidebar-accent: oklch(0.22 0.05 310);
+  --sidebar-accent-foreground: oklch(0.92 0.01 320);
+  --sidebar-border: oklch(0.20 0.03 300);
+  --sidebar-ring: oklch(0.70 0.18 330);
 }
 
 @theme inline {
-  --font-sans: "Geist", "Geist Fallback", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-  --font-mono: "Geist Mono", "Geist Mono Fallback", "JetBrains Mono", monospace;
+  --font-sans: "Geist", "Inter", "Helvetica Neue", sans-serif;
   
   --color-background: var(--background);
   --color-foreground: var(--foreground);
@@ -137,16 +129,10 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
-  --color-chart-1: var(--chart-1);
-  --color-chart-2: var(--chart-2);
-  --color-chart-3: var(--chart-3);
-  --color-chart-4: var(--chart-4);
-  --color-chart-5: var(--chart-5);
   
   --radius-sm: calc(var(--radius) - 0.25rem);
   --radius-md: calc(var(--radius) - 0.125rem);
   --radius-lg: var(--radius);
-  --radius-xl: calc(var(--radius) + 0.25rem);
   
   --color-sidebar: var(--sidebar);
   --color-sidebar-foreground: var(--sidebar-foreground);
@@ -161,387 +147,236 @@
 @layer base {
   body {
     @apply bg-background text-foreground antialiased;
-  }
-  
-  /* Fix SweetAlert2 z-index */
-  .swal-container-high {
-    z-index: 99999 !important;
+    /* Fondo con ruido sutil y luz ambiental (Estilo RSNL) */
+    background-image: 
+      radial-gradient(circle at 0% 0%, color-mix(in oklch, var(--primary) 5%, transparent), transparent 40%),
+      radial-gradient(circle at 100% 100%, color-mix(in oklch, var(--secondary) 10%, transparent), transparent 40%);
+    background-attachment: fixed;
   }
 }
 
 @layer components {
+
   /* ============================================================
-     🎀 Tablas Premium
+     📄 Estructura de Páginas (NUEVO: Para limpiar el HTML)
      ============================================================ */
-  .table-container {
-    max-height: 500px;
-    overflow-y: auto;
-    border-radius: var(--radius-lg);
-    border: 1px solid var(--border);
-    background: var(--card);
-    backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px);
+  .dashboard-page-container {
+    @apply flex-1 flex flex-col bg-card/70 backdrop-blur-md p-4 md:p-6 rounded-2xl shadow-inner border border-border/20;
   }
 
-  /* Scrollbar minimalista */
-  .table-container::-webkit-scrollbar {
-    width: 8px;
-  }
-  .table-container::-webkit-scrollbar-track {
-    background: transparent;
-  }
-  .table-container::-webkit-scrollbar-thumb {
-    background: var(--muted-foreground);
-    border-radius: 4px;
-  }
-  .table-container::-webkit-scrollbar-thumb:hover {
-    background: var(--primary);
-  }
-
-  .table-base {
-    @apply w-full border-separate;
-    border-spacing: 0;
-    border-radius: var(--radius-lg);
-    overflow: hidden;
-    background: var(--card);
-    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-  }
-
-  .table-header {
-    background: linear-gradient(
-      135deg,
-      var(--secondary),
-      var(--accent)
-    );
-    color: var(--secondary-foreground);
-    @apply sticky top-0 z-10;
-  }
-
-  .table-cell {
-    @apply px-4 py-3 text-left;
-    border-bottom: 1px solid var(--border);
-    color: var(--foreground);
-    font-size: 0.875rem;
-    transition: background-color 0.15s ease;
-  }
-
-  .table-row:nth-child(even) {
-    background-color: color-mix(in oklch, var(--muted) 40%, transparent);
-  }
-
-  .table-row:hover {
-    background-color: color-mix(in oklch, var(--accent) 25%, transparent);
-    cursor: pointer;
-  }
-
-  th.table-cell {
-    @apply font-semibold uppercase tracking-wide;
-    font-size: 0.75rem;
-    color: var(--secondary-foreground);
-    border-bottom: 2px solid var(--primary);
-    padding: 1rem 1.25rem;
-  }
-
-  .table-base tr:last-child td:first-child {
-    border-bottom-left-radius: var(--radius-lg);
-  }
-  .table-base tr:last-child td:last-child {
-    border-bottom-right-radius: var(--radius-lg);
-  }
-
-  /* Badges especiales */
-  .table-cell.stock-low::after {
-    content: "⚠️";
-    margin-left: 0.5rem;
-    filter: drop-shadow(0 0 2px var(--destructive));
-  }
-
-  .table-row.premium {
-    border-left: 4px solid var(--accent);
-  }
-
-  .badge-category {
-    @apply inline-block px-2 py-1 rounded-full text-xs font-semibold;
-    background: linear-gradient(135deg, var(--secondary), var(--accent));
-    color: var(--secondary-foreground);
-    box-shadow: 0 2px 4px rgb(0 0 0 / 0.05);
+  .dashboard-toolbar {
+    @apply flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 pb-4 border-b border-border;
   }
 
   /* ============================================================
-     💎 Cards Premium
+     🎨 Títulos y Textos
      ============================================================ */
-  .card {
-    @apply rounded-xl border transition-all duration-300;
-    background: var(--card);
-    border-color: var(--border);
-    backdrop-filter: blur(6px);
-    -webkit-backdrop-filter: blur(6px);
-  }
-
-  .card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 10px 20px -5px rgb(0 0 0 / 0.1);
-    border-color: var(--primary);
-  }
-
-  .card-header {
-    @apply px-5 py-3 rounded-t-xl font-semibold;
-    background: linear-gradient(135deg, var(--secondary), var(--accent));
-    color: var(--secondary-foreground);
-    border-bottom: 1px solid var(--border);
-  }
-
-  .card-content {
-    @apply p-5;
-    color: var(--foreground);
-  }
-
-  /* ============================================================
-     📊 Dashboard Components
-     ============================================================ */
-  .card-dashboard {
-    @apply border border-border rounded-xl shadow-sm hover:shadow-md transition-all duration-200;
-    background: var(--card);
-    backdrop-filter: blur(4px);
-    -webkit-backdrop-filter: blur(4px);
-  }
-
-  .card-dashboard:hover {
-    border-color: var(--primary);
-  }
-
-  .card-header-dashboard {
-    @apply flex items-center justify-between border-b border-border pb-2 mb-2 px-4 pt-4;
-  }
-
-  .card-title-dashboard {
-    @apply text-sm font-semibold;
-    color: var(--foreground);
-  }
-
-  .card-value-dashboard {
-    @apply text-3xl font-bold mt-1 transition-transform;
-    color: var(--primary);
-  }
-
-  .card-dashboard:hover .card-value-dashboard {
-    transform: scale(1.05);
-  }
-
-  .card-subtitle-dashboard {
-    @apply text-xs mt-1;
-    color: var(--muted-foreground);
-  }
-
-  /* ============================================================
-     🎯 HEADERS & TÍTULOS - SIN DIFUMINADO, FIRME DEFINICIÓN
-     ============================================================ */
-  .dashboard-header {
-    @apply mb-6 pb-4 border-b border-border;
-  }
-
   .dashboard-title {
-    @apply text-2xl font-extrabold flex items-center gap-3 relative;
-    background: linear-gradient(
-      90deg,
-      var(--gradient-start) 0%,
-      var(--gradient-middle) 50%,
-      var(--gradient-end) 100%
-    );
+    @apply text-3xl font-extrabold tracking-tight mb-2 flex items-center gap-3;
+    /* Gradiente sutil en el texto */
+    background: linear-gradient(90deg, var(--foreground) 30%, var(--primary) 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    letter-spacing: -0.02em;
-    /* Evitar difuminado */
-    -webkit-filter: drop-shadow(0 0 0 transparent);
-    filter: drop-shadow(0 0 0 transparent);
+    background-clip: text;
+    filter: drop-shadow(0 2px 10px rgba(0,0,0,0.05));
   }
-
-  .dashboard-title::after {
-    content: "";
-    @apply absolute bottom-0 left-0 h-1 rounded-full;
-    width: 3.5rem;
-    background: linear-gradient(
-      90deg,
-      var(--gradient-start),
-      var(--gradient-end)
-    );
-    transition: width 0.4s ease;
-  }
-
-  .dashboard-title:hover::after {
-    width: 6rem;
-  }
-
-  .dashboard-title svg {
-    color: var(--gradient-start);
-    transition: transform 0.3s ease, color 0.3s ease;
-  }
-
-  .dashboard-title:hover svg {
-    transform: scale(1.15);
-    color: var(--gradient-end);
+  
+  /* Icono decorativo al lado del título */
+  .dashboard-title-icon {
+    @apply h-8 w-8 text-primary p-1.5 bg-primary/10 rounded-lg shadow-sm;
   }
 
   .dashboard-subtitle {
-    @apply text-sm italic mt-2;
-    color: var(--muted-foreground);
-    letter-spacing: 0.2px;
-    line-height: 1.4;
+    @apply text-muted-foreground text-sm font-medium ml-1;
   }
 
-  .dashboard-subtitle span {
+  /* ============================================================
+     ✨ Botón de Acción Principal (New Item)
+     ============================================================ */
+  .btn-action-new {
+    /* Estructura */
+    @apply relative overflow-hidden inline-flex items-center justify-center rounded-xl text-sm font-semibold transition-all duration-300;
+    @apply pl-4 pr-6 py-2.5;
+    
+    /* Estilo Visual */
+    background: linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary) 70%, black));
+    color: white;
+    border: 1px solid transparent;
+    box-shadow: 0 4px 15px -3px color-mix(in oklch, var(--primary) 40%, transparent);
+  }
+
+  /* Hover del botón */
+  .btn-action-new:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px -5px color-mix(in oklch, var(--primary) 60%, transparent);
+    border-color: rgba(255,255,255,0.2);
+  }
+
+  /* Efecto Shimmer (Luz cruzando) */
+  .btn-action-new::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 200%;
+    height: 100%;
+    background: linear-gradient(115deg, transparent, rgba(255, 255, 255, 0.25), transparent);
+    transition: left 0.6s ease-in-out;
+    z-index: 1;
+  }
+
+  .btn-action-new:hover::after {
+    left: 100%;
+  }
+
+  /* Animación del Icono Plus dentro del botón */
+  .btn-action-new .icon-plus {
+    @apply mr-2 h-4 w-4 relative z-10;
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+
+  /* Selector anidado para rotar el icono al hover del botón */
+  .btn-action-new:hover .icon-plus {
+    transform: rotate(90deg) scale(1.2);
     color: var(--accent);
-    font-weight: 600;
   }
 
-  /* Título principal del header */
-  .header-title h1 {
-    @apply text-2xl font-extrabold;
-    background: linear-gradient(
-      90deg,
-      var(--gradient-start) 0%,
-      var(--gradient-middle) 50%,
-      var(--gradient-end) 100%
-    );
+  /* ============================================================
+     ✨ Botones Secundarios
+     ============================================================ */
+  .btn-elegant-secondary {
+    @apply bg-background text-foreground border border-border rounded-xl px-4 py-2 font-medium transition-all duration-200;
+  }
+
+  .btn-elegant-secondary:hover {
+    @apply border-primary/50 text-primary bg-primary/5 shadow-sm;
+  }
+
+  /* ============================================================
+     💎 Cards y Contenedores
+     ============================================================ */
+  .card {
+    @apply rounded-2xl border border-white/40 dark:border-white/10 transition-all duration-500;
+    background: var(--card);
+    backdrop-filter: blur(8px);
+    box-shadow: 0 4px 20px -10px color-mix(in oklch, var(--primary) 10%, transparent);
+  }
+
+  .card-header {
+    @apply p-6 pb-2 border-b border-border/10;
+  }
+
+  .card-title {
+    @apply text-lg font-bold tracking-tight text-foreground;
+  }
+
+  /* ============================================================
+     📊 KPI Cards
+     ============================================================ */
+  .kpi-card {
+    @apply relative overflow-hidden rounded-2xl p-6 border border-border/60 bg-gradient-to-br from-card to-background shadow-sm hover:shadow-md transition-all duration-300;
+  }
+  
+  .kpi-card:hover .kpi-icon {
+    transform: scale(1.1) rotate(5deg);
+    @apply bg-primary text-white;
+  }
+
+  .kpi-icon {
+    @apply absolute right-5 top-5 h-10 w-10 rounded-lg bg-secondary text-primary flex items-center justify-center transition-all duration-300 shadow-inner;
+  }
+
+  .kpi-value {
+    @apply text-3xl font-extrabold mt-4 mb-1 block;
+    background: linear-gradient(90deg, var(--foreground), var(--primary));
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
-    transition: transform 0.3s ease, filter 0.3s ease;
-    letter-spacing: -0.02em;
-    /* Evitar difuminado */
-    -webkit-filter: drop-shadow(0 0 0 transparent);
-    filter: drop-shadow(0 0 0 transparent);
   }
 
-  .header-title h1:hover {
-    @apply scale-105;
-    filter: drop-shadow(0 4px 8px rgb(0 0 0 / 0.15));
+  .kpi-label {
+    @apply text-xs font-semibold text-muted-foreground uppercase tracking-widest;
   }
 
-  @layer utilities {
-  /* Text shadow for titles to avoid blur */
-  .text-shadow-none {
-    text-shadow: none;
-    -webkit-text-shadow: none;
+  /* ============================================================
+     🧼 Inputs
+     ============================================================ */
+  .input-modern {
+    @apply flex h-11 w-full rounded-xl border border-border bg-white/50 dark:bg-black/20 px-4 py-2 text-sm outline-none transition-all placeholder:text-muted-foreground;
+  }
+
+  .input-modern:focus {
+    @apply border-primary bg-white dark:bg-black/40 shadow-[0_0_0_4px_rgba(var(--primary),0.1)];
+    box-shadow: 0 0 0 4px color-mix(in oklch, var(--primary) 10%, transparent);
+  }
+
+  /* ============================================================
+     🎀 Tablas (Table Container)
+     ============================================================ */
+  .table-container {
+    @apply w-full rounded-2xl border border-border/50 overflow-hidden shadow-sm bg-white/40 dark:bg-card/20 backdrop-blur-md;
+  }
+
+  .table-header {
+    @apply bg-muted/50 border-b border-border/60;
   }
   
-  /* Better line clamp */
-  .line-clamp-1 {
-    display: -webkit-box;
-    -webkit-line-clamp: 1;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
+  .table-header th {
+    @apply py-3 px-4 text-xs font-bold text-muted-foreground uppercase tracking-wider;
   }
   
-  .line-clamp-2 {
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
+  .table-row {
+    @apply border-b border-border/30 hover:bg-primary/5 transition-colors duration-200;
   }
+  
+  .table-cell {
+    @apply py-3 px-4 text-sm text-foreground;
+  }
+
+  /* ============================================================
+     🏷️ Badges
+     ============================================================ */
+  .badge {
+    @apply inline-flex items-center rounded-md px-2 py-1 text-xs font-medium ring-1 ring-inset;
+  }
+  .badge-primary { @apply bg-primary/10 text-primary ring-primary/20; }
+  .badge-success { @apply bg-emerald-50 text-emerald-700 ring-emerald-600/20 dark:bg-emerald-900/20 dark:text-emerald-400; }
+  .badge-warning { @apply bg-amber-50 text-amber-700 ring-amber-600/20 dark:bg-amber-900/20 dark:text-amber-400; }
+  /* Estilos para Select (Dropdowns) */
+.select-trigger {
+  @apply flex h-10 w-full items-center justify-between rounded-md border border-border bg-background px-3 py-2 text-sm outline-none transition-all;
 }
 
-    @layer components {
-      /* Íconos de inventario */
-      .icon-inventory { @apply text-chart-2; }
-      
-      /* Micro-animaciones */
-      .table-row { @apply transition-all duration-200; }
-      .table-row:hover { @apply bg-primary/5 hover:translate-x-1; }
-      
-      /* Fila agotada */
-      .table-row.opacity-60 { @apply bg-muted/20; }
-      
-      .icon-products { @apply text-primary; }
-      .icon-sales { @apply text-chart-2; }
-      .icon-revenue { @apply text-chart-3; }
-      .icon-profit { @apply text-chart-4; }
-      .icon-stock { @apply text-destructive; }
-      .icon-clients { @apply text-chart-5; }
-      .icon-categories { @apply text-chart-5; } 
-      /* Íconos de productos */
-      .icon-products { @apply text-chart-1; }
-      .icon-add { @apply text-accent; }
-      /* Íconos del POS */
-      .icon-pos { @apply text-chart-2; }
-      .icon-cart { @apply text-chart-5; }
-      .icon-client { @apply text-chart-5; }
-      .icon-payment { @apply text-chart-4; }
-      .icon-success { @apply text-chart-4; }
+.select-content {
+  @apply z-50 min-w-[8rem] overflow-hidden rounded-lg border border-border bg-card text-popover-foreground shadow-lg;
+  backdrop-filter: blur(8px);
+}
 
-      /* Botones de tamaño mobile */
-      .size-icon-mobile {
-        width: 2.5rem;   /* 40px */
-        height: 2.5rem;
-      }
-      
-      @screen md {
-        .size-icon-mobile {
-          width: 2rem;   /* 32px */
-          height: 2rem;
-        }
-      }
+.select-item {
+  @apply relative flex w-full cursor-pointer select-none items-center rounded-sm px-4 py-2 text-sm outline-none transition-colors;
+  @apply focus:bg-secondary/30 data-[highlighted]:bg-secondary/20;
+}
 
-      /* Input con icono */
-      .input-with-icon {
-        @apply relative;
-      }
-      .input-icon {
-        @apply absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground 
-              group-focus-within:text-primary transition-colors pointer-events-none;
-      }
-      /* Badge para métodos de pago */
-      .badge-payment {
-        @apply inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium
-              bg-gradient-to-r from-accent/20 via-accent/10 to-transparent
-              border border-accent/30 text-accent-foreground;
-      }
+.select-label {
+  @apply px-4 py-1.5 text-sm font-medium text-muted-foreground;
+}
 
-      /* Badge para stock */
-      .badge-stock-low {
-        @apply bg-gradient-to-r from-destructive/20 via-destructive/10 to-transparent
-              border border-destructive/30 text-destructive;
-      }
-      
-      .badge-stock {
-        @apply inline-flex items-center px-2 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wide;
-      }
-      .badge-stock.in-stock {
-        background: color-mix(in oklch, var(--chart-4) 15%, transparent);
-        color: var(--chart-4);
-        border: 1px solid color-mix(in oklch, var(--chart-4) 30%, transparent);
-      }
-      .badge-stock.low-stock {
-        background: color-mix(in oklch, var(--destructive) 15%, transparent);
-        color: var(--destructive);
-        border: 1px solid color-mix(in oklch, var(--destructive) 30%, transparent);
-      }
-      .badge-stock.out-stock {
-        background: color-mix(in oklch, var(--muted-foreground) 10%, transparent);
-        color: var(--muted-foreground);
-        border: 1px solid color-mix(in oklch, var(--muted-foreground) 25%, transparent);
-      }
-      /* ✨ Nueva utilidad para paneles de vidrio premium */
-  .glass-panel {
-    @apply bg-white/70 dark:bg-black/40 backdrop-blur-xl border border-white/20 dark:border-white/10;
-  }
+/* Estilos específicos para el POS */
+.pos-select-trigger {
+  @apply h-11 border border-border bg-background rounded-lg;
+}
 
-  /* ✨ Estilo para el Item de Navegación Activo */
-  .nav-item-active {
-    @apply bg-primary/10 text-primary font-semibold;
-  }
-  
-  .nav-item-active::before {
-    content: "";
-    position: absolute;
-    left: 0;
-    top: 50%;
-    transform: translateY(-50%);
-    height: 60%;
-    width: 4px;
-    border-radius: 0 4px 4px 0;
-    background-color: var(--primary);
-    box-shadow: 0 0 10px var(--primary);
-  }
-    }
-    
+.pos-select-content {
+  @apply bg-card border-border rounded-lg shadow-lg;
+}
+
+.pos-select-item {
+  @apply hover:bg-secondary/20 cursor-pointer focus:bg-secondary/30 rounded-md;
+}
+
+.pos-select-item-highlighted {
+  @apply bg-secondary/20;
+}
+
+
+
 }

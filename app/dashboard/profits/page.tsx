@@ -1,10 +1,10 @@
-import { requireAuth , getUserPermissions} from "@/lib/auth"
+import { requireAuth, getUserPermissions } from "@/lib/auth"
 import { createClient } from "@/lib/supabase/server"
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card" 
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { PiggyBank, TrendingUp, ShoppingCart, DollarSign, Percent, Plus } from "lucide-react"
 import { ProfitsTable } from "@/components/profits-table"
 import { ExportProfitsButton } from "@/components/export-profits-button"
-import { redirect } from "next/navigation" 
+import { redirect } from "next/navigation"
 
 // ✅ FUNCIÓN FORMATCURRENCY
 function formatCurrency(amount: number): string {
@@ -13,14 +13,14 @@ function formatCurrency(amount: number): string {
     currency: "COP",
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  })
+  });
 }
 
-// ✅ COMPONENTE STATCARD PREMIUM
-function StatCard({ 
-  title, 
-  value, 
-  icon, 
+// ✅ COMPONENTE STATCARD
+function StatCard({
+  title,
+  value,
+  icon,
   variant = "default",
   subtitle = null
 }: {
@@ -31,23 +31,23 @@ function StatCard({
   subtitle?: string | null
 }) {
   const variants = {
-    default: "icon-inventory",
+    default: "text-muted-foreground",
     primary: "text-primary",
     accent: "text-chart-4",
-  }
-  
+  };
+
   return (
-    <Card className="card-dashboard group">
-      <CardHeader className="card-header-dashboard flex flex-row items-center justify-between pb-2">
-        <CardTitle className="card-title-dashboard text-xs uppercase tracking-wide">
+    <Card className="card group hover:shadow-md transition-shadow">
+      <CardHeader className="card-header flex flex-row items-center justify-between pb-2">
+        <CardTitle className="card-title text-xs uppercase tracking-wide text-muted-foreground">
           {title}
         </CardTitle>
-        <div className={`${variants[variant]} group-hover:scale-110 transition-transform duration-200`}>
+        <div className={`h-5 w-5 ${variants[variant]} group-hover:scale-110 transition-transform duration-200`}>
           {icon}
         </div>
       </CardHeader>
       <CardContent>
-        <div className="card-value-dashboard text-xl md:text-2xl font-bold">
+        <div className="text-xl md:text-2xl font-bold text-foreground">
           {value}
         </div>
         {subtitle && (
@@ -55,22 +55,19 @@ function StatCard({
         )}
       </CardContent>
     </Card>
-  )
+  );
 }
 
 // ✅ PÁGINA PRINCIPAL
 export default async function ProfitsPage() {
-   // ✅ VALIDAR PERMISOS AL INICIO
-  const permissions = await getUserPermissions()
-  
-  // Verificar si existe el permiso rentabilidad y es true
+  // ✅ VALIDAR PERMISOS AL INICIO
+  const permissions = await getUserPermissions();
   if (!permissions?.permissions?.rentabilidad) {
-    redirect("/dashboard") // Redirige si no tiene permiso
+    redirect("/dashboard");
   }
+  await requireAuth();
 
-  await requireAuth()
-  const supabase = await createClient()
-
+  const supabase = await createClient();
   const { data: profits } = await supabase
     .from("sales_profit")
     .select(`
@@ -82,69 +79,66 @@ export default async function ProfitsPage() {
         clients (name)
       )
     `)
-    .order("created_at", { ascending: false })
+    .order("created_at", { ascending: false });
 
   // Cálculos
-  const totalSales = profits?.reduce((sum, p) => sum + Number(p.total_sale), 0) || 0
-  const totalCost = profits?.reduce((sum, p) => sum + Number(p.total_cost), 0) || 0
-  const totalProfit = profits?.reduce((sum, p) => sum + Number(p.profit), 0) || 0
-  const avgMargin =
-    profits?.length
-      ? profits.reduce((sum, p) => sum + Number(p.profit_margin), 0) / profits.length
-      : 0
+  const totalSales = profits?.reduce((sum, p) => sum + Number(p.total_sale), 0) || 0;
+  const totalCost = profits?.reduce((sum, p) => sum + Number(p.total_cost), 0) || 0;
+  const totalProfit = profits?.reduce((sum, p) => sum + Number(p.profit), 0) || 0;
+  const avgMargin = profits?.length
+    ? profits.reduce((sum, p) => sum + Number(p.profit_margin), 0) / profits.length
+    : 0;
 
   return (
-    <div className="flex-1 flex flex-col bg-card/70 backdrop-blur-md p-4 md:p-6 rounded-2xl shadow-inner border border-border/20">
-      {/* Header Premium */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 pb-4 border-b border-border">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-lg bg-primary/10 group">
-            <PiggyBank className="h-6 w-6 icon-inventory group-hover:scale-110 transition-transform" />
-          </div>
-          <div>
-            <h1 className="dashboard-title">Análisis de Rentabilidad</h1>
-            <p className="dashboard-subtitle mt-1">
-              {profits?.length || 0} ventas • Margen promedio {avgMargin.toFixed(1)}%
-            </p>
-          </div>
+    <div className="dashboard-page-container">
+      {/* Header */}
+      <div className="dashboard-toolbar">
+        <div className="dashboard-header">
+          <h1 className="dashboard-title">
+            <PiggyBank className="dashboard-title-icon" />
+            Análisis de Rentabilidad
+          </h1>
+          <p className="dashboard-subtitle">
+            {profits?.length || 0} ventas • Margen promedio <span className="font-bold text-primary">{avgMargin.toFixed(1)}%</span>
+          </p>
         </div>
-        <ExportProfitsButton />
+        <ExportProfitsButton profits={profits || []} />
       </div>
 
       {/* Stats Cards */}
-      <div className="grid gap-4 md:gap-5 md:grid-cols-2 lg:grid-cols-4 mb-6">
-        <StatCard 
-          title="Ventas Totales" 
-          value={formatCurrency(totalSales)} 
-          icon={<ShoppingCart className="h-5 w-5" />} 
+      <div className="grid gap-4 md:gap-5 md:grid-cols-2 lg:grid-cols-4 mb-6 animate-fadeIn">
+        <StatCard
+          title="Ventas Totales"
+          value={formatCurrency(totalSales)}
+          icon={<ShoppingCart className="h-5 w-5" />}
           variant="primary"
           subtitle={`${profits?.length || 0} transacciones`}
         />
-        <StatCard 
-          title="Costo Total" 
-          value={formatCurrency(totalCost)} 
-          icon={<DollarSign className="h-5 w-5" />} 
+        <StatCard
+          title="Costo Total"
+          value={formatCurrency(totalCost)}
+          icon={<DollarSign className="h-5 w-5" />}
           subtitle="Inversión en productos"
         />
-        <StatCard 
-          title="Ganancia Neta" 
-          value={formatCurrency(totalProfit)} 
-          icon={<TrendingUp className="h-5 w-5" />} 
+        <StatCard
+          title="Ganancia Neta"
+          value={formatCurrency(totalProfit)}
+          icon={<TrendingUp className="h-5 w-5" />}
           variant="accent"
           subtitle="Utilidad después de costos"
         />
-        <StatCard 
-          title="Margen Promedio" 
-          value={`${avgMargin.toFixed(1)}%`} 
-          icon={<Percent className="h-5 w-5" />} 
+        <StatCard
+          title="Margen Promedio"
+          value={`${avgMargin.toFixed(1)}%`}
+          icon={<Percent className="h-5 w-5" />}
           subtitle="Rentabilidad media"
         />
       </div>
 
-      {/* Tabla Container */}
-      <div className="card-dashboard p-0 overflow-hidden">
+      {/* Tabla de Rentabilidad */}
+      <div className="card p-0 overflow-hidden animate-fadeIn">
         <ProfitsTable profits={profits || []} />
       </div>
     </div>
-  )
+  );
 }

@@ -5,7 +5,7 @@ import { notFound } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import Link from "next/link"
-import { ArrowLeft, Edit } from "lucide-react"
+import { ArrowLeft, Edit,Users } from "lucide-react"
 
 export default async function EditClientPage({ params }: { params: Promise<{ id: string }> }) {
   await requireAuth()
@@ -27,12 +27,18 @@ export default async function EditClientPage({ params }: { params: Promise<{ id:
             <ArrowLeft className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
           </Link>
         </Button>
-        <div>
-          <h1 className="dashboard-title">Editar Cliente</h1>
+        
+        
+        <div className="dashboard-header">
+          <h1 className="dashboard-title flex items-center gap-3">
+            <Users className="dashboard-title-icon h-7 w-7 icon-products" />
+            Editar Cliente
+          </h1>
           <p className="dashboard-subtitle mt-1">
             Modifica la información de {client.name}
           </p>
         </div>
+
       </div>
 
       {/* Formulario con Card Premium */}

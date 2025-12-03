@@ -3,53 +3,53 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { UserManagement } from "@/components/user-management"
 import { ShieldCheck, User, Settings, Mail, Key, Calendar, Lock } from "lucide-react"
-import { redirect } from "next/navigation" 
+import { redirect } from "next/navigation"
 
 export default async function SettingsPage() {
   // ✅ VALIDAR PERMISOS AL INICIO
   const permissions = await getUserPermissions()
-    // Verificar si existe el permiso rentabilidad y es true
   if (!permissions?.permissions?.configuracion) {
-    redirect("/dashboard") // Redirige si no tiene permiso
+    redirect("/dashboard")
   }
+
   const user = await requireAuth()
 
   return (
-    <div className="flex-1 flex flex-col bg-card/70 backdrop-blur-md p-4 md:p-6 rounded-2xl shadow-inner border border-border/20">
-      {/* Header Premium */}
-      <div className="flex items-center gap-3 mb-6 pb-4 border-b border-border">
-        <div className="p-2 rounded-lg bg-primary/10 group">
-          <Settings className="h-6 w-6 icon-inventory group-hover:scale-110 transition-transform" />
-        </div>
-        <div>
-          <h1 className="dashboard-title">Configuración</h1>
-          <p className="dashboard-subtitle mt-1">
+    <div className="dashboard-page-container">
+      {/* Header */}
+      <div className="dashboard-toolbar">
+        <div className="dashboard-header">
+          <h1 className="dashboard-title">
+            <Settings className="dashboard-title-icon" />
+            Configuración
+          </h1>
+          <p className="dashboard-subtitle">
             Información de cuenta, permisos y seguridad
           </p>
         </div>
       </div>
 
-      {/* Grid de Cards Premium */}
-      <div className="grid gap-5 md:grid-cols-2">
+      {/* Grid de Cards */}
+      <div className="grid gap-5 md:grid-cols-2 animate-fadeIn">
         {/* Información de Usuario */}
-        <Card className="card-dashboard group">
-          <CardHeader className="card-header-dashboard">
+        <Card className="card">
+          <CardHeader className="card-header">
             <div className="flex items-center gap-2">
               <User className="h-5 w-5 text-primary" />
-              <CardTitle className="card-title-dashboard">Información de Usuario</CardTitle>
+              <CardTitle className="card-title">Información de Usuario</CardTitle>
             </div>
           </CardHeader>
           <CardContent className="p-6 space-y-4">
-            <div className="flex justify-between items-center py-2 border-b border-border">
+            <div className="flex justify-between items-center py-2 border-b border-border/40">
               <span className="text-xs uppercase tracking-wide text-muted-foreground">Email</span>
               <div className="flex items-center gap-2">
                 <Mail className="h-3 w-3 text-muted-foreground" />
                 <span className="font-medium text-sm text-foreground">{user.email}</span>
               </div>
             </div>
-            <div className="flex justify-between items-center py-2 border-b border-border">
+            <div className="flex justify-between items-center py-2 border-b border-border/40">
               <span className="text-xs uppercase tracking-wide text-muted-foreground">Rol</span>
-              <Badge variant="outline" className="capitalize text-xs font-semibold">
+              <Badge variant="outline" className="capitalize text-xs font-semibold bg-secondary/20">
                 {permissions?.role || "Usuario"}
               </Badge>
             </div>
@@ -66,14 +66,13 @@ export default async function SettingsPage() {
         </Card>
 
         {/* Permisos del Sistema */}
-        <Card className="card-dashboard group">
-          <CardHeader className="card-header-dashboard">
+        <Card className="card">
+          <CardHeader className="card-header">
             <div className="flex items-center gap-2">
               <ShieldCheck className="h-5 w-5 text-primary" />
-              <CardTitle className="card-title-dashboard">Permisos del Sistema {permissions?.role}</CardTitle>
+              <CardTitle className="card-title">Permisos del Sistema</CardTitle>
             </div>
           </CardHeader>
-          
           <CardContent className="p-6">
             {permissions?.role === "admin" ? (
               <UserManagement />
@@ -103,15 +102,15 @@ export default async function SettingsPage() {
         </Card>
 
         {/* Seguridad */}
-        <Card className="card-dashboard group">
-          <CardHeader className="card-header-dashboard">
+        <Card className="card">
+          <CardHeader className="card-header">
             <div className="flex items-center gap-2">
               <Lock className="h-5 w-5 text-primary" />
-              <CardTitle className="card-title-dashboard">Seguridad de la Cuenta</CardTitle>
+              <CardTitle className="card-title">Seguridad de la Cuenta</CardTitle>
             </div>
           </CardHeader>
           <CardContent className="p-6 space-y-4">
-            <div className="flex justify-between items-center py-2 border-b border-border">
+            <div className="flex justify-between items-center py-2 border-b border-border/40">
               <span className="text-xs uppercase tracking-wide text-muted-foreground">Último acceso</span>
               <div className="flex items-center gap-2">
                 <Calendar className="h-3 w-3 text-muted-foreground" />
@@ -122,7 +121,7 @@ export default async function SettingsPage() {
             </div>
             <div className="flex justify-between items-center py-2">
               <span className="text-xs uppercase tracking-wide text-muted-foreground">Estado</span>
-              <Badge variant="default" className="text-xs font-semibold">
+              <Badge variant="default" className="text-xs font-semibold bg-primary/10 text-primary">
                 Activo
               </Badge>
             </div>
@@ -130,23 +129,23 @@ export default async function SettingsPage() {
         </Card>
 
         {/* Información del Sistema */}
-        <Card className="card-dashboard group">
-          <CardHeader className="card-header-dashboard">
+        <Card className="card">
+          <CardHeader className="card-header">
             <div className="flex items-center gap-2">
               <ShieldCheck className="h-5 w-5 text-primary" />
-              <CardTitle className="card-title-dashboard">Información del Sistema</CardTitle>
+              <CardTitle className="card-title">Información del Sistema</CardTitle>
             </div>
           </CardHeader>
           <CardContent className="p-6 space-y-4">
-            <div className="flex justify-between items-center py-2 border-b border-border">
+            <div className="flex justify-between items-center py-2 border-b border-border/40">
               <span className="text-xs uppercase tracking-wide text-muted-foreground">Versión</span>
-              <Badge variant="outline" className="font-mono text-xs">
+              <Badge variant="outline" className="font-mono text-xs bg-secondary/20">
                 v1.0.0-premium
               </Badge>
             </div>
             <div className="flex justify-between items-center py-2">
               <span className="text-xs uppercase tracking-wide text-muted-foreground">Entorno</span>
-              <Badge variant="secondary" className="text-xs font-semibold capitalize">
+              <Badge variant="secondary" className="text-xs font-semibold capitalize bg-accent/10 text-accent-foreground">
                 {process.env.NODE_ENV || "development"}
               </Badge>
             </div>

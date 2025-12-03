@@ -10,7 +10,6 @@ import { ArrowLeft, Calendar, DollarSign, User, CreditCard, Package, TrendingUp,
 export default async function SaleDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await createClient()
-
   const { data: sale } = await supabase
     .from("sales")
     .select("*, clients(name, email, phone), sales_profit(*)")
@@ -21,14 +20,17 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
     notFound()
   }
 
-  const { data: saleItems } = await supabase.from("sale_items").select("*, products(name, barcode),purchase_batches(created_at)").eq("sale_id", id)
+  const { data: saleItems } = await supabase
+    .from("sale_items")
+    .select("*, products(name, barcode), purchase_batches(created_at)")
+    .eq("sale_id", id)
 
   const profit = sale.sales_profit?.[0]
 
   return (
-    <div className="flex-1 flex flex-col bg-card/70 backdrop-blur-md p-4 md:p-5 rounded-2xl shadow-inner border border-border/20">
+    <div className="dashboard-page-container">
       {/* Header Compacto */}
-      <div className="dashboard-header mb-5">
+      <div className="dashboard-toolbar">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" asChild className="group">
             <Link href="/dashboard/sales">
@@ -36,65 +38,75 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
             </Link>
           </Button>
           <div>
-            <h1 className="dashboard-title flex items-center gap-2 text-xl md:text-2xl">
-              <ShoppingCart className="h-5 w-5 text-primary" />
+            <h1 className="dashboard-title">
+              <ShoppingCart className="dashboard-title-icon" />
               Detalle de Venta
             </h1>
-            <p className="dashboard-subtitle mt-0.5 text-xs md:text-sm">
-              Transacción #{id.slice(0, 8)} • {new Date(sale.sale_date).toLocaleDateString("es-CO", { day: "2-digit", month: "short", year: "numeric" })}
+            <p className="dashboard-subtitle">
+              Transacción #{id.slice(0, 8)} • {new Date(sale.sale_date).toLocaleDateString("es-CO", {
+                day: "2-digit",
+                month: "short",
+                year: "numeric"
+              })}
             </p>
           </div>
         </div>
       </div>
 
       {/* Stats Grid Compacto */}
-      <div className="grid gap-3 md:gap-4 grid-cols-2 lg:grid-cols-4 mb-6">
+      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4 mb-6 animate-fadeIn">
         {profit && (
           <>
-            <Card className="card-dashboard group">
-              <CardHeader className="card-header-dashboard px-3 py-2">
-                <CardTitle className="card-title-dashboard text-xs">Ganancia</CardTitle>
-                <TrendingUp className="h-4 w-4 icon-profit group-hover:scale-110 transition-transform" />
+            <Card className="card group">
+              <CardHeader className="card-header flex flex-row items-center justify-between pb-2">
+                <CardTitle className="card-title text-xs uppercase tracking-wide text-muted-foreground">
+                  Ganancia
+                </CardTitle>
+                <TrendingUp className="h-4 w-4 text-chart-4 group-hover:scale-110 transition-transform" />
               </CardHeader>
-              <CardContent className="px-3 py-2">
-                <div className="text-lg font-bold text-chart-4">
+              <CardContent>
+                <div className="text-xl md:text-2xl font-bold text-chart-4">
                   {profit.profit.toLocaleString("es-CO", {
                     style: "currency",
                     currency: "COP",
                     minimumFractionDigits: 0,
                   })}
                 </div>
-                <p className="text-[10px] text-muted-foreground mt-0.5">Neta</p>
+                <p className="text-xs text-muted-foreground mt-1">Neta</p>
               </CardContent>
             </Card>
 
-            <Card className="card-dashboard group">
-              <CardHeader className="card-header-dashboard px-3 py-2">
-                <CardTitle className="card-title-dashboard text-xs">Costo</CardTitle>
-                <Package className="h-4 w-4 icon-products group-hover:scale-110 transition-transform" />
+            <Card className="card group">
+              <CardHeader className="card-header flex flex-row items-center justify-between pb-2">
+                <CardTitle className="card-title text-xs uppercase tracking-wide text-muted-foreground">
+                  Costo
+                </CardTitle>
+                <Package className="h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
               </CardHeader>
-              <CardContent className="px-3 py-2">
-                <div className="text-lg font-bold">
+              <CardContent>
+                <div className="text-xl md:text-2xl font-bold">
                   {profit.total_cost.toLocaleString("es-CO", {
                     style: "currency",
                     currency: "COP",
                     minimumFractionDigits: 0,
                   })}
                 </div>
-                <p className="text-[10px] text-muted-foreground mt-0.5">Inversión</p>
+                <p className="text-xs text-muted-foreground mt-1">Inversión</p>
               </CardContent>
             </Card>
 
-            <Card className="card-dashboard group">
-              <CardHeader className="card-header-dashboard px-3 py-2">
-                <CardTitle className="card-title-dashboard text-xs">Margen</CardTitle>
-                <TrendingUp className="h-4 w-4 icon-sales group-hover:scale-110 transition-transform" />
+            <Card className="card group">
+              <CardHeader className="card-header flex flex-row items-center justify-between pb-2">
+                <CardTitle className="card-title text-xs uppercase tracking-wide text-muted-foreground">
+                  Margen
+                </CardTitle>
+                <TrendingUp className="h-4 w-4 text-chart-2 group-hover:scale-110 transition-transform" />
               </CardHeader>
-              <CardContent className="px-3 py-2">
-                <div className="text-lg font-bold text-chart-2">
+              <CardContent>
+                <div className="text-xl md:text-2xl font-bold text-chart-2">
                   {Number(profit.profit_margin).toFixed(1)}%
                 </div>
-                <p className="text-[10px] text-muted-foreground mt-0.5">Rentabilidad</p>
+                <p className="text-xs text-muted-foreground mt-1">Rentabilidad</p>
               </CardContent>
             </Card>
           </>
@@ -102,23 +114,29 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
       </div>
 
       {/* Details Grid Compacto */}
-      <div className="grid gap-4 md:grid-cols-2 mb-6">
+      <div className="grid gap-4 md:grid-cols-2 mb-6 animate-fadeIn">
         {/* Información General */}
-        <Card className="card-dashboard">
-          <CardHeader className="card-header-dashboard px-4 py-3">
-            <CardTitle className="card-title-dashboard flex items-center gap-2 text-sm">
-              <User className="h-4 w-4 icon-clients" />
+        <Card className="card">
+          <CardHeader className="card-header">
+            <CardTitle className="card-title flex items-center gap-2">
+              <User className="h-4 w-4 text-primary" />
               Información General
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2 p-4">
+          <CardContent className="space-y-2">
             <div className="flex justify-between items-center py-2 px-2 rounded-md bg-secondary/20 hover:bg-secondary/30 transition-colors">
               <span className="text-muted-foreground text-xs flex items-center gap-1.5">
                 <Calendar className="h-3.5 w-3.5" />
                 Fecha:
               </span>
-              <span className="font-medium text-sm">{new Date(sale.sale_date).toLocaleString("es-ES")}</span>
+              <span className="font-medium text-sm">
+                {new Date(sale.sale_date).toLocaleString("es-ES", {
+                  dateStyle: "medium",
+                  timeStyle: "short"
+                })}
+              </span>
             </div>
+
             <div className="flex justify-between items-center py-2 px-2 rounded-md bg-secondary/20 hover:bg-secondary/30 transition-colors">
               <span className="text-muted-foreground text-xs flex items-center gap-1.5">
                 <User className="h-3.5 w-3.5" />
@@ -126,37 +144,42 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
               </span>
               <span className="font-medium text-sm">{sale.clients?.name || "Cliente General"}</span>
             </div>
+
             {sale.clients?.email && (
               <div className="flex justify-between items-center py-2 px-2 rounded-md bg-secondary/20 hover:bg-secondary/30 transition-colors">
                 <span className="text-muted-foreground text-xs">Email:</span>
                 <span className="font-medium text-xs truncate">{sale.clients.email}</span>
               </div>
             )}
+
             {sale.clients?.phone && (
               <div className="flex justify-between items-center py-2 px-2 rounded-md bg-secondary/20 hover:bg-secondary/30 transition-colors">
                 <span className="text-muted-foreground text-xs">Teléfono:</span>
                 <span className="font-medium text-xs">{sale.clients.phone}</span>
               </div>
             )}
+
             <div className="flex justify-between items-center py-2 px-2 rounded-md bg-secondary/20 hover:bg-secondary/30 transition-colors">
               <span className="text-muted-foreground text-xs flex items-center gap-1.5">
                 <CreditCard className="h-3.5 w-3.5" />
                 Pago:
               </span>
-              <span className="font-semibold text-xs badge-payment">{sale.payment_method}</span>
+              <span className="font-semibold text-xs badge-payment">
+                {sale.payment_method.charAt(0).toUpperCase() + sale.payment_method.slice(1)}
+              </span>
             </div>
           </CardContent>
         </Card>
 
         {/* Resumen Financiero */}
-        <Card className="card-dashboard">
-          <CardHeader className="card-header-dashboard px-4 py-3">
-            <CardTitle className="card-title-dashboard flex items-center gap-2 text-sm">
-              <DollarSign className="h-4 w-4 icon-revenue" />
+        <Card className="card">
+          <CardHeader className="card-header">
+            <CardTitle className="card-title flex items-center gap-2">
+              <DollarSign className="h-4 w-4 text-primary" />
               Resumen Financiero
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-2 p-4">
+          <CardContent className="space-y-2">
             <div className="flex justify-between items-center py-2 px-2 rounded-md bg-chart-4/10 hover:bg-chart-4/15 transition-colors">
               <span className="text-muted-foreground text-xs">Total:</span>
               <span className="font-bold text-base text-chart-3">
@@ -167,6 +190,7 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
                 })}
               </span>
             </div>
+
             {profit && (
               <>
                 <div className="flex justify-between items-center py-2 px-2 rounded-md bg-destructive/10 hover:bg-destructive/15 transition-colors">
@@ -179,7 +203,9 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
                     })}
                   </span>
                 </div>
-                <Separator className="my-1" />
+
+                <Separator className="my-2" />
+
                 <div className="flex justify-between items-center py-2 px-2 rounded-md bg-chart-4/10 hover:bg-chart-4/15 transition-colors">
                   <span className="text-muted-foreground text-xs">Ganancia:</span>
                   <span className="font-bold text-base text-chart-4">
@@ -190,9 +216,12 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
                     })}
                   </span>
                 </div>
+
                 <div className="flex justify-between items-center py-2 px-2 rounded-md bg-chart-2/10 hover:bg-chart-2/15 transition-colors">
                   <span className="text-muted-foreground text-xs">Margen:</span>
-                  <span className="font-semibold text-sm text-chart-2">{Number(profit.profit_margin).toFixed(1)}%</span>
+                  <span className="font-semibold text-sm text-chart-2">
+                    {Number(profit.profit_margin).toFixed(1)}%
+                  </span>
                 </div>
               </>
             )}
@@ -201,33 +230,45 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
       </div>
 
       {/* Productos Vendidos */}
-      <Card className="card-dashboard">
-        <CardHeader className="card-header-dashboard px-4 py-3">
-          <CardTitle className="card-title-dashboard flex items-center gap-2 text-sm">
-            <Package className="h-4 w-4 icon-products" />
+      <Card className="card animate-fadeIn">
+        <CardHeader className="card-header">
+          <CardTitle className="card-title flex items-center gap-2">
+            <Package className="h-4 w-4 text-primary" />
             Productos Vendidos
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
           <div className="table-container">
-            <Table className="table-base">
-              <TableHeader className="table-header">
-                <TableRow className="table-row">
-                  <TableHead className="table-cell">Producto</TableHead>
-                  <TableHead className="table-cell text-center">Cant.</TableHead>
-                  <TableHead className="table-cell">Fecha Lote</TableHead>
-                  <TableHead className="table-cell text-right">P. Unit.</TableHead>
-                  <TableHead className="table-cell text-right">Subtotal</TableHead>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                    Producto
+                  </TableHead>
+                  <TableHead className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider text-center">
+                    Cant.
+                  </TableHead>
+                  <TableHead className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider">
+                    Fecha Lote
+                  </TableHead>
+                  <TableHead className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider text-right">
+                    P. Unit.
+                  </TableHead>
+                  <TableHead className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider text-right">
+                    Subtotal
+                  </TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {saleItems?.map((item) => (
-                  <TableRow key={item.id} className="table-row">
-                    <TableCell className="table-cell font-medium text-sm">{item.products?.name || "N/A"}</TableCell>
-                    <TableCell className="table-cell text-center">
-                      <span className="badge badge-stock in-stock text-[10px] px-1.5 py-0.5">{item.quantity}</span>
+                  <TableRow key={item.id} className="border-b border-border/30 hover:bg-primary/5 transition-colors">
+                    <TableCell className="px-4 py-3 text-sm font-medium">{item.products?.name || "N/A"}</TableCell>
+                    <TableCell className="px-4 py-3 text-center">
+                      <span className="badge badge-stock in-stock text-[10px] px-1.5 py-0.5">
+                        {item.quantity}
+                      </span>
                     </TableCell>
-                    <TableCell className="table-cell text-xs">
+                    <TableCell className="px-4 py-3 text-xs">
                       {item.purchase_batches?.created_at
                         ? new Date(item.purchase_batches.created_at).toLocaleString("es-CO", {
                             dateStyle: "short",
@@ -235,14 +276,14 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
                           })
                         : "N/A"}
                     </TableCell>
-                    <TableCell className="table-cell text-right font-semibold text-sm">
+                    <TableCell className="px-4 py-3 text-right font-semibold text-sm">
                       {item.unit_price.toLocaleString("es-CO", {
                         style: "currency",
                         currency: "COP",
                         minimumFractionDigits: 0,
                       })}
                     </TableCell>
-                    <TableCell className="table-cell text-right font-bold text-chart-3 text-sm">
+                    <TableCell className="px-4 py-3 text-right font-bold text-chart-3 text-sm">
                       {item.subtotal.toLocaleString("es-CO", {
                         style: "currency",
                         currency: "COP",

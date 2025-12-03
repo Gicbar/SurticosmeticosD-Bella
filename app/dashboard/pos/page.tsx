@@ -3,12 +3,12 @@ import { Barcode } from "lucide-react"
 
 export default function POSPage() {
   return (
-    <div className="flex-1 flex flex-col bg-card/70 backdrop-blur-md p-4 md:p-6 rounded-2xl shadow-inner border border-border/20">
+    <div className="dashboard-page-container">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6 pb-4 border-b border-border">
+      <div className="dashboard-toolbar">
         <div>
-          <h1 className="dashboard-title flex items-center gap-3">
-            <Barcode className="h-7 w-7 icon-pos" />
+          <h1 className="dashboard-title">
+            <Barcode className="dashboard-title-icon" />
             Punto de Venta
           </h1>
           <p className="dashboard-subtitle mt-1">

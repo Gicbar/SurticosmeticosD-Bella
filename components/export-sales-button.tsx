@@ -42,7 +42,7 @@ export function ExportSalesButton({ sales }: { sales: Sale[] }) {
   }
 
   return (
-    <Button onClick={handleExport} disabled={sales.length === 0} className="group w-full md:w-auto bg-gradient-to-r from-primary to-accent hover:from-accent hover:to-primary transition-all duration-300 shadow-md">
+    <Button onClick={handleExport} disabled={sales.length === 0} className="btn-action-new">
       
       <Download className="mr-2 h-4 w-4" />
       Exportar CSV

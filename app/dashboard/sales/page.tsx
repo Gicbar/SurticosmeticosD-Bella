@@ -19,54 +19,46 @@ function formatCurrency(amount: number): string {
 }
 
 // ── STAT CARD PREMIUM ─────────────────────────────────────────────
+  // ✅ COMPONENTE STATCARD
 function StatCard({
   title,
   value,
   icon,
   variant = "default",
-  subtitle = null,
-  className,
+  subtitle = null
 }: {
   title: string
   value: string | number
   icon: React.ReactNode
-  variant?: "default" | "primary" | "accent" | "muted"
+  variant?: "default" | "primary" | "accent"
   subtitle?: string | null
-  className?: string
 }) {
   const variants = {
-    default: "text-foreground/80",
+    default: "text-muted-foreground",
     primary: "text-primary",
     accent: "text-chart-4",
-    muted: "text-muted-foreground",
-  }
+  };
 
   return (
-    <Card className={cn("card-dashboard group overflow-hidden relative", className)}>
-      <CardHeader className="card-header-dashboard flex flex-row items-center justify-between pb-2">
-        <CardTitle className="card-title-dashboard text-xs uppercase tracking-wide font-bold text-muted-foreground">
+    <Card className="card group hover:shadow-md transition-shadow">
+      <CardHeader className="card-header flex flex-row items-center justify-between pb-2">
+        <CardTitle className="card-title text-xs uppercase tracking-wide text-muted-foreground">
           {title}
         </CardTitle>
-        <div className={cn(
-          "p-2 rounded-xl bg-secondary/50 transition-all duration-300 group-hover:scale-110 group-hover:bg-secondary",
-          variants[variant]
-        )}>
+        <div className={`h-5 w-5 ${variants[variant]} group-hover:scale-110 transition-transform duration-200`}>
           {icon}
         </div>
       </CardHeader>
       <CardContent>
-        <div className="card-value-dashboard text-2xl font-bold tracking-tight">
+        <div className="text-xl md:text-2xl font-bold text-foreground">
           {value}
         </div>
         {subtitle && (
-          <p className="text-xs text-muted-foreground mt-1 font-medium">{subtitle}</p>
+          <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>
         )}
-        
-        {/* Efecto Glow Sutil */}
-        <div className="absolute -right-4 -bottom-4 w-16 h-16 bg-primary/5 rounded-full blur-xl pointer-events-none group-hover:bg-primary/10 transition-colors" />
       </CardContent>
     </Card>
-  )
+  );
 }
 
 // ── PAGE ───────────────────────────────────────────────────────────
@@ -121,17 +113,17 @@ export default async function SalesPage({
     : 0
 
   return (
-    <div className="flex-1 flex flex-col bg-card/70 backdrop-blur-md p-4 md:p-6 rounded-2xl shadow-inner border border-border/20 space-y-6">
+    <div className="dashboard-page-container">
       
       {/* HEADER */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-4 border-b border-border/50">
-        <div className="flex items-center gap-4">
+      <div className="dashboard-toolbar">
+        <div className="dashboard-header">
           <div>
-          <h1 className="dashboard-title flex items-center gap-3">
-            <Receipt className="h-7 w-7 icon-products" />
+          <h1 className="dashboard-title">
+            <Receipt className="dashboard-title-icon" />
             Historial de Ventas
           </h1>
-          <p className="dashboard-subtitle mt-1">
+          <p className="dashboard-subtitle">
             Gestión y seguimiento de transacciones
           </p>
         </div>

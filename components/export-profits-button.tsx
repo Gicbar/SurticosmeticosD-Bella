@@ -60,7 +60,7 @@ export function ExportProfitsButton({ profits }: { profits: Profit[] }) {
   }
 
   return (
-    <Button onClick={handleExport} variant="outline">
+    <Button onClick={handleExport} variant="outline" className="btn-action-new">
       <FileDown className="mr-2 h-4 w-4" />
       Exportar a Excel
     </Button>

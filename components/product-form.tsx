@@ -13,6 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { showError, showSuccess } from "@/lib/sweetalert"
 import { Upload, X } from "lucide-react"
 import Image from "next/image"
+import { Package, Barcode, Tag, DollarSign, FileText, Ruler, Weight } from "lucide-react"
 
 type Product = {
   id: string
@@ -130,13 +131,12 @@ export function ProductForm({ product }: { product?: Product }) {
 
   return (
     <Card className="border border-zinc-200 dark:border-zinc-800 shadow-sm hover:shadow-md transition-all duration-300">
-      <CardHeader className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-zinc-900 dark:to-zinc-800 rounded-t-lg">
-        <CardTitle className="text-lg font-semibold bg-gradient-to-r from-blue-600 to-purple-500 bg-clip-text text-transparent">
-          {product ? "Editar Producto" : "Nuevo Producto"}
-        </CardTitle>
-      </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-5 pt-4">
+          <Label htmlFor="name" className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+          <Package className="h-4 w-4" />
+           {product ? "Editar Producto" : "Nuevo Producto"}
+        </Label>
           {/* Imagen */}
           <div className="space-y-2">
             <Label>Imagen del Producto</Label>
@@ -226,10 +226,10 @@ export function ProductForm({ product }: { product?: Product }) {
 
           {/* Botones */}
           <div className="flex gap-2 pt-2">
-            <Button type="submit" disabled={isLoading} className="bg-gradient-to-r from-blue-600 to-purple-500 text-white">
+            <Button type="submit" disabled={isLoading} className="btn-action-new mt-4">
               {isLoading ? "Guardando..." : product ? "Actualizar" : "Crear"}
             </Button>
-            <Button type="button" variant="outline" onClick={() => router.back()}>
+            <Button type="button" className="mt-4"  variant="outline" onClick={() => router.back()}>
               Cancelar
             </Button>
           </div>

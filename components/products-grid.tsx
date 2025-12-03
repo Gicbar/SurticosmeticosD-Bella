@@ -50,7 +50,7 @@ function SearchInput({ value, onChange, placeholder, icon }: {
 // Componente Badge de Stock
 function StockBadge({ current, min }: { current: number; min: number }) {
   const stockStatus = current === 0 ? "out-stock" : current <= min ? "low-stock" : "in-stock";
-  const stockText = current === 0 ? "Sin Stock" : current <= min ? `Stock Bajo (${current})` : "En Stock";
+  const stockText = current === 0 ? "Sin Stock" : current <= min ? `Stock Bajo (${current})` : `En Stock (${current})`;
 
   const badgeClasses = {
     "out-stock": "badge-destructive",
@@ -167,7 +167,7 @@ export function ProductsGrid({ products }: { products: Product[] }) {
                 )}
                 <div className="flex justify-between items-center">
                   <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-                    Stock
+                    Stock 
                   </span>
                   <StockBadge current={product.current_stock} min={product.min_stock} />
                 </div>

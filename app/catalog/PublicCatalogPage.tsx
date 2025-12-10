@@ -16,9 +16,11 @@ export default function PublicCatalogPage({ products, categories }) {
   const [loading, setLoading] = useState(true);
   const [cart, setCart] = useState([]);
   const [showCart, setShowCart] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [showProductModal, setShowProductModal] = useState(false);
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 500); 
+    const timer = setTimeout(() => setLoading(false), 500);
     return () => clearTimeout(timer);
   }, []);
 
@@ -36,8 +38,8 @@ export default function PublicCatalogPage({ products, categories }) {
     setCart(prev => {
       const existing = prev.find(item => item.id === product.id);
       if (existing) {
-        return prev.map(item => 
-          item.id === product.id 
+        return prev.map(item =>
+          item.id === product.id
             ? { ...item, quantity: item.quantity + 1 }
             : item
         );
@@ -50,8 +52,8 @@ export default function PublicCatalogPage({ products, categories }) {
     setCart(prev => {
       const existing = prev.find(item => item.id === productId);
       if (existing.quantity > 1) {
-        return prev.map(item => 
-          item.id === productId 
+        return prev.map(item =>
+          item.id === productId
             ? { ...item, quantity: item.quantity - 1 }
             : item
         );
@@ -77,9 +79,9 @@ export default function PublicCatalogPage({ products, categories }) {
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="relative w-11 h-11 rounded-full overflow-hidden bg-gradient-to-br from-violet-500 to-pink-500 p-1.5 shadow-md">
-              <img 
-                src="/logo.png" 
-                alt="D'Bella Logo" 
+              <img
+                src="/logo.png"
+                alt="D'Bella Logo"
                 className="w-full h-full object-contain rounded-full bg-white"
                 onError={(e) => {
                   e.target.style.display = 'none';
@@ -100,9 +102,9 @@ export default function PublicCatalogPage({ products, categories }) {
               <span>{products.length} productos premium</span>
             </div>
             {/* Cart Button */}
-            <Button 
-              variant="outline" 
-              size="sm" 
+            <Button
+              variant="outline"
+              size="sm"
               className="relative h-9 px-3 border-violet-200 text-violet-600 hover:bg-violet-50 hover:border-violet-300 transition-all"
               onClick={() => setShowCart(!showCart)}
             >
@@ -125,9 +127,9 @@ export default function PublicCatalogPage({ products, categories }) {
               <ShoppingBag className="w-4 h-4" />
               Tu Pedido
             </h3>
-            <Button 
-              variant="ghost" 
-              size="sm" 
+            <Button
+              variant="ghost"
+              size="sm"
               className="h-7 w-7 p-0 text-violet-400 hover:text-violet-600"
               onClick={() => setShowCart(false)}
             >
@@ -145,10 +147,9 @@ export default function PublicCatalogPage({ products, categories }) {
               cart.map(item => (
                 <div key={item.id} className="flex gap-3 p-3 bg-violet-50/50 rounded-xl border border-violet-100 hover:bg-violet-50 transition-colors">
                   <div className="w-14 h-14 rounded-lg overflow-hidden bg-white border border-violet-200 shadow-sm">
-                    {/* Check if image_url exists before trying to load */}
                     {item.image_url && !imageErrors[item.id] ? (
-                      <img 
-                        src={item.image_url} 
+                      <img
+                        src={item.image_url}
                         alt={item.name}
                         className="w-full h-full object-cover"
                         onError={() => handleImageError(item.id)}
@@ -170,18 +171,18 @@ export default function PublicCatalogPage({ products, categories }) {
                     </p>
                   </div>
                   <div className="flex items-center gap-1 bg-white rounded-lg border border-violet-200 p-0.5">
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       className="h-6 w-6 p-0 hover:bg-violet-100"
                       onClick={() => removeFromCart(item.id)}
                     >
                       <Minus className="w-3 h-3 text-violet-600" />
                     </Button>
                     <span className="text-sm font-medium w-6 text-center text-gray-800">{item.quantity}</span>
-                    <Button 
-                      variant="ghost" 
-                      size="sm" 
+                    <Button
+                      variant="ghost"
+                      size="sm"
                       className="h-6 w-6 p-0 hover:bg-violet-100"
                       onClick={() => addToCart(item)}
                     >
@@ -221,7 +222,6 @@ export default function PublicCatalogPage({ products, categories }) {
         {/* Smart Filters */}
         <Card className="mb-5 p-3 bg-white/70 backdrop-blur-md border-violet-100 shadow-sm hover:shadow-md transition-all">
           <CardContent className="p-0 space-y-3">
-            {/* Search with Voice-like UI */}
             <div className="relative group">
               <Search className="absolute left-3 top-2.5 w-4 h-4 text-violet-400 group-focus-within:text-violet-600 transition-colors" />
               <Input
@@ -231,9 +231,9 @@ export default function PublicCatalogPage({ products, categories }) {
                 className="pl-9 h-10 bg-white/80 border-violet-200 focus:border-violet-400 focus:ring-violet-400/20 text-sm"
               />
               {search && (
-                <Button 
-                  variant="ghost" 
-                  size="sm" 
+                <Button
+                  variant="ghost"
+                  size="sm"
                   className="absolute right-1 top-1 h-8 w-8 p-0 text-violet-400 hover:text-violet-600"
                   onClick={() => setSearch("")}
                 >
@@ -241,9 +241,7 @@ export default function PublicCatalogPage({ products, categories }) {
                 </Button>
               )}
             </div>
-
             <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
-              {/* Category */}
               <div className="flex items-center gap-2 flex-1">
                 <Filter className="w-4 h-4 text-violet-400" />
                 <Select value={selectedCategory} onValueChange={setSelectedCategory}>
@@ -258,8 +256,6 @@ export default function PublicCatalogPage({ products, categories }) {
                   </SelectContent>
                 </Select>
               </div>
-
-              {/* Price Range - Visual */}
               <div className="flex items-center gap-3 flex-1 sm:max-w-xs">
                 <span className="text-xs text-violet-600 font-medium whitespace-nowrap">Precio</span>
                 <Slider
@@ -274,11 +270,9 @@ export default function PublicCatalogPage({ products, categories }) {
                   ${(priceRange[1] / 1000).toFixed(0)}k
                 </span>
               </div>
-
-              {/* Clear Filters */}
-              <Button 
-                variant="outline" 
-                size="sm" 
+              <Button
+                variant="outline"
+                size="sm"
                 className="h-9 border-violet-200 text-violet-600 hover:bg-violet-50 hover:border-violet-300 transition-all"
                 onClick={clearFilters}
               >
@@ -300,20 +294,22 @@ export default function PublicCatalogPage({ products, categories }) {
           </div>
         </div>
 
-        {/* Product Grid - Ultra Compact & Premium */}
+        {/* Product Grid */}
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2.5 sm:gap-3">
-          {loading 
+          {loading
             ? Array.from({ length: 12 }).map((_, i) => (
                 <div key={i} className="aspect-[4/5] rounded-xl bg-gradient-to-br from-violet-100 to-pink-100 animate-pulse" />
               ))
             : filtered.map((product) => (
-              <Card 
-                key={product.id} 
+              <Card
+                key={product.id}
                 className="group relative overflow-hidden border border-violet-100 bg-white/90 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer hover:-translate-y-1"
+                onClick={() => {
+                  setSelectedProduct(product);
+                  setShowProductModal(true);
+                }}
               >
-                {/* Image Container */}
                 <div className="aspect-[4/5] w-full bg-gradient-to-br from-violet-50 to-pink-50 overflow-hidden relative">
-                  {/* Check if image_url exists and hasn't errored */}
                   {product.image_url && !imageErrors[product.id] ? (
                     <img
                       src={product.image_url}
@@ -327,41 +323,30 @@ export default function PublicCatalogPage({ products, categories }) {
                       <Sparkles className="w-12 h-12 text-violet-400" />
                     </div>
                   )}
-
-                  {/* Category Badge */}
                   {product.category_name && (
-                    <Badge 
-                      variant="secondary" 
+                    <Badge
+                      variant="secondary"
                       className="absolute top-2 left-2 px-2 py-0 h-5 text-[10px] font-medium bg-violet-600/90 text-white backdrop-blur-sm border border-white/20"
                     >
                       {product.category_name}
                     </Badge>
                   )}
-
-                  {/* Stock Badge */}
                   {product.stock <= 10 && (
-                    <Badge 
-                      variant="secondary" 
+                    <Badge
+                      variant="secondary"
                       className="absolute bottom-2 left-2 px-2 py-0 h-5 text-[10px] font-medium bg-pink-500/90 text-white backdrop-blur-sm border border-white/20 animate-pulse"
                     >
                       ¡Últimos {product.stock}!
                     </Badge>
                   )}
                 </div>
-                
-                {/* Content */}
                 <CardContent className="p-2.5 space-y-1">
-                  {/* Name */}
                   <h3 className="text-xs font-medium leading-tight line-clamp-2 text-gray-800 group-hover:text-violet-700 transition-colors">
                     {product.name}
                   </h3>
-                  
-                  {/* Description - Always visible */}
                   <p className="text-[11px] text-gray-500 line-clamp-2">
                     {product.description}
                   </p>
-                  
-                  {/* Price and Add Button */}
                   <div className="flex items-center justify-between pt-1">
                     <p className="text-sm font-bold bg-gradient-to-r from-violet-600 to-pink-600 bg-clip-text text-transparent">
                       {product.sale_price.toLocaleString("es-CO", {
@@ -370,18 +355,20 @@ export default function PublicCatalogPage({ products, categories }) {
                         minimumFractionDigits: 0,
                       })}
                     </p>
-                    <Button 
-                      size="sm" 
+                    <Button
+                      size="sm"
                       className="h-6 px-2 text-xs bg-gradient-to-r from-violet-600 to-pink-600 text-white hover:shadow-md transition-all"
-                      onClick={() => addToCart(product)}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        addToCart(product);
+                      }}
                     >
                       <Plus className="w-3 h-3" />
                     </Button>
                   </div>
                 </CardContent>
               </Card>
-            ))
-          }
+            ))}
         </div>
 
         {filtered.length === 0 && !loading && (
@@ -394,6 +381,87 @@ export default function PublicCatalogPage({ products, categories }) {
           </div>
         )}
       </div>
-    </div>  
+
+      {/* Product Detail Modal */}
+      {showProductModal && selectedProduct && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in-0 zoom-in-95"
+          onClick={() => setShowProductModal(false)}
+        >
+          <Card
+            className="w-full max-w-md mx-auto bg-white/95 backdrop-blur-xl border-violet-200 shadow-2xl overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <CardContent className="p-0">
+              <div className="relative aspect-square w-full bg-gradient-to-br from-violet-50 to-pink-50 overflow-hidden">
+                {selectedProduct.image_url && !imageErrors[selectedProduct.id] ? (
+                  <img
+                    src={selectedProduct.image_url}
+                    className="w-full h-full object-cover"
+                    alt={selectedProduct.name}
+                    onError={() => handleImageError(selectedProduct.id)}
+                  />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center">
+                    <Sparkles className="w-16 h-16 text-violet-400" />
+                  </div>
+                )}
+                {selectedProduct.category_name && (
+                  <Badge className="absolute top-3 left-3 px-3 py-0.5 h-7 text-xs font-medium bg-violet-600/90 text-white backdrop-blur-sm border border-white/20">
+                    {selectedProduct.category_name}
+                  </Badge>
+                )}
+              </div>
+              <div className="p-4 space-y-3">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-800">{selectedProduct.name}</h3>
+                    <p className="text-sm text-gray-500">{selectedProduct.description}</p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-8 w-8 p-0 text-violet-400 hover:text-violet-600"
+                    onClick={() => setShowProductModal(false)}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+                <div className="flex items-center justify-between pt-2">
+                  <p className="text-xl font-bold bg-gradient-to-r from-violet-600 to-pink-600 bg-clip-text text-transparent">
+                    {selectedProduct.sale_price.toLocaleString("es-CO", {
+                      style: "currency",
+                      currency: "COP",
+                      minimumFractionDigits: 0,
+                    })}
+                  </p>
+                  <Button
+                    size="sm"
+                    className="h-9 px-4 bg-gradient-to-r from-violet-600 to-pink-600 text-white hover:shadow-md transition-all"
+                    onClick={() => {
+                      addToCart(selectedProduct);
+                      setShowProductModal(false);
+                    }}
+                  >
+                    <Plus className="w-4 h-4 mr-2" />
+                    Agregar al carrito
+                  </Button>
+                </div>
+                <div className="pt-3 border-t border-violet-100">
+                  <p className="text-sm text-gray-600">
+                    <span className="font-medium text-violet-600">Stock disponible:</span> {selectedProduct.stock}
+                  </p>
+                  {selectedProduct.additional_info && (
+                    <p className="text-sm text-gray-600 mt-1">
+                      <span className="font-medium text-violet-600">Información adicional:</span> {selectedProduct.additional_info}
+                    </p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+    </div>
   );
 }

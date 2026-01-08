@@ -133,8 +133,10 @@ export function ProductsGrid({ products }: { products: Product[] }) {
             <CardContent className="p-4 space-y-3">
               {/* Nombre y descripción */}
               <div className="space-y-1">
-                <h3 className="font-semibold text-sm text-foreground tracking-tight line-clamp-1 group-hover:text-primary transition-colors">
-                  {product.name}
+                <h3 className="font-semibold text-sm text-foreground tracking-tight line-clamp-1 group-hover:text-primary transition-colors"
+                   title={product.name} 
+                   >
+                   {product.name}
                 </h3>
                 {product.description && (
                   <p className="text-xs text-muted-foreground line-clamp-2">

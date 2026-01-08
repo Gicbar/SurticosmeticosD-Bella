@@ -1,76 +1,99 @@
 "use client"
 import { useState, useEffect } from "react"
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
-import { Slider } from "@/components/ui/slider";
-import { Search, Filter, Sparkles, TrendingUp, Star, X, ShoppingBag, Plus, Minus } from "lucide-react";
+import { useSearchParams } from 'next/navigation'
+import { Card, CardContent } from "@/components/ui/card"
+import { Input } from "@/components/ui/input"
+import { Button } from "@/components/ui/button"
+import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
+import { Badge } from "@/components/ui/badge"
+import { Slider } from "@/components/ui/slider"
+import { Search, Filter, Sparkles, TrendingUp, Star, X, ShoppingBag, Plus, Minus, QrCode } from "lucide-react"
+import Link from 'next/link'
+
+
 
 export default function PublicCatalogPage({ products, categories }) {
-  const [search, setSearch] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState("all");
-  const [priceRange, setPriceRange] = useState([0, 500000]);
-  const [imageErrors, setImageErrors] = useState({});
-  const [loading, setLoading] = useState(true);
-  const [cart, setCart] = useState([]);
-  const [showCart, setShowCart] = useState(false);
-  const [selectedProduct, setSelectedProduct] = useState(null);
-  const [showProductModal, setShowProductModal] = useState(false);
+  const searchParams = useSearchParams()
+  const [search, setSearch] = useState("")
+  const [selectedCategory, setSelectedCategory] = useState("all")
+  const [priceRange, setPriceRange] = useState([0, 200000])
+  const [imageErrors, setImageErrors] = useState({})
+  const [loading, setLoading] = useState(true)
+  const [cart, setCart] = useState([])
+  const [showCart, setShowCart] = useState(false)
+  const [selectedProduct, setSelectedProduct] = useState(null)
+  const [showProductModal, setShowProductModal] = useState(false)
+  const [showQR, setShowQR] = useState(false)
+  const [currentQRProduct, setCurrentQRProduct] = useState(null)
 
   useEffect(() => {
-    const timer = setTimeout(() => setLoading(false), 500);
-    return () => clearTimeout(timer);
-  }, []);
+    const timer = setTimeout(() => setLoading(false), 500)
+    return () => clearTimeout(timer)
+  }, [])
+
+  // Efecto para abrir el modal si hay un productId en la URL
+  useEffect(() => {
+    const productId = searchParams.get('productId')
+    if (productId && products) {
+      const product = products.find(p => p.id == productId)
+      if (product) {
+        setSelectedProduct(product)
+        setShowProductModal(true)
+
+        // Desplazar a la parte superior de la página
+        window.scrollTo({ top: 0, behavior: 'smooth' })
+      }
+    }
+  }, [searchParams, products])
 
   const handleImageError = (productId) => {
-    setImageErrors(prev => ({ ...prev, [productId]: true }));
-  };
+    setImageErrors(prev => ({ ...prev, [productId]: true }))
+  }
 
   const clearFilters = () => {
-    setSearch("");
-    setSelectedCategory("all");
-    setPriceRange([0, 500000]);
-  };
+    setSearch("")
+    setSelectedCategory("all")
+    setPriceRange([0, 200000])
+  }
 
   const addToCart = (product) => {
     setCart(prev => {
-      const existing = prev.find(item => item.id === product.id);
+      const existing = prev.find(item => item.id === product.id)
       if (existing) {
         return prev.map(item =>
           item.id === product.id
             ? { ...item, quantity: item.quantity + 1 }
             : item
-        );
+        )
       }
-      return [...prev, { ...product, quantity: 1 }];
-    });
-  };
+      return [...prev, { ...product, quantity: 1 }]
+    })
+  }
 
   const removeFromCart = (productId) => {
     setCart(prev => {
-      const existing = prev.find(item => item.id === productId);
+      const existing = prev.find(item => item.id === productId)
       if (existing.quantity > 1) {
         return prev.map(item =>
           item.id === productId
             ? { ...item, quantity: item.quantity - 1 }
             : item
-        );
+        )
       }
-      return prev.filter(item => item.id !== productId);
-    });
-  };
+      return prev.filter(item => item.id !== productId)
+    })
+  }
 
-  const getTotalItems = () => cart.reduce((sum, item) => sum + item.quantity, 0);
-  const getTotalPrice = () => cart.reduce((sum, item) => sum + (item.sale_price * item.quantity), 0);
+  const getTotalItems = () => cart.reduce((sum, item) => sum + item.quantity, 0)
+  const getTotalPrice = () => cart.reduce((sum, item) => sum + (item.sale_price * item.quantity), 0)
 
   const filtered = products.filter((p) => {
-    const matchSearch = p.name.toLowerCase().includes(search.toLowerCase());
-    const matchCategory = selectedCategory === "all" || p.category_name === selectedCategory;
-    const matchPrice = p.sale_price >= priceRange[0] && p.sale_price <= priceRange[1];
-    return matchSearch && matchCategory && matchPrice;
-  });
+    const matchSearch = p.name.toLowerCase().includes(search.toLowerCase())
+    const matchCategory = selectedCategory === "all" || p.category_name === selectedCategory
+    const matchPrice = p.sale_price >= priceRange[0] && p.sale_price <= priceRange[1]
+    return matchSearch && matchCategory && matchPrice
+  })
+
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-violet-50 via-white to-pink-50">
@@ -84,8 +107,8 @@ export default function PublicCatalogPage({ products, categories }) {
                 alt="D'Bella Logo"
                 className="w-full h-full object-contain rounded-full bg-white"
                 onError={(e) => {
-                  e.target.style.display = 'none';
-                  e.target.parentElement.innerHTML = '<div class="w-full h-full bg-white rounded-full flex items-center justify-center text-xs font-bold text-violet-600">DB</div>';
+                  e.target.style.display = 'none'
+                  e.target.parentElement.innerHTML = '<div class="w-full h-full bg-white rounded-full flex items-center justify-center text-xs font-bold text-violet-600">DB</div>'
                 }}
               />
             </div>
@@ -204,11 +227,29 @@ export default function PublicCatalogPage({ products, categories }) {
                     minimumFractionDigits: 0,
                   })}
                 </span>
-              </div>
-              <Button className="w-full bg-gradient-to-r from-violet-600 to-pink-600 text-white hover:shadow-lg transition-all h-10 text-sm font-medium">
-                <Sparkles className="w-4 h-4 mr-2" />
-                Agenda Tu Pedido por WhatsApp
-              </Button>
+              </div><Button  asChild className="w-full bg-gradient-to-r from-violet-600 to-pink-600 text-white hover:shadow-lg transition-all h-10 text-sm font-medium"
+                    >
+                      <Link
+                        href={`https://wa.me/573159862419?text=${encodeURIComponent(
+                          `¡Hola! Quiero hacer un pedido de los siguientes productos:\n\n${
+                            cart.map(item => `• ${item.quantity}x ${item.name} - ${item.sale_price.toLocaleString("es-CO", {
+                              style: "currency",
+                              currency: "COP",
+                              minimumFractionDigits: 0,
+                            })}`).join('\n')
+                          }\n\n*Total:* ${getTotalPrice().toLocaleString("es-CO", {
+                            style: "currency",
+                            currency: "COP",
+                            minimumFractionDigits: 0,
+                          })}\n\n¿Cómo puedo proceder con el pago y la entrega?`
+                        )}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <Sparkles className="w-4 h-4 mr-2" />
+                        Agenda Tu Pedido por WhatsApp
+                      </Link>
+                    </Button>
               <p className="text-xs text-gray-500 text-center mt-2 font-medium">
                 Te confirmaremos tu pedido una vez nos contactes
               </p>
@@ -260,8 +301,8 @@ export default function PublicCatalogPage({ products, categories }) {
                 <span className="text-xs text-violet-600 font-medium whitespace-nowrap">Precio</span>
                 <Slider
                   min={0}
-                  max={500000}
-                  step={5000}
+                  max={200000}
+                  step={1000}
                   value={priceRange}
                   onValueChange={setPriceRange}
                   className="flex-1"
@@ -305,8 +346,8 @@ export default function PublicCatalogPage({ products, categories }) {
                 key={product.id}
                 className="group relative overflow-hidden border border-violet-100 bg-white/90 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer hover:-translate-y-1"
                 onClick={() => {
-                  setSelectedProduct(product);
-                  setShowProductModal(true);
+                  setSelectedProduct(product)
+                  setShowProductModal(true)
                 }}
               >
                 <div className="aspect-[4/5] w-full bg-gradient-to-br from-violet-50 to-pink-50 overflow-hidden relative">
@@ -331,7 +372,7 @@ export default function PublicCatalogPage({ products, categories }) {
                       {product.category_name}
                     </Badge>
                   )}
-                  {product.stock <= 10 && (
+                  {product.stock <= 1 && (
                     <Badge
                       variant="secondary"
                       className="absolute bottom-2 left-2 px-2 py-0 h-5 text-[10px] font-medium bg-pink-500/90 text-white backdrop-blur-sm border border-white/20 animate-pulse"
@@ -340,6 +381,7 @@ export default function PublicCatalogPage({ products, categories }) {
                     </Badge>
                   )}
                 </div>
+
                 <CardContent className="p-2.5 space-y-1">
                   <h3 className="text-xs font-medium leading-tight line-clamp-2 text-gray-800 group-hover:text-violet-700 transition-colors">
                     {product.name}
@@ -359,8 +401,8 @@ export default function PublicCatalogPage({ products, categories }) {
                       size="sm"
                       className="h-6 px-2 text-xs bg-gradient-to-r from-violet-600 to-pink-600 text-white hover:shadow-md transition-all"
                       onClick={(e) => {
-                        e.stopPropagation();
-                        addToCart(product);
+                        e.stopPropagation()
+                        addToCart(product)
                       }}
                     >
                       <Plus className="w-3 h-3" />
@@ -386,7 +428,13 @@ export default function PublicCatalogPage({ products, categories }) {
       {showProductModal && selectedProduct && (
         <div
           className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in-0 zoom-in-95"
-          onClick={() => setShowProductModal(false)}
+          onClick={() => {
+            setShowProductModal(false)
+            // Limpiar el productId de la URL después de cerrar el modal
+            const url = new URL(window.location)
+            url.searchParams.delete('productId')
+            window.history.pushState({}, '', url)
+          }}
         >
           <Card
             className="w-full max-w-md mx-auto bg-white/95 backdrop-blur-xl border-violet-200 shadow-2xl overflow-hidden"
@@ -422,7 +470,13 @@ export default function PublicCatalogPage({ products, categories }) {
                     variant="ghost"
                     size="sm"
                     className="h-8 w-8 p-0 text-violet-400 hover:text-violet-600"
-                    onClick={() => setShowProductModal(false)}
+                    onClick={() => {
+                      setShowProductModal(false)
+                      // Limpiar el productId de la URL después de cerrar el modal
+                      const url = new URL(window.location)
+                      url.searchParams.delete('productId')
+                      window.history.pushState({}, '', url)
+                    }}
                   >
                     <X className="w-4 h-4" />
                   </Button>
@@ -439,7 +493,7 @@ export default function PublicCatalogPage({ products, categories }) {
                     size="sm"
                     className="h-9 px-4 bg-gradient-to-r from-violet-600 to-pink-600 text-white hover:shadow-md transition-all"
                     onClick={() => {
-                      addToCart(selectedProduct);
+                      addToCart(selectedProduct)
                       setShowProductModal(false);
                     }}
                   >
@@ -462,6 +516,7 @@ export default function PublicCatalogPage({ products, categories }) {
           </Card>
         </div>
       )}
+
     </div>
-  );
+  )
 }

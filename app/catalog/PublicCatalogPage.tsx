@@ -282,8 +282,8 @@ export default function PublicCatalogPage({ products, categories }) {
                 </Button>
               )}
             </div>
-            <div className="flex flex-col sm:flex-row gap-2 items-stretch sm:items-center">
-              <div className="flex items-center gap-2 flex-1">
+            <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+              <div className="flex items-center gap-2 flex-1 relative">
                 <Filter className="w-4 h-4 text-violet-400" />
                 <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                   <SelectTrigger className="h-9 bg-white/80 border-violet-200 text-sm">

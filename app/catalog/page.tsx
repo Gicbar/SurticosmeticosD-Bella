@@ -19,7 +19,7 @@ export default async function CatalogPage() {
   // 2. Obtener categorías (necesarias para filtros)
   // -----------------------
   const { data: categories, error: categoriesError } = await supabase
-    .from("categories")
+    .from("public_categories")
     .select("name")
     .order("name")
 

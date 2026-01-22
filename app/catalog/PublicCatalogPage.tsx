@@ -282,14 +282,14 @@ export default function PublicCatalogPage({ products, categories }) {
                 </Button>
               )}
             </div>
-            <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center">
+            <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center overflow-visible">
               <div className="flex items-center gap-2 flex-1 relative">
                 <Filter className="w-4 h-4 text-violet-400" />
                 <Select value={selectedCategory} onValueChange={setSelectedCategory}>
                   <SelectTrigger className="h-9 bg-white/80 border-violet-200 text-sm">
                     <SelectValue placeholder="Categoría" />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className="z-50 min-w-[200px]">
                     <SelectItem value="all">Todas las categorías</SelectItem>
                     {categories.map((c) => (
                       <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>

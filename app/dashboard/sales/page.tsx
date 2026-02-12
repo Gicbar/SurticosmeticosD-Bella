@@ -89,9 +89,16 @@ export default async function SalesPage({
     selectQuery += ", sales_profit(profit, profit_margin)"
   }
 
+  // 2️⃣ Calcular rango del mes actual
+  const now = new Date()
+  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1)
+  const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+
   let query = supabase
     .from("sales")
     .select(selectQuery)
+    .gte("sale_date", firstDay.toISOString())
+    .lt("sale_date", nextMonth.toISOString())
     .order("sale_date", { ascending: false })
 
   if (params.from) query = query.gte("sale_date", params.from)
@@ -147,17 +154,18 @@ export default async function SalesPage({
           variant="primary"
           subtitle="Ventas registradas en periodo"
         />
-
+        
         {/* CARDS FINANCIERAS: Solo si showFinancials es true */}
         {showFinancials && (
           <>
             <StatCard
-              title="Ingresos Totales"
+              title="Total Mes Actual"
               value={formatCurrency(totalRevenue)}
               icon={<DollarSign className="h-5 w-5" />}
               variant="default"
               subtitle="Facturación bruta"
             />
+            {/*
             <StatCard
               title="Ganancia Neta"
               value={formatCurrency(totalProfit)}
@@ -165,6 +173,7 @@ export default async function SalesPage({
               variant="accent"
               subtitle="Utilidad real calculada"
             />
+            */}
           </>
         )}
       </div>

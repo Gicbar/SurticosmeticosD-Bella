@@ -117,7 +117,7 @@ export default async function ProfitsPage() {
         <div className="dashboard-header">
           <h1 className="dashboard-title">
             <PiggyBank className="dashboard-title-icon" />
-            Análisis de Rentabilidad 
+            Análisis de Rentabilidad Mes Actual
           </h1>
           <p className="dashboard-subtitle">
             {profits?.length || 0} ventas • Margen promedio <span className="font-bold text-primary">{avgMargin.toFixed(1)}%</span>

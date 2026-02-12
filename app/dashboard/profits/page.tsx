@@ -67,27 +67,48 @@ export default async function ProfitsPage() {
   }
   await requireAuth();
 
-  const supabase = await createClient();
-  const { data: profits } = await supabase
+  const supabase = await createClient()
+
+  // 1️⃣ Calcular rango del mes actual
+  const now = new Date()
+  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1)
+  const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+
+  // 2️⃣ Query filtrando por sale_date del mes actual
+  const { data: profits, error } = await supabase
     .from("sales_profit")
     .select(`
       *,
-      sales (
+      sales!inner (
         id,
         sale_date,
         payment_method,
         clients (name)
       )
     `)
-    .order("created_at", { ascending: false });
+    .gte("sales.sale_date", firstDay.toISOString())
+    .lt("sales.sale_date", nextMonth.toISOString())
+    .order("created_at", { ascending: false })
 
-  // Cálculos
-  const totalSales = profits?.reduce((sum, p) => sum + Number(p.total_sale), 0) || 0;
-  const totalCost = profits?.reduce((sum, p) => sum + Number(p.total_cost), 0) || 0;
-  const totalProfit = profits?.reduce((sum, p) => sum + Number(p.profit), 0) || 0;
+  if (error) {
+    console.error("Error:", error)
+  }
+
+  // 3️⃣ Cálculos
+  const totalSales =
+    profits?.reduce((sum, p) => sum + Number(p.total_sale || 0), 0) || 0
+
+  const totalCost =
+    profits?.reduce((sum, p) => sum + Number(p.total_cost || 0), 0) || 0
+
+  const totalProfit =
+    profits?.reduce((sum, p) => sum + Number(p.profit || 0), 0) || 0
+
   const avgMargin = profits?.length
-    ? profits.reduce((sum, p) => sum + Number(p.profit_margin), 0) / profits.length
-    : 0;
+    ? profits.reduce((sum, p) => sum + Number(p.profit_margin || 0), 0) /
+      profits.length
+    : 0
+
 
   return (
     <div className="dashboard-page-container">
@@ -96,7 +117,7 @@ export default async function ProfitsPage() {
         <div className="dashboard-header">
           <h1 className="dashboard-title">
             <PiggyBank className="dashboard-title-icon" />
-            Análisis de Rentabilidad
+            Análisis de Rentabilidad 
           </h1>
           <p className="dashboard-subtitle">
             {profits?.length || 0} ventas • Margen promedio <span className="font-bold text-primary">{avgMargin.toFixed(1)}%</span>

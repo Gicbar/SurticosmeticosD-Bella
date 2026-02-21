@@ -1,4 +1,5 @@
 "use client"
+
 import { useState } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
@@ -8,15 +9,20 @@ import { Label } from "@/components/ui/label"
 import { showError, showSuccess } from "@/lib/sweetalert"
 import { Phone, Mail, MapPin, Building2, User } from "lucide-react"
 
-export function SupplierForm() {
+interface SupplierFormProps {
+  supplier?: any
+  companyId: string   // ← requerido: viene desde el server component
+}
+
+export function SupplierForm({ supplier, companyId }: SupplierFormProps) {
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(false)
   const [formData, setFormData] = useState({
-    name: "",
-    contact: "",
-    email: "",
-    phone: "",
-    address: ""
+    name:    supplier?.name    || "",
+    contact: supplier?.contact || "",
+    email:   supplier?.email   || "",
+    phone:   supplier?.phone   || "",
+    address: supplier?.address || "",
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -25,15 +31,32 @@ export function SupplierForm() {
 
     try {
       const supabase = createClient()
-      const { error } = await supabase.from("suppliers").insert(formData)
+
+      const payload = {
+        ...formData,
+        contact: formData.contact || null,
+        email:   formData.email   || null,
+        address: formData.address || null,
+        company_id: companyId,                  // ← SIEMPRE presente
+      }
+
+      const { error } = supplier
+        ? await supabase
+            .from("suppliers")
+            .update(payload)
+            .eq("id", supplier.id)
+            .eq("company_id", companyId)        // ← doble filtro en update
+        : await supabase
+            .from("suppliers")
+            .insert(payload)
 
       if (error) throw error
 
-      await showSuccess("Proveedor registrado correctamente")
+      await showSuccess(supplier ? "Proveedor actualizado correctamente" : "Proveedor registrado correctamente")
       router.push("/dashboard/suppliers")
       router.refresh()
     } catch (error: any) {
-      showError(error.message || "Error al registrar el proveedor")
+      showError(error.message || "Error al guardar el proveedor")
       console.error("Error completo:", error)
     } finally {
       setIsLoading(false)
@@ -51,7 +74,7 @@ export function SupplierForm() {
         <Input
           id="name"
           value={formData.name}
-          onChange={(e) => setFormData({...formData, name: e.target.value})}
+          onChange={(e) => setFormData({ ...formData, name: e.target.value })}
           required
           placeholder="Nombre de la empresa o proveedor"
           className="input-modern h-10"
@@ -68,7 +91,7 @@ export function SupplierForm() {
         <Input
           id="contact"
           value={formData.contact}
-          onChange={(e) => setFormData({...formData, contact: e.target.value})}
+          onChange={(e) => setFormData({ ...formData, contact: e.target.value })}
           placeholder="Persona de contacto"
           className="input-modern h-10"
           disabled={isLoading}
@@ -86,7 +109,7 @@ export function SupplierForm() {
             id="email"
             type="email"
             value={formData.email}
-            onChange={(e) => setFormData({...formData, email: e.target.value})}
+            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
             placeholder="correo@proveedor.com"
             className="input-modern h-10"
             disabled={isLoading}
@@ -102,7 +125,7 @@ export function SupplierForm() {
             id="phone"
             type="tel"
             value={formData.phone}
-            onChange={(e) => setFormData({...formData, phone: e.target.value})}
+            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
             required
             placeholder="Número de contacto"
             className="input-modern h-10"
@@ -112,21 +135,19 @@ export function SupplierForm() {
       </div>
 
       {/* Dirección */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="space-y-2">
-          <Label htmlFor="address" className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-            <MapPin className="h-4 w-4" />
-            Dirección
-          </Label>
-          <Input
-            id="address"
-            value={formData.address}
-            onChange={(e) => setFormData({...formData, address: e.target.value})}
-            placeholder="Dirección completa"
-            className="input-modern h-10"
-            disabled={isLoading}
-          />
-        </div>
+      <div className="space-y-2">
+        <Label htmlFor="address" className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+          <MapPin className="h-4 w-4" />
+          Dirección
+        </Label>
+        <Input
+          id="address"
+          value={formData.address}
+          onChange={(e) => setFormData({ ...formData, address: e.target.value })}
+          placeholder="Dirección completa"
+          className="input-modern h-10"
+          disabled={isLoading}
+        />
       </div>
 
       {/* Botones */}
@@ -150,6 +171,8 @@ export function SupplierForm() {
               <span className="h-4 w-4 rounded-full border-2 border-white border-t-transparent animate-spin" />
               Guardando...
             </span>
+          ) : supplier ? (
+            "Actualizar Proveedor"
           ) : (
             "Registrar Proveedor"
           )}

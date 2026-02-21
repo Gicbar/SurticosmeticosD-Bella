@@ -1,9 +1,28 @@
+import { createClient } from "@/lib/supabase/server"
 import { ProductForm } from "@/components/product-form"
 import Link from "next/link"
 import { ArrowLeft, Package } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { redirect } from "next/navigation"
 
-export default function NewProductPage() {
+export default async function NewProductPage() {
+  // ── Obtener company_id para pasarlo al formulario ─────────────────────────
+  const supabase = await createClient()
+
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) redirect("/auth/login")
+
+  const { data: userCompany } = await supabase
+    .from("user_companies")
+    .select("company_id")
+    .eq("user_id", user.id)
+    .single()
+
+  if (!userCompany?.company_id) redirect("/dashboard")
+
   return (
     <div className="flex-1 flex flex-col bg-card/70 backdrop-blur-md p-4 md:p-6 rounded-2xl shadow-inner border border-border/20">
       {/* Header */}
@@ -25,9 +44,9 @@ export default function NewProductPage() {
         </Button>
       </div>
 
-      {/* Form Container */}
+      {/* Form — recibe companyId para inyectarlo en el insert */}
       <div className="card-dashboard">
-        <ProductForm />
+        <ProductForm companyId={userCompany.company_id} />
       </div>
     </div>
   )

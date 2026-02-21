@@ -21,7 +21,12 @@ type Supplier = {
   created_at: string
 }
 
-export function SuppliersTable({ suppliers }: { suppliers: Supplier[] }) {
+interface SuppliersTableProps {
+  suppliers: Supplier[]
+  companyId: string   // ← recibido desde page.tsx
+}
+
+export function SuppliersTable({ suppliers, companyId }: SuppliersTableProps) {
   const router = useRouter()
 
   const handleDelete = async (id: string) => {
@@ -29,11 +34,16 @@ export function SuppliersTable({ suppliers }: { suppliers: Supplier[] }) {
       "Esta acción eliminará el proveedor permanentemente",
       "¿Eliminar proveedor?"
     )
-
     if (!confirmed) return
 
     const supabase = createClient()
-    const { error } = await supabase.from("suppliers").delete().eq("id", id)
+
+    // Doble filtro: id + company_id → nadie puede borrar proveedores de otra empresa
+    const { error } = await supabase
+      .from("suppliers")
+      .delete()
+      .eq("id", id)
+      .eq("company_id", companyId)             // ← FILTRO MULTIEMPRESA
 
     if (error) {
       showError(error.message, "Error al eliminar")
@@ -59,7 +69,6 @@ export function SuppliersTable({ suppliers }: { suppliers: Supplier[] }) {
         </TableHeader>
         <TableBody>
           {suppliers.length === 0 ? (
-            // ✅ ESTADO VACÍO PREMIUM
             <TableRow className="table-row">
               <TableCell colSpan={7} className="table-cell">
                 <div className="py-12 flex items-center justify-center">
@@ -72,19 +81,19 @@ export function SuppliersTable({ suppliers }: { suppliers: Supplier[] }) {
             </TableRow>
           ) : (
             suppliers.map((supplier) => (
-              <TableRow 
-                key={supplier.id} 
+              <TableRow
+                key={supplier.id}
                 className="table-row transition-all duration-200 hover:bg-primary/5 hover:translate-x-1"
               >
-                {/* Proveedor con ícono */}
+                {/* Proveedor */}
                 <TableCell className="table-cell">
                   <div className="flex items-center gap-2">
-                    <Truck className="h-4 w-4 text-muted-foreground group-hover:text-chart-5" />
+                    <Truck className="h-4 w-4 text-muted-foreground" />
                     <span className="font-medium text-sm text-foreground">{supplier.name}</span>
                   </div>
                 </TableCell>
 
-                {/* Contacto con ícono */}
+                {/* Contacto */}
                 <TableCell className="table-cell">
                   <div className="flex items-center gap-1">
                     <User className="h-3 w-3 text-muted-foreground" />
@@ -94,7 +103,7 @@ export function SuppliersTable({ suppliers }: { suppliers: Supplier[] }) {
                   </div>
                 </TableCell>
 
-                {/* Teléfono con ícono y badge */}
+                {/* Teléfono */}
                 <TableCell className="table-cell">
                   <div className="flex items-center gap-1">
                     <Phone className="h-3 w-3 text-muted-foreground" />
@@ -108,7 +117,7 @@ export function SuppliersTable({ suppliers }: { suppliers: Supplier[] }) {
                   </div>
                 </TableCell>
 
-                {/* Email con ícono */}
+                {/* Email */}
                 <TableCell className="table-cell">
                   <div className="flex items-center gap-1">
                     <Mail className="h-3 w-3 text-muted-foreground" />
@@ -118,17 +127,21 @@ export function SuppliersTable({ suppliers }: { suppliers: Supplier[] }) {
                   </div>
                 </TableCell>
 
-                {/* Dirección con ícono */}
+                {/* Dirección */}
                 <TableCell className="table-cell">
                   <div className="flex items-center gap-1">
                     <MapPin className="h-3 w-3 text-muted-foreground" />
                     <span className={`text-sm ${supplier.address ? "text-foreground" : "text-muted-foreground"}`}>
-                      {supplier.address ? supplier.address.substring(0, 25) + "..." : "N/A"}
+                      {supplier.address
+                        ? supplier.address.length > 25
+                          ? supplier.address.substring(0, 25) + "..."
+                          : supplier.address
+                        : "N/A"}
                     </span>
                   </div>
                 </TableCell>
 
-                {/* Fecha de registro */}
+                {/* Fecha */}
                 <TableCell className="table-cell">
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
                     <Calendar className="h-3 w-3" />
@@ -136,7 +149,7 @@ export function SuppliersTable({ suppliers }: { suppliers: Supplier[] }) {
                   </div>
                 </TableCell>
 
-                {/* Acciones con micro-animaciones */}
+                {/* Acciones */}
                 <TableCell className="table-cell">
                   <div className="flex justify-end gap-1">
                     <Button variant="ghost" size="icon" asChild className="group" title="Editar">
@@ -144,9 +157,9 @@ export function SuppliersTable({ suppliers }: { suppliers: Supplier[] }) {
                         <Edit className="h-4 w-4 text-muted-foreground group-hover:text-chart-2 transition-all group-hover:scale-110" />
                       </Link>
                     </Button>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       onClick={() => handleDelete(supplier.id)}
                       className="group"
                       title="Eliminar"

@@ -6,351 +6,453 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from "@/components/ui/select"
 import { Badge } from "@/components/ui/badge"
-import { Slider } from "@/components/ui/slider"
-import { Search, Filter, Sparkles, TrendingUp, Star, X, ShoppingBag, Plus, Minus, QrCode } from "lucide-react"
-import Link from 'next/link'
+import { Search, Sparkles, TrendingUp, Star, X, ShoppingBag, Plus, Minus } from "lucide-react"
 
+// ─── Tipos ────────────────────────────────────────────────────────────────────
 
+type CompanyInfo = {
+  id: string
+  name: string
+  slug: string
+  domain: string | null
+  phone?: string | null
+  logo_url?: string | null
+  theme?: Record<string, string> | null
+}
 
-export default function PublicCatalogPage({ products, categories }) {
+interface PublicCatalogPageProps {
+  products: any[]
+  categories: { name: string }[]
+  company: CompanyInfo
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+
+function getInitials(name: string): string {
+  return name.split(/\s+/).map((w) => w[0]).join("").toUpperCase().slice(0, 2)
+}
+
+function formatCOP(amount: number) {
+  return amount.toLocaleString("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 })
+}
+
+// ─── Estilos reutilizables con CSS variables ──────────────────────────────────
+// En vez de clases Tailwind violet/pink, usamos style={{ }} con var(--primary)
+// Esto respeta el theme inyectado por el <style> del page.tsx
+
+const S = {
+  // Fondo principal: tinte muy suave del primary
+  pageBg: {
+    background: "linear-gradient(135deg, color-mix(in oklch, var(--primary) 6%, white) 0%, white 50%, color-mix(in oklch, var(--secondary) 20%, white) 100%)",
+    minHeight: "100vh",
+  } as React.CSSProperties,
+
+  // Header
+  headerBg: {
+    background: "color-mix(in oklch, white 92%, var(--primary) 8%)",
+    borderBottom: "1px solid color-mix(in oklch, var(--primary) 15%, transparent)",
+  } as React.CSSProperties,
+
+  // Logo container
+  logoBg: {
+    background: "linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary) 70%, black))",
+  } as React.CSSProperties,
+
+  // Texto primary
+  textPrimary: { color: "var(--primary)" } as React.CSSProperties,
+
+  // Badge contador productos
+  pillBg: {
+    background: "color-mix(in oklch, var(--primary) 12%, transparent)",
+    color: "var(--primary)",
+  } as React.CSSProperties,
+
+  // Botón carrito outline
+  cartBtn: {
+    border: "1px solid color-mix(in oklch, var(--primary) 30%, transparent)",
+    color: "var(--primary)",
+  } as React.CSSProperties,
+
+  // Badge cantidad items
+  badgeQty: {
+    background: "var(--primary)",
+  } as React.CSSProperties,
+
+  // Cart sidebar
+  cartSidebar: {
+    border: "1px solid color-mix(in oklch, var(--primary) 20%, transparent)",
+  } as React.CSSProperties,
+
+  // Cart item row
+  cartItemRow: {
+    background: "color-mix(in oklch, var(--primary) 4%, transparent)",
+    border: "1px solid color-mix(in oklch, var(--primary) 10%, transparent)",
+  } as React.CSSProperties,
+
+  // Cart item image border
+  cartImgBorder: {
+    border: "1px solid color-mix(in oklch, var(--primary) 20%, transparent)",
+  } as React.CSSProperties,
+
+  // Precio en carrito
+  priceText: {
+    background: "linear-gradient(90deg, var(--primary), color-mix(in oklch, var(--primary) 70%, var(--accent)))",
+    WebkitBackgroundClip: "text",
+    WebkitTextFillColor: "transparent",
+    backgroundClip: "text",
+  } as React.CSSProperties,
+
+  // Título gradiente
+  gradientTitle: {
+    background: "linear-gradient(90deg, var(--primary), color-mix(in oklch, var(--primary) 60%, var(--accent)))",
+    WebkitBackgroundClip: "text",
+    WebkitTextFillColor: "transparent",
+    backgroundClip: "text",
+  } as React.CSSProperties,
+
+  // Botón principal (agregar, WhatsApp, etc.)
+  primaryBtn: {
+    background: "linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary) 70%, black))",
+    color: "white",
+    border: "none",
+  } as React.CSSProperties,
+
+  // Badge categoría sobre imagen
+  categoryBadge: {
+    background: "color-mix(in oklch, var(--primary) 90%, black)",
+    color: "white",
+  } as React.CSSProperties,
+
+  // Badge últimas unidades
+  stockBadge: {
+    background: "color-mix(in oklch, var(--accent) 80%, black)",
+    color: "white",
+  } as React.CSSProperties,
+
+  // Fondo imagen producto
+  productImgBg: {
+    background: "linear-gradient(135deg, color-mix(in oklch, var(--primary) 6%, white), color-mix(in oklch, var(--secondary) 15%, white))",
+  } as React.CSSProperties,
+
+  // Card hover border
+  cardBorder: {
+    border: "1px solid color-mix(in oklch, var(--primary) 12%, transparent)",
+  } as React.CSSProperties,
+
+  // Input border
+  inputBorder: {
+    border: "1px solid color-mix(in oklch, var(--primary) 25%, transparent)",
+  } as React.CSSProperties,
+
+  // Hero pill
+  heroPill: {
+    background: "color-mix(in oklch, var(--primary) 10%, transparent)",
+    color: "var(--primary)",
+  } as React.CSSProperties,
+
+  // Skeleton
+  skeleton: {
+    background: "color-mix(in oklch, var(--primary) 8%, #f3f4f6)",
+  } as React.CSSProperties,
+}
+
+// ─── Componente principal ─────────────────────────────────────────────────────
+
+export default function PublicCatalogPage({ products, categories, company }: PublicCatalogPageProps) {
   const searchParams = useSearchParams()
   const [search, setSearch] = useState("")
   const [selectedCategory, setSelectedCategory] = useState("all")
-  const [priceRange, setPriceRange] = useState([0, 200000])
-  const [imageErrors, setImageErrors] = useState({})
+  const [imageErrors, setImageErrors] = useState<Record<string, boolean>>({})
   const [loading, setLoading] = useState(true)
-  const [cart, setCart] = useState([])
+  const [cart, setCart] = useState<any[]>([])
   const [showCart, setShowCart] = useState(false)
-  const [selectedProduct, setSelectedProduct] = useState(null)
+  const [selectedProduct, setSelectedProduct] = useState<any>(null)
   const [showProductModal, setShowProductModal] = useState(false)
-  const [showQR, setShowQR] = useState(false)
-  const [currentQRProduct, setCurrentQRProduct] = useState(null)
 
   useEffect(() => {
     const timer = setTimeout(() => setLoading(false), 500)
     return () => clearTimeout(timer)
   }, [])
 
-  // Efecto para abrir el modal si hay un productId en la URL
   useEffect(() => {
     const productId = searchParams.get('productId')
     if (productId && products) {
-      const product = products.find(p => p.id == productId)
+      const product = products.find((p) => p.id == productId)
       if (product) {
         setSelectedProduct(product)
         setShowProductModal(true)
-
-        // Desplazar a la parte superior de la página
         window.scrollTo({ top: 0, behavior: 'smooth' })
       }
     }
   }, [searchParams, products])
 
-  const handleImageError = (productId) => {
-    setImageErrors(prev => ({ ...prev, [productId]: true }))
-  }
+  const handleImageError = (id: string) => setImageErrors((p) => ({ ...p, [id]: true }))
 
-  const clearFilters = () => {
-    setSearch("")
-    setSelectedCategory("all")
-    setPriceRange([0, 200000])
-  }
-
-  const addToCart = (product) => {
-    setCart(prev => {
-      const existing = prev.find(item => item.id === product.id)
-      if (existing) {
-        return prev.map(item =>
-          item.id === product.id
-            ? { ...item, quantity: item.quantity + 1 }
-            : item
-        )
-      }
+  const addToCart = (product: any) => {
+    setCart((prev) => {
+      const ex = prev.find((i) => i.id === product.id)
+      if (ex) return prev.map((i) => i.id === product.id ? { ...i, quantity: i.quantity + 1 } : i)
       return [...prev, { ...product, quantity: 1 }]
     })
   }
 
-  const removeFromCart = (productId) => {
-    setCart(prev => {
-      const existing = prev.find(item => item.id === productId)
-      if (existing.quantity > 1) {
-        return prev.map(item =>
-          item.id === productId
-            ? { ...item, quantity: item.quantity - 1 }
-            : item
-        )
-      }
-      return prev.filter(item => item.id !== productId)
+  const removeFromCart = (productId: string) => {
+    setCart((prev) => {
+      const ex = prev.find((i) => i.id === productId)
+      if (ex && ex.quantity > 1) return prev.map((i) => i.id === productId ? { ...i, quantity: i.quantity - 1 } : i)
+      return prev.filter((i) => i.id !== productId)
     })
   }
 
-  const getTotalItems = () => cart.reduce((sum, item) => sum + item.quantity, 0)
-  const getTotalPrice = () => cart.reduce((sum, item) => sum + (item.sale_price * item.quantity), 0)
+  const getTotalItems = () => cart.reduce((s, i) => s + i.quantity, 0)
+  const getTotalPrice = () => cart.reduce((s, i) => s + i.sale_price * i.quantity, 0)
 
   const filtered = products.filter((p) => {
     const matchSearch = p.name.toLowerCase().includes(search.toLowerCase())
     const matchCategory = selectedCategory === "all" || p.category_name === selectedCategory
-    const matchPrice = p.sale_price >= priceRange[0] && p.sale_price <= priceRange[1]
-    return matchSearch && matchCategory && matchPrice
+    return matchSearch && matchCategory
   })
 
+  const initials = getInitials(company.name)
+
+  const closeModal = () => {
+    setShowProductModal(false)
+    const url = new URL(window.location.href)
+    url.searchParams.delete('productId')
+    window.history.pushState({}, '', url)
+  }
+
+  // ─── WhatsApp link ──────────────────────────────────────────────────────────
+  const whatsappHref = `https://wa.me/${company.phone || ""}?text=${encodeURIComponent(
+    `Hola, me interesa hacer un pedido en *${company.name}*:\n\n` +
+    cart.map((i) => `• ${i.name} x${i.quantity} — ${formatCOP(i.sale_price * i.quantity)}`).join("\n") +
+    `\n\n*Total: ${formatCOP(getTotalPrice())}*`
+  )}`
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-violet-50 via-white to-pink-50">
-      {/* Premium Header */}
-      <header className="sticky top-0 z-50 bg-white/90 backdrop-blur-xl border-b border-violet-100 shadow-sm">
+    <div style={S.pageBg}>
+
+      {/* ── Header ─────────────────────────────────────────────────────────── */}
+      <header className="sticky top-0 z-50 backdrop-blur-xl shadow-sm" style={S.headerBg}>
         <div className="max-w-7xl mx-auto px-4 py-3 flex items-center justify-between">
+
+          {/* Logo + nombre */}
           <div className="flex items-center gap-3">
-            <div className="relative w-11 h-11 rounded-full overflow-hidden bg-gradient-to-br from-violet-500 to-pink-500 p-1.5 shadow-md">
-              <img
-                src="/logo.png"
-                alt="D'Bella Logo"
-                className="w-full h-full object-contain rounded-full bg-white"
-                onError={(e) => {
-                  e.target.style.display = 'none'
-                  e.target.parentElement.innerHTML = '<div class="w-full h-full bg-white rounded-full flex items-center justify-center text-xs font-bold text-violet-600">DB</div>'
-                }}
-              />
+            <div className="relative w-11 h-11 rounded-full overflow-hidden p-1 shadow-md flex-shrink-0" style={S.logoBg}>
+              {company.logo_url ? (
+                <img
+                  src={company.logo_url}
+                  alt={company.name}
+                  className="w-full h-full object-contain rounded-full bg-white"
+                  onError={(e) => {
+                    const t = e.target as HTMLImageElement
+                    t.style.display = "none"
+                    if (t.parentElement) {
+                      t.parentElement.innerHTML = `<div class="w-full h-full bg-white rounded-full flex items-center justify-center text-xs font-black" style="color:var(--primary)">${initials}</div>`
+                    }
+                  }}
+                />
+              ) : (
+                <div className="w-full h-full bg-white rounded-full flex items-center justify-center text-xs font-black" style={S.textPrimary}>
+                  {initials}
+                </div>
+              )}
             </div>
+
             <div>
-              <h1 className="text-xl font-light tracking-tight">
-                Surticosméticos <span className="font-bold bg-gradient-to-r from-violet-600 to-pink-600 bg-clip-text text-transparent">D'Bella</span>
+              <h1 className="text-xl font-black tracking-tight" style={S.gradientTitle}>
+                {company.name}
               </h1>
-              <p className="text-xs text-violet-600/70 font-medium">Belleza auténtica, resultados reales</p>
+              <p className="text-xs font-medium opacity-60" style={S.textPrimary}>
+                Catálogo oficial
+              </p>
             </div>
           </div>
+
+          {/* Contador + carrito */}
           <div className="flex items-center gap-3">
-            <div className="hidden sm:flex items-center gap-1.5 text-xs text-violet-600 bg-violet-100 px-3 py-1.5 rounded-full font-medium">
+            <div className="hidden sm:flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full font-medium" style={S.pillBg}>
               <TrendingUp className="w-3 h-3" />
-              <span>{products.length} productos premium</span>
+              <span>{products.length} productos</span>
             </div>
-            {/* Cart Button */}
-            <Button
-              variant="outline"
-              size="sm"
-              className="relative h-9 px-3 border-violet-200 text-violet-600 hover:bg-violet-50 hover:border-violet-300 transition-all"
+
+            <button
+              className="relative h-9 px-3 rounded-lg flex items-center gap-1 text-sm font-medium transition-all hover:opacity-80"
+              style={S.cartBtn}
               onClick={() => setShowCart(!showCart)}
             >
               <ShoppingBag className="w-4 h-4" />
               {getTotalItems() > 0 && (
-                <Badge className="absolute -top-1 -right-1 w-5 h-5 p-0 flex items-center justify-center text-[10px] bg-pink-500 text-white border-2 border-white">
+                <span
+                  className="absolute -top-1 -right-1 w-5 h-5 flex items-center justify-center text-[10px] font-bold text-white rounded-full border-2 border-white"
+                  style={S.badgeQty}
+                >
                   {getTotalItems()}
-                </Badge>
+                </span>
               )}
-            </Button>
+            </button>
           </div>
         </div>
       </header>
 
-      {/* Cart Sidebar */}
+      {/* ── Cart Sidebar ────────────────────────────────────────────────────── */}
       {showCart && (
-        <div className="fixed right-4 top-20 z-50 w-80 sm:w-96 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl border border-violet-200 max-h-[80vh] overflow-hidden flex flex-col animate-in slide-in-from-right-2">
-          <div className="p-4 border-b border-violet-100 flex items-center justify-between bg-white/50">
-            <h3 className="font-semibold text-violet-700 flex items-center gap-2">
+        <div
+          className="fixed right-4 top-20 z-50 w-80 sm:w-96 bg-white/95 backdrop-blur-xl rounded-2xl shadow-2xl max-h-[80vh] overflow-hidden flex flex-col animate-in slide-in-from-right-2"
+          style={S.cartSidebar}
+        >
+          {/* Header carrito */}
+          <div className="p-4 border-b flex items-center justify-between" style={{ borderColor: "color-mix(in oklch, var(--primary) 12%, transparent)" }}>
+            <h3 className="font-semibold flex items-center gap-2 text-sm" style={S.textPrimary}>
               <ShoppingBag className="w-4 h-4" />
               Tu Pedido
             </h3>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="h-7 w-7 p-0 text-violet-400 hover:text-violet-600"
+            <button
+              className="h-7 w-7 flex items-center justify-center rounded-lg opacity-50 hover:opacity-100 transition-opacity"
+              style={S.textPrimary}
               onClick={() => setShowCart(false)}
             >
               <X className="w-4 h-4" />
-            </Button>
+            </button>
           </div>
+
+          {/* Items */}
           <div className="flex-1 overflow-y-auto p-3 space-y-2">
             {cart.length === 0 ? (
               <div className="text-center py-8">
-                <ShoppingBag className="w-10 h-10 text-violet-200 mx-auto mb-3" />
+                <ShoppingBag className="w-10 h-10 mx-auto mb-3 opacity-20" style={S.textPrimary} />
                 <p className="text-sm text-gray-500">Tu carrito está vacío</p>
                 <p className="text-xs text-gray-400 mt-1">¡Agrega productos para empezar!</p>
               </div>
             ) : (
-              cart.map(item => (
-                <div key={item.id} className="flex gap-3 p-3 bg-violet-50/50 rounded-xl border border-violet-100 hover:bg-violet-50 transition-colors">
-                  <div className="w-14 h-14 rounded-lg overflow-hidden bg-white border border-violet-200 shadow-sm">
+              cart.map((item) => (
+                <div key={item.id} className="flex gap-3 p-3 rounded-xl transition-colors" style={S.cartItemRow}>
+                  <div className="w-14 h-14 rounded-lg overflow-hidden bg-white shadow-sm flex-shrink-0" style={S.cartImgBorder}>
                     {item.image_url && !imageErrors[item.id] ? (
-                      <img
-                        src={item.image_url}
-                        alt={item.name}
-                        className="w-full h-full object-cover"
-                        onError={() => handleImageError(item.id)}
-                      />
+                      <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" onError={() => handleImageError(item.id)} />
                     ) : (
-                      <div className="w-full h-full flex items-center justify-center text-violet-500 bg-gradient-to-br from-violet-50 to-pink-50">
-                        <Sparkles className="w-6 h-6" />
+                      <div className="w-full h-full flex items-center justify-center" style={S.productImgBg}>
+                        <Sparkles className="w-5 h-5 opacity-30" style={S.textPrimary} />
                       </div>
                     )}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-800 line-clamp-1">{item.name}</p>
-                    <p className="text-xs text-violet-600 font-semibold">
-                      {item.sale_price.toLocaleString("es-CO", {
-                        style: "currency",
-                        currency: "COP",
-                        minimumFractionDigits: 0,
-                      })}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1 bg-white rounded-lg border border-violet-200 p-0.5">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 w-6 p-0 hover:bg-violet-100"
-                      onClick={() => removeFromCart(item.id)}
-                    >
-                      <Minus className="w-3 h-3 text-violet-600" />
-                    </Button>
-                    <span className="text-sm font-medium w-6 text-center text-gray-800">{item.quantity}</span>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-6 w-6 p-0 hover:bg-violet-100"
-                      onClick={() => addToCart(item)}
-                    >
-                      <Plus className="w-3 h-3 text-violet-600" />
-                    </Button>
+                    <p className="text-xs font-medium text-gray-800 line-clamp-2">{item.name}</p>
+                    <p className="text-xs font-bold mt-0.5" style={S.textPrimary}>{formatCOP(item.sale_price)}</p>
+                    <div className="flex items-center gap-1 mt-1">
+                      <button
+                        className="h-5 w-5 flex items-center justify-center rounded opacity-60 hover:opacity-100 transition-opacity"
+                        style={S.textPrimary}
+                        onClick={() => removeFromCart(item.id)}
+                      >
+                        <Minus className="w-3 h-3" />
+                      </button>
+                      <span className="text-xs font-medium w-4 text-center">{item.quantity}</span>
+                      <button
+                        className="h-5 w-5 flex items-center justify-center rounded opacity-60 hover:opacity-100 transition-opacity"
+                        style={S.textPrimary}
+                        onClick={() => addToCart(item)}
+                      >
+                        <Plus className="w-3 h-3" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))
             )}
           </div>
+
+          {/* Footer carrito */}
           {cart.length > 0 && (
-            <div className="p-4 border-t border-violet-100 bg-white/50 backdrop-blur-sm">
-              <div className="flex items-center justify-between mb-3">
+            <div className="p-4 space-y-3" style={{ borderTop: "1px solid color-mix(in oklch, var(--primary) 10%, transparent)" }}>
+              <div className="flex justify-between items-center">
                 <span className="text-sm font-medium text-gray-700">Total:</span>
-                <span className="text-lg font-bold bg-gradient-to-r from-violet-600 to-pink-600 bg-clip-text text-transparent">
-                  {getTotalPrice().toLocaleString("es-CO", {
-                    style: "currency",
-                    currency: "COP",
-                    minimumFractionDigits: 0,
-                  })}
-                </span>
-              </div><Button  asChild className="w-full bg-gradient-to-r from-violet-600 to-pink-600 text-white hover:shadow-lg transition-all h-10 text-sm font-medium"
-                    >
-                      <Link
-                        href={`https://wa.me/573159862419?text=${encodeURIComponent(
-                          `¡Hola! Quiero hacer un pedido de los siguientes productos:\n\n${
-                            cart.map(item => `• ${item.quantity}x ${item.name} - ${item.sale_price.toLocaleString("es-CO", {
-                              style: "currency",
-                              currency: "COP",
-                              minimumFractionDigits: 0,
-                            })}`).join('\n')
-                          }\n\n*Total:* ${getTotalPrice().toLocaleString("es-CO", {
-                            style: "currency",
-                            currency: "COP",
-                            minimumFractionDigits: 0,
-                          })}\n\n¿Cómo puedo proceder con el pago y la entrega?`
-                        )}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <Sparkles className="w-4 h-4 mr-2" />
-                        Agenda Tu Pedido por WhatsApp
-                      </Link>
-                    </Button>
-              <p className="text-xs text-gray-500 text-center mt-2 font-medium">
-                Te confirmaremos tu pedido una vez nos contactes
-              </p>
+                <span className="text-base font-bold" style={S.textPrimary}>{formatCOP(getTotalPrice())}</span>
+              </div>
+              <a href={whatsappHref} target="_blank" rel="noopener noreferrer" className="block w-full">
+                <button
+                  className="w-full py-2.5 px-4 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition-opacity hover:opacity-90"
+                  style={{ background: "#25D366" }}
+                >
+                  <svg className="w-4 h-4 fill-current" viewBox="0 0 24 24">
+                    <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z"/>
+                  </svg>
+                  Pedir por WhatsApp
+                </button>
+              </a>
             </div>
           )}
         </div>
       )}
 
-      {/* Main Container */}
-      <div className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
-        {/* Smart Filters */}
-        <Card className="mb-5 p-3 bg-white/70 backdrop-blur-md border-violet-100 shadow-sm hover:shadow-md transition-all">
-          <CardContent className="p-0 space-y-3">
-            <div className="relative group">
-              <Search className="absolute left-3 top-2.5 w-4 h-4 text-violet-400 group-focus-within:text-violet-600 transition-colors" />
-              <Input
-                placeholder="¿Qué producto buscas hoy?"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                className="pl-9 h-10 bg-white/80 border-violet-200 focus:border-violet-400 focus:ring-violet-400/20 text-sm"
-              />
-              {search && (
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="absolute right-1 top-1 h-8 w-8 p-0 text-violet-400 hover:text-violet-600"
-                  onClick={() => setSearch("")}
-                >
-                  <X className="w-3 h-3" />
-                </Button>
-              )}
-            </div>
-            <div className="flex flex-col sm:flex-row gap-2 items-start sm:items-center overflow-visible">
-              <div className="flex items-center gap-2 flex-1 relative">
-                <Filter className="w-4 h-4 text-violet-400" />
-                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                  <SelectTrigger className="h-9 bg-white/80 border-violet-200 text-sm">
-                    <SelectValue placeholder="Categoría" />
-                  </SelectTrigger>
-                  <SelectContent className="z-50 min-w-[200px]">
-                    <SelectItem value="all">Todas las categorías</SelectItem>
-                    {categories.map((c) => (
-                      <SelectItem key={c.name} value={c.name}>{c.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center gap-3 flex-1 sm:max-w-xs">
-                <span className="text-xs text-violet-600 font-medium whitespace-nowrap">Precio</span>
-                <Slider
-                  min={0}
-                  max={200000}
-                  step={1000}
-                  value={priceRange}
-                  onValueChange={setPriceRange}
-                  className="flex-1"
-                />
-                <span className="text-xs bg-violet-100 text-violet-700 px-2 py-1 rounded-full font-medium min-w-[70px] text-center">
-                  ${(priceRange[1] / 1000).toFixed(0)}k
-                </span>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                className="h-9 border-violet-200 text-violet-600 hover:bg-violet-50 hover:border-violet-300 transition-all"
-                onClick={clearFilters}
-              >
-                Limpiar
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Results Count */}
-        <div className="flex items-center justify-between mb-4">
-          <p className="text-sm text-violet-600/80 font-medium">
-            {loading ? "Cargando..." : `${filtered.length} productos encontrados`}
-          </p>
-          <div className="flex gap-1">
-            {[...Array(5)].map((_, i) => (
-              <Star key={i} className="w-3 h-3 fill-violet-400 text-violet-400" />
-            ))}
+      {/* ── Hero + filtros ──────────────────────────────────────────────────── */}
+      <div className="max-w-7xl mx-auto px-4 pt-8 pb-4">
+        <div className="text-center mb-8">
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-medium mb-4" style={S.heroPill}>
+            <Star className="w-3 h-3 fill-current" />
+            Catálogo Oficial · {company.name}
           </div>
+          <h2 className="text-3xl sm:text-4xl font-bold text-gray-900 mb-2">
+            Descubre nuestra{" "}
+            <span style={S.gradientTitle}>colección</span>
+          </h2>
+          <p className="text-gray-500 text-sm">{filtered.length} productos disponibles</p>
         </div>
 
-        {/* Product Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-2.5 sm:gap-3">
-          {loading
-            ? Array.from({ length: 12 }).map((_, i) => (
-                <div key={i} className="aspect-[4/5] rounded-xl bg-gradient-to-br from-violet-100 to-pink-100 animate-pulse" />
-              ))
-            : filtered.map((product) => (
-              <Card
+        {/* Filtros */}
+        <div className="flex flex-col sm:flex-row gap-3 mb-6">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 opacity-40" style={S.textPrimary} />
+            <input
+              placeholder="Buscar productos..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="w-full pl-9 pr-4 py-2.5 rounded-xl text-sm outline-none bg-white/80 transition-all"
+              style={S.inputBorder}
+            />
+          </div>
+          <select
+            value={selectedCategory}
+            onChange={(e) => setSelectedCategory(e.target.value)}
+            className="w-full sm:w-48 px-3 py-2.5 rounded-xl text-sm outline-none bg-white/80"
+            style={S.inputBorder}
+          >
+            <option value="all">Todas las categorías</option>
+            {categories.map((c) => (
+              <option key={c.name} value={c.name}>{c.name}</option>
+            ))}
+          </select>
+          {(search || selectedCategory !== "all") && (
+            <button
+              onClick={() => { setSearch(""); setSelectedCategory("all") }}
+              className="flex items-center gap-1 px-4 py-2.5 rounded-xl text-sm font-medium border transition-opacity hover:opacity-70"
+              style={{ ...S.inputBorder, ...S.textPrimary }}
+            >
+              <X className="w-4 h-4" /> Limpiar
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ── Grid de productos ───────────────────────────────────────────────── */}
+      <div className="max-w-7xl mx-auto px-4 pb-16">
+        {loading ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            {Array.from({ length: 10 }).map((_, i) => (
+              <div key={i} className="rounded-2xl animate-pulse aspect-[4/5]" style={S.skeleton} />
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3">
+            {filtered.map((product) => (
+              <div
                 key={product.id}
-                className="group relative overflow-hidden border border-violet-100 bg-white/90 shadow-sm hover:shadow-xl transition-all duration-300 cursor-pointer hover:-translate-y-1"
-                onClick={() => {
-                  setSelectedProduct(product)
-                  setShowProductModal(true)
-                }}
+                className="group cursor-pointer rounded-2xl overflow-hidden bg-white shadow-sm hover:shadow-lg transition-all duration-300"
+                style={S.cardBorder}
+                onClick={() => { setSelectedProduct(product); setShowProductModal(true) }}
               >
-                <div className="aspect-[4/5] w-full bg-gradient-to-br from-violet-50 to-pink-50 overflow-hidden relative">
+                {/* Imagen */}
+                <div className="aspect-[4/5] w-full overflow-hidden relative" style={S.productImgBg}>
                   {product.image_url && !imageErrors[product.id] ? (
                     <img
                       src={product.image_url}
@@ -361,62 +463,59 @@ export default function PublicCatalogPage({ products, categories }) {
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center">
-                      <Sparkles className="w-12 h-12 text-violet-400" />
+                      <Sparkles className="w-12 h-12 opacity-30" style={S.textPrimary} />
                     </div>
                   )}
+                  {/* Badge categoría */}
                   {product.category_name && (
-                    <Badge
-                      variant="secondary"
-                      className="absolute top-2 left-2 px-2 py-0 h-5 text-[10px] font-medium bg-violet-600/90 text-white backdrop-blur-sm border border-white/20"
+                    <span
+                      className="absolute top-2 left-2 px-2 py-0.5 rounded-md text-[10px] font-semibold backdrop-blur-sm"
+                      style={S.categoryBadge}
                     >
                       {product.category_name}
-                    </Badge>
+                    </span>
                   )}
-                  {product.stock <= 1 && (
-                    <Badge
-                      variant="secondary"
-                      className="absolute bottom-2 left-2 px-2 py-0 h-5 text-[10px] font-medium bg-pink-500/90 text-white backdrop-blur-sm border border-white/20 animate-pulse"
+                  {/* Badge stock bajo */}
+                  {product.total_inventario <= 3 && product.total_inventario > 0 && (
+                    <span
+                      className="absolute bottom-2 left-2 px-2 py-0.5 rounded-md text-[10px] font-semibold animate-pulse"
+                      style={S.stockBadge}
                     >
-                      ¡Últimos {product.stock}!
-                    </Badge>
+                      ¡Últimos {product.total_inventario}!
+                    </span>
                   )}
                 </div>
 
-                <CardContent className="p-2.5 space-y-1">
-                  <h3 className="text-xs font-medium leading-tight line-clamp-2 text-gray-800 group-hover:text-violet-700 transition-colors">
+                {/* Info */}
+                <div className="p-2.5 space-y-1">
+                  <h3 className="text-xs font-medium leading-tight line-clamp-2 text-gray-800 group-hover:opacity-80 transition-colors">
                     {product.name}
                   </h3>
-                  <p className="text-[11px] text-gray-500 line-clamp-2">
-                    {product.description}
-                  </p>
+                  {product.description && (
+                    <p className="text-[11px] text-gray-400 line-clamp-1">{product.description}</p>
+                  )}
                   <div className="flex items-center justify-between pt-1">
-                    <p className="text-sm font-bold bg-gradient-to-r from-violet-600 to-pink-600 bg-clip-text text-transparent">
-                      {product.sale_price.toLocaleString("es-CO", {
-                        style: "currency",
-                        currency: "COP",
-                        minimumFractionDigits: 0,
-                      })}
-                    </p>
-                    <Button
-                      size="sm"
-                      className="h-6 px-2 text-xs bg-gradient-to-r from-violet-600 to-pink-600 text-white hover:shadow-md transition-all"
-                      onClick={(e) => {
-                        e.stopPropagation()
-                        addToCart(product)
-                      }}
+                    <span className="text-sm font-bold" style={S.gradientTitle}>
+                      {formatCOP(product.sale_price)}
+                    </span>
+                    <button
+                      className="h-6 w-6 rounded-lg flex items-center justify-center text-white transition-all hover:opacity-80 hover:scale-110"
+                      style={S.primaryBtn}
+                      onClick={(e) => { e.stopPropagation(); addToCart(product) }}
                     >
                       <Plus className="w-3 h-3" />
-                    </Button>
+                    </button>
                   </div>
-                </CardContent>
-              </Card>
+                </div>
+              </div>
             ))}
-        </div>
+          </div>
+        )}
 
         {filtered.length === 0 && !loading && (
           <div className="text-center py-16">
-            <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-violet-100 flex items-center justify-center">
-              <Search className="w-8 h-8 text-violet-400" />
+            <div className="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center" style={S.pillBg}>
+              <Search className="w-8 h-8 opacity-50" style={S.textPrimary} />
             </div>
             <h3 className="text-lg font-medium text-gray-700 mb-1">No encontramos resultados</h3>
             <p className="text-sm text-gray-500">Intenta con otros términos o categorías</p>
@@ -424,99 +523,82 @@ export default function PublicCatalogPage({ products, categories }) {
         )}
       </div>
 
-      {/* Product Detail Modal */}
+      {/* ── Modal detalle producto ───────────────────────────────────────────── */}
       {showProductModal && selectedProduct && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in-0 zoom-in-95"
-          onClick={() => {
-            setShowProductModal(false)
-            // Limpiar el productId de la URL después de cerrar el modal
-            const url = new URL(window.location)
-            url.searchParams.delete('productId')
-            window.history.pushState({}, '', url)
-          }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-in fade-in-0"
+          onClick={closeModal}
         >
-          <Card
-            className="w-full max-w-md mx-auto bg-white/95 backdrop-blur-xl border-violet-200 shadow-2xl overflow-hidden"
+          <div
+            className="w-full max-w-md mx-auto bg-white/98 backdrop-blur-xl rounded-2xl shadow-2xl overflow-hidden"
+            style={{ border: "1px solid color-mix(in oklch, var(--primary) 15%, transparent)" }}
             onClick={(e) => e.stopPropagation()}
           >
-            <CardContent className="p-0">
-              <div className="relative aspect-square w-full bg-gradient-to-br from-violet-50 to-pink-50 overflow-hidden">
-                {selectedProduct.image_url && !imageErrors[selectedProduct.id] ? (
-                  <img
-                    src={selectedProduct.image_url}
-                    className="w-full h-full object-cover"
-                    alt={selectedProduct.name}
-                    onError={() => handleImageError(selectedProduct.id)}
-                  />
-                ) : (
-                  <div className="w-full h-full flex items-center justify-center">
-                    <Sparkles className="w-16 h-16 text-violet-400" />
-                  </div>
-                )}
-                {selectedProduct.category_name && (
-                  <Badge className="absolute top-3 left-3 px-3 py-0.5 h-7 text-xs font-medium bg-violet-600/90 text-white backdrop-blur-sm border border-white/20">
-                    {selectedProduct.category_name}
-                  </Badge>
-                )}
-              </div>
-              <div className="p-4 space-y-3">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <h3 className="text-lg font-bold text-gray-800">{selectedProduct.name}</h3>
-                    <p className="text-sm text-gray-500">{selectedProduct.description}</p>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-8 w-8 p-0 text-violet-400 hover:text-violet-600"
-                    onClick={() => {
-                      setShowProductModal(false)
-                      // Limpiar el productId de la URL después de cerrar el modal
-                      const url = new URL(window.location)
-                      url.searchParams.delete('productId')
-                      window.history.pushState({}, '', url)
-                    }}
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
+            {/* Imagen modal */}
+            <div className="relative aspect-square w-full overflow-hidden" style={S.productImgBg}>
+              {selectedProduct.image_url && !imageErrors[selectedProduct.id] ? (
+                <img
+                  src={selectedProduct.image_url}
+                  className="w-full h-full object-cover"
+                  alt={selectedProduct.name}
+                  onError={() => handleImageError(selectedProduct.id)}
+                />
+              ) : (
+                <div className="w-full h-full flex items-center justify-center">
+                  <Sparkles className="w-16 h-16 opacity-20" style={S.textPrimary} />
                 </div>
-                <div className="flex items-center justify-between pt-2">
-                  <p className="text-xl font-bold bg-gradient-to-r from-violet-600 to-pink-600 bg-clip-text text-transparent">
-                    {selectedProduct.sale_price.toLocaleString("es-CO", {
-                      style: "currency",
-                      currency: "COP",
-                      minimumFractionDigits: 0,
-                    })}
-                  </p>
-                  <Button
-                    size="sm"
-                    className="h-9 px-4 bg-gradient-to-r from-violet-600 to-pink-600 text-white hover:shadow-md transition-all"
-                    onClick={() => {
-                      addToCart(selectedProduct)
-                      setShowProductModal(false);
-                    }}
-                  >
-                    <Plus className="w-4 h-4 mr-2" />
-                    Agregar al carrito
-                  </Button>
-                </div>
-                <div className="pt-3 border-t border-violet-100">
-                  <p className="text-sm text-gray-600">
-                    <span className="font-medium text-violet-600">Stock disponible:</span> {selectedProduct.stock}
-                  </p>
-                  {selectedProduct.additional_info && (
-                    <p className="text-sm text-gray-600 mt-1">
-                      <span className="font-medium text-violet-600">Información adicional:</span> {selectedProduct.additional_info}
-                    </p>
+              )}
+              {selectedProduct.category_name && (
+                <span className="absolute top-3 left-3 px-3 py-1 rounded-lg text-xs font-semibold backdrop-blur-sm" style={S.categoryBadge}>
+                  {selectedProduct.category_name}
+                </span>
+              )}
+            </div>
+
+            {/* Info modal */}
+            <div className="p-5 space-y-3">
+              <div className="flex items-start justify-between">
+                <div className="flex-1 pr-3">
+                  <h3 className="text-lg font-bold text-gray-900">{selectedProduct.name}</h3>
+                  {selectedProduct.description && (
+                    <p className="text-sm text-gray-500 mt-1">{selectedProduct.description}</p>
                   )}
                 </div>
+                <button
+                  className="h-8 w-8 flex items-center justify-center rounded-lg opacity-40 hover:opacity-80 transition-opacity flex-shrink-0"
+                  style={S.textPrimary}
+                  onClick={closeModal}
+                >
+                  <X className="w-4 h-4" />
+                </button>
               </div>
-            </CardContent>
-          </Card>
+
+              <div className="flex items-center justify-between pt-2">
+                <span className="text-xl font-bold" style={S.gradientTitle}>
+                  {formatCOP(selectedProduct.sale_price)}
+                </span>
+                <button
+                  className="h-10 px-5 rounded-xl text-sm font-semibold text-white flex items-center gap-2 transition-opacity hover:opacity-90"
+                  style={S.primaryBtn}
+                  onClick={() => { addToCart(selectedProduct); closeModal() }}
+                >
+                  <Plus className="w-4 h-4" />
+                  Agregar al carrito
+                </button>
+              </div>
+
+              {selectedProduct.total_inventario && (
+                <div className="pt-2 border-t" style={{ borderColor: "color-mix(in oklch, var(--primary) 10%, transparent)" }}>
+                  <p className="text-sm text-gray-500">
+                    <span className="font-semibold" style={S.textPrimary}>Stock disponible: </span>
+                    {selectedProduct.total_inventario} unidades
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
       )}
-
     </div>
   )
 }

@@ -1,6 +1,7 @@
 // components/expenses-table.tsx
 "use client"
 
+import { useState, useEffect } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
@@ -20,19 +21,80 @@ type Expense = {
   date: string
 }
 
-export function ExpensesTable({ expenses }: { expenses: Expense[] }) {
+interface ExpensesTableProps {
+  expenses: Expense[]
+  companyId: string   // ← recibido desde page.tsx
+}
+
+// ─── CategoryBadge ────────────────────────────────────────────────────────────
+
+function CategoryBadge({ category, categoryName }: { category: string | null; categoryName?: string }) {
+  const label = categoryName || category || "Sin categoría"
+
+  const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+    operativos: "default",
+    generales: "secondary",
+  }
+
+  const variant = category && variants[category] ? variants[category] : "outline"
+
+  return (
+    <Badge variant={variant} className="gap-1 text-xs font-medium">
+      <Tag className="h-3 w-3" />
+      {label}
+    </Badge>
+  )
+}
+
+// ─── formatCurrency ───────────────────────────────────────────────────────────
+
+function formatCurrency(amount: number | string | null | undefined): string {
+  const num = typeof amount === "string" ? parseFloat(amount) : amount
+  if (num === null || num === undefined || isNaN(num)) return "$0"
+  return num.toLocaleString("es-CO", {
+    style: "currency",
+    currency: "COP",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  })
+}
+
+// ─── ExpensesTable ────────────────────────────────────────────────────────────
+
+export function ExpensesTable({ expenses, companyId }: ExpensesTableProps) {
   const router = useRouter()
+
+  // Mapa id → nombre de categoría para mostrar el nombre real en el badge
+  const [categoryMap, setCategoryMap] = useState<Record<number, string>>({})
+
+  useEffect(() => {
+    const fetchCategories = async () => {
+      const supabase = createClient()
+      const { data } = await supabase.from("categories_expense").select("id, name")
+      if (data) {
+        const map: Record<number, string> = {}
+        data.forEach((c) => { map[c.id] = c.name })
+        setCategoryMap(map)
+      }
+    }
+    fetchCategories()
+  }, [])
 
   const handleDelete = async (id: string) => {
     const confirmed = await showConfirm(
       "Esta acción eliminará el gasto permanentemente del registro",
       "¿Eliminar gasto?"
     )
-
     if (!confirmed) return
 
     const supabase = createClient()
-    const { error } = await supabase.from("expenses").delete().eq("id", id)
+
+    // Doble filtro: id + company_id → nadie puede borrar gastos de otra empresa
+    const { error } = await supabase
+      .from("expenses")
+      .delete()
+      .eq("id", id)
+      .eq("company_id", companyId)   // ← SEGURIDAD MULTIEMPRESA
 
     if (error) {
       showError(error.message, "Error al eliminar")
@@ -40,26 +102,6 @@ export function ExpensesTable({ expenses }: { expenses: Expense[] }) {
       await showSuccess("Gasto eliminado correctamente", "Registro actualizado")
       router.refresh()
     }
-  }
-
-  // ✅ BADGE POR CATEGORÍA - Con fallback seguro
-  const CategoryBadge = ({ category }: { category: string | null }) => {
-    const variants: Record<string, { variant: "default" | "secondary" | "destructive" | "outline"; icon: React.ReactNode }> = {
-      operativos: { variant: "default", icon: <Receipt className="h-3 w-3" /> },
-      generales: { variant: "secondary", icon: <Tag className="h-3 w-3" /> },
-      // Puedes añadir más categorías aquí (ej: marketing, transporte, etc.)
-    }
-
-    // Fallback seguro: si la categoría no existe en el objeto, usa outline
-    const defaultConfig = { variant: "outline" as const, icon: <Tag className="h-3 w-3" /> }
-    const config = category && variants[category] ? variants[category] : defaultConfig
-
-    return (
-      <Badge variant={config.variant} className="gap-1 text-xs font-medium">
-        {config.icon}
-        {category || "Sin categoría"}
-      </Badge>
-    )
   }
 
   return (
@@ -76,7 +118,6 @@ export function ExpensesTable({ expenses }: { expenses: Expense[] }) {
         </TableHeader>
         <TableBody>
           {expenses.length === 0 ? (
-            // ✅ ESTADO VACÍO PREMIUM
             <TableRow className="table-row">
               <TableCell colSpan={5} className="table-cell">
                 <div className="py-12 flex items-center justify-center">
@@ -94,11 +135,11 @@ export function ExpensesTable({ expenses }: { expenses: Expense[] }) {
             </TableRow>
           ) : (
             expenses.map((expense) => (
-              <TableRow 
-                key={expense.id} 
+              <TableRow
+                key={expense.id}
                 className="table-row transition-all duration-200 hover:bg-primary/5 hover:translate-x-1"
               >
-                {/* Fecha con ícono y formato premium */}
+                {/* Fecha */}
                 <TableCell className="table-cell">
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
                     <Calendar className="h-3 w-3" />
@@ -106,20 +147,23 @@ export function ExpensesTable({ expenses }: { expenses: Expense[] }) {
                   </div>
                 </TableCell>
 
-                {/* Descripción con ícono */}
+                {/* Descripción */}
                 <TableCell className="table-cell">
                   <div className="flex items-center gap-2">
-                    <Receipt className="h-4 w-4 text-muted-foreground group-hover:text-chart-5" />
+                    <Receipt className="h-4 w-4 text-muted-foreground" />
                     <span className="font-medium text-sm text-foreground">{expense.description}</span>
                   </div>
                 </TableCell>
 
-                {/* Categoría con Badge premium (AHORA CON FALLBACK SEGURO) */}
+                {/* Categoría — muestra el nombre real desde el mapa */}
                 <TableCell className="table-cell">
-                  <CategoryBadge category={expense.category} />
+                  <CategoryBadge
+                    category={expense.category}
+                    categoryName={expense.category ? categoryMap[Number(expense.category)] : undefined}
+                  />
                 </TableCell>
 
-                {/* Monto con ícono y formato currency */}
+                {/* Monto */}
                 <TableCell className="table-cell text-right">
                   <div className="flex justify-end items-center gap-1 group">
                     <DollarSign className="h-3 w-3 text-destructive group-hover:scale-110 transition-transform" />
@@ -129,17 +173,19 @@ export function ExpensesTable({ expenses }: { expenses: Expense[] }) {
                   </div>
                 </TableCell>
 
-                {/* Acciones con micro-animaciones */}
+                {/* Acciones */}
                 <TableCell className="table-cell">
                   <div className="flex justify-end gap-1">
-                    <ExpenseDialog expense={expense}>
+                    {/* ExpenseDialog recibe companyId para el update */}
+                    <ExpenseDialog expense={expense} companyId={companyId}>
                       <Button variant="ghost" size="icon" className="group" title="Editar">
                         <Edit className="h-4 w-4 text-muted-foreground group-hover:text-chart-2 transition-all group-hover:scale-110" />
                       </Button>
                     </ExpenseDialog>
-                    <Button 
-                      variant="ghost" 
-                      size="icon" 
+
+                    <Button
+                      variant="ghost"
+                      size="icon"
                       onClick={() => handleDelete(expense.id)}
                       className="group"
                       title="Eliminar"
@@ -155,20 +201,4 @@ export function ExpensesTable({ expenses }: { expenses: Expense[] }) {
       </Table>
     </div>
   )
-}
-
-// ✅ FUNCIÓN FORMATCURRENCY - Consistente con el sistema
-function formatCurrency(amount: number | string | null | undefined): string {
-  const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount
-  
-  if (numAmount === null || numAmount === undefined || isNaN(numAmount)) {
-    return "$0"
-  }
-  
-  return numAmount.toLocaleString("es-CO", {
-    style: "currency",
-    currency: "COP",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  })
 }

@@ -4,17 +4,36 @@ import { ProductsGrid } from "@/components/products-grid"
 import { Button } from "@/components/ui/button"
 import { Plus, Package } from "lucide-react"
 import Link from "next/link"
-import { redirect } from "next/navigation" 
+import { redirect } from "next/navigation"
 
 export default async function ProductsPage() {
-  // ✅ VALIDAR PERMISOS AL INICIO
+  // ── 1. Validar permisos ───────────────────────────────────────────────────
   const permissions = await getUserPermissions()
-    // Verificar si existe el permiso rentabilidad y es true
+
   if (!permissions?.permissions?.productos) {
-    redirect("/dashboard") // Redirige si no tiene permiso
+    redirect("/dashboard")
   }
+
+  // ── 2. Obtener company_id del usuario autenticado ─────────────────────────
   const supabase = await createClient()
 
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) redirect("/auth/login")
+
+  const { data: userCompany } = await supabase
+    .from("user_companies")
+    .select("company_id")
+    .eq("user_id", user.id)
+    .single()
+
+  if (!userCompany?.company_id) redirect("/dashboard")
+
+  const companyId = userCompany.company_id
+
+  // ── 3. Query filtrada por company_id ──────────────────────────────────────
   const { data: products } = await supabase
     .from("products")
     .select(`
@@ -23,13 +42,17 @@ export default async function ProductsPage() {
       suppliers(name),
       purchase_batches(remaining_quantity)
     `)
+    .eq("company_id", companyId)           // ← FILTRO MULTIEMPRESA
     .order("created_at", { ascending: false })
 
   const productsWithStock =
     products?.map((product) => ({
       ...product,
       current_stock:
-        product.purchase_batches?.reduce((sum: number, batch: any) => sum + (batch.remaining_quantity || 0), 0) || 0,
+        product.purchase_batches?.reduce(
+          (sum: number, batch: any) => sum + (batch.remaining_quantity || 0),
+          0
+        ) || 0,
     })) || []
 
   return (
@@ -47,7 +70,7 @@ export default async function ProductsPage() {
         </div>
         <Button className="btn-action-new">
           <Link href="/dashboard/products/new" className="flex items-center relative z-10">
-            <Plus className="icon-plus"/>
+            <Plus className="icon-plus" />
             Nuevo Producto
           </Link>
         </Button>
@@ -55,7 +78,6 @@ export default async function ProductsPage() {
 
       {/* Products Grid */}
       <div className="animate-fadeIn">
-        
         <ProductsGrid products={productsWithStock} />
       </div>
     </div>

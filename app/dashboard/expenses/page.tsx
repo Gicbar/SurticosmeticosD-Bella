@@ -1,4 +1,4 @@
-import { requireAuth, getUserPermissions } from "@/lib/auth"
+import { getUserPermissions } from "@/lib/auth"
 import { createClient } from "@/lib/supabase/server"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -7,24 +7,21 @@ import { ExpensesTable } from "@/components/expenses-table"
 import { ExpenseDialog } from "@/components/expense-dialog"
 import { redirect } from "next/navigation"
 
-// ✅ FUNCIÓN FORMATCURRENCY
 function formatCurrency(amount: number): string {
   return amount.toLocaleString("es-CO", {
     style: "currency",
     currency: "COP",
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  });
+  })
 }
 
-
-// ✅ COMPONENTE STATCARD
 function StatCard({
   title,
   value,
   icon,
   variant = "default",
-  subtitle = null
+  subtitle = null,
 }: {
   title: string
   value: string | number
@@ -36,7 +33,7 @@ function StatCard({
     default: "text-muted-foreground",
     primary: "text-primary",
     accent: "text-chart-4",
-  };
+  }
 
   return (
     <Card className="card group hover:shadow-md transition-shadow">
@@ -49,46 +46,53 @@ function StatCard({
         </div>
       </CardHeader>
       <CardContent>
-        <div className="text-xl md:text-2xl font-bold text-foreground">
-          {value}
-        </div>
-        {subtitle && (
-          <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>
-        )}
+        <div className="text-xl md:text-2xl font-bold text-foreground">{value}</div>
+        {subtitle && <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>}
       </CardContent>
     </Card>
-  );
+  )
 }
 
 export default async function ExpensesPage() {
-  // ✅ VALIDAR PERMISOS AL INICIO
-  const permissions = await getUserPermissions();
+  // ── 1. Permisos + company_id en una sola llamada ──────────────────────────
+  const permissions = await getUserPermissions()
+
   if (!permissions?.permissions?.gastos) {
-    redirect("/dashboard");
+    redirect("/dashboard")
   }
-  await requireAuth();
 
-  const supabase = await createClient();
-  const { data: expenses } = await supabase
-    .from("expenses")
-    .select("*")
-    .order("date", { ascending: false });
+  const companyId = permissions.company_id
+  if (!companyId) redirect("/auth/sin-empresa")
 
-  // 🔥 CÁLCULOS - Múltiples métricas
-  const currentMonth = new Date();
-  const firstDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
-  const lastDay = new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0);
-  const { data: monthExpenses } = await supabase
-    .from("expenses")
-    .select("amount, category")
-    .gte("date", firstDay.toISOString())
-    .lte("date", lastDay.toISOString());
+  // ── 2. Fechas del mes actual ───────────────────────────────────────────────
+  const now = new Date()
+  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+  const lastDay  = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString()
 
-  const totalMonth = monthExpenses?.reduce((sum, exp) => sum + Number(exp.amount), 0) || 0;
-  const totalGastos = expenses?.reduce((sum, exp) => sum + Number(exp.amount), 0) || 0;
-  const gastosOperativos = monthExpenses?.filter(exp => exp.category === "operativos").reduce((sum, exp) => sum + Number(exp.amount), 0) || 0;
-  const gastosGenerales = monthExpenses?.filter(exp => exp.category === "generales").reduce((sum, exp) => sum + Number(exp.amount), 0) || 0;
-  const promedioDiario = totalMonth / new Date().getDate();
+  const supabase = await createClient()
+
+  // ── 3. Todas las queries filtradas por empresa ────────────────────────────
+  const [{ data: expenses }, { data: monthExpenses }] = await Promise.all([
+    supabase
+      .from("expenses")
+      .select("*")
+      .eq("company_id", companyId)              // ← FILTRO MULTIEMPRESA
+      .order("date", { ascending: false }),
+
+    supabase
+      .from("expenses")
+      .select("amount, category")
+      .eq("company_id", companyId)              // ← FILTRO MULTIEMPRESA
+      .gte("date", firstDay)
+      .lte("date", lastDay),
+  ])
+
+  // ── 4. Métricas solo de esta empresa ─────────────────────────────────────
+  const totalMonth        = monthExpenses?.reduce((sum, e) => sum + Number(e.amount), 0) || 0
+  const totalGastos       = expenses?.reduce((sum, e) => sum + Number(e.amount), 0) || 0
+  const gastosOperativos  = monthExpenses?.filter((e) => e.category === "operativos").reduce((sum, e) => sum + Number(e.amount), 0) || 0
+  const gastosGenerales   = monthExpenses?.filter((e) => e.category === "generales").reduce((sum, e) => sum + Number(e.amount), 0) || 0
+  const promedioDiario    = now.getDate() > 0 ? totalMonth / now.getDate() : 0
 
   return (
     <div className="dashboard-page-container">
@@ -100,10 +104,12 @@ export default async function ExpensesPage() {
             Gestión de Gastos
           </h1>
           <p className="dashboard-subtitle">
-            {expenses?.length || 0} registros • <span className="font-bold text-primary">{formatCurrency(totalMonth)}</span> este mes
+            {expenses?.length || 0} registros •{" "}
+            <span className="font-bold text-primary">{formatCurrency(totalMonth)}</span> este mes
           </p>
         </div>
-        <ExpenseDialog>
+        {/* companyId al dialog para que el insert lo incluya */}
+        <ExpenseDialog companyId={companyId}>
           <Button className="btn-action-new">
             <Plus className="icon-plus" />
             Nuevo Gasto
@@ -111,14 +117,14 @@ export default async function ExpensesPage() {
         </ExpenseDialog>
       </div>
 
-      {/* Stats Cards */}
+      {/* Stats */}
       <div className="grid gap-4 md:gap-5 md:grid-cols-2 lg:grid-cols-4 mb-6 animate-fadeIn">
         <StatCard
           title="Gastos del Mes"
           value={formatCurrency(totalMonth)}
           icon={<DollarSign className="h-5 w-5" />}
           variant="primary"
-          subtitle={currentMonth.toLocaleDateString("es-ES", { month: "long", year: "numeric" })}
+          subtitle={now.toLocaleDateString("es-ES", { month: "long", year: "numeric" })}
         />
         <StatCard
           title="Gastos Operativos"
@@ -137,14 +143,14 @@ export default async function ExpensesPage() {
           title="Promedio Diario"
           value={formatCurrency(promedioDiario)}
           icon={<Calendar className="h-5 w-5" />}
-          subtitle={`${new Date().getDate()} días del mes`}
+          subtitle={`${now.getDate()} días del mes`}
         />
       </div>
 
-      {/* Tabla o Estado Vacío */}
+      {/* Tabla o Estado vacío */}
       {expenses && expenses.length > 0 ? (
         <div className="card p-0 overflow-hidden animate-fadeIn">
-          <ExpensesTable expenses={expenses || []} />
+          <ExpensesTable expenses={expenses} companyId={companyId} />
         </div>
       ) : (
         <div className="card p-12 flex items-center justify-center animate-fadeIn">
@@ -152,13 +158,11 @@ export default async function ExpensesPage() {
             <div className="w-20 h-20 mx-auto flex items-center justify-center rounded-full bg-gradient-to-br from-secondary to-primary/20">
               <Receipt className="h-10 w-10 text-primary/50" />
             </div>
-            <p className="text-lg font-medium text-muted-foreground">
-              No hay gastos registrados
-            </p>
+            <p className="text-lg font-medium text-muted-foreground">No hay gastos registrados</p>
             <p className="text-sm text-muted-foreground/70">
               Empieza a registrar tus gastos para controlar tu flujo de caja
             </p>
-            <ExpenseDialog>
+            <ExpenseDialog companyId={companyId}>
               <Button className="btn-action-new mt-4">
                 <Plus className="icon-plus" />
                 Agregar Gasto
@@ -168,5 +172,5 @@ export default async function ExpensesPage() {
         </div>
       )}
     </div>
-  );
+  )
 }

@@ -1,7 +1,19 @@
+import { getUserPermissions } from "@/lib/auth"
 import { POSInterface } from "@/components/pos-interface"
 import { Barcode } from "lucide-react"
+import { redirect } from "next/navigation"
 
-export default function POSPage() {
+export default async function POSPage() {
+  // ── 1. Permisos + company_id ──────────────────────────────────────────────
+  const permissions = await getUserPermissions()
+
+  if (!permissions?.permissions?.ventas) {
+    redirect("/dashboard")
+  }
+
+  const companyId = permissions.company_id
+  if (!companyId) redirect("/auth/sin-empresa")
+
   return (
     <div className="dashboard-page-container">
       {/* Header */}
@@ -17,9 +29,9 @@ export default function POSPage() {
         </div>
       </div>
 
-      {/* POS Container */}
+      {/* POS Container — companyId fluye desde el server al cliente */}
       <div className="card-dashboard p-4 md:p-5">
-        <POSInterface />
+        <POSInterface companyId={companyId} />
       </div>
     </div>
   )

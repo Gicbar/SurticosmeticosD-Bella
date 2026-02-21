@@ -1,28 +1,28 @@
-import { requireAuth, getUserPermissions } from "@/lib/auth"
+import { getUserPermissions } from "@/lib/auth"
 import { createClient } from "@/lib/supabase/server"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
-import { PiggyBank, TrendingUp, ShoppingCart, DollarSign, Percent, Plus } from "lucide-react"
+import { PiggyBank, TrendingUp, ShoppingCart, DollarSign, Percent } from "lucide-react"
 import { ProfitsTable } from "@/components/profits-table"
 import { ExportProfitsButton } from "@/components/export-profits-button"
 import { redirect } from "next/navigation"
 
-// ✅ FUNCIÓN FORMATCURRENCY
+// ─── formatCurrency ───────────────────────────────────────────────────────────
 function formatCurrency(amount: number): string {
   return amount.toLocaleString("es-CO", {
     style: "currency",
     currency: "COP",
     minimumFractionDigits: 0,
     maximumFractionDigits: 0,
-  });
+  })
 }
 
-// ✅ COMPONENTE STATCARD
+// ─── StatCard ─────────────────────────────────────────────────────────────────
 function StatCard({
   title,
   value,
   icon,
   variant = "default",
-  subtitle = null
+  subtitle = null,
 }: {
   title: string
   value: string | number
@@ -34,7 +34,7 @@ function StatCard({
     default: "text-muted-foreground",
     primary: "text-primary",
     accent: "text-chart-4",
-  };
+  }
 
   return (
     <Card className="card group hover:shadow-md transition-shadow">
@@ -47,34 +47,33 @@ function StatCard({
         </div>
       </CardHeader>
       <CardContent>
-        <div className="text-xl md:text-2xl font-bold text-foreground">
-          {value}
-        </div>
-        {subtitle && (
-          <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>
-        )}
+        <div className="text-xl md:text-2xl font-bold text-foreground">{value}</div>
+        {subtitle && <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>}
       </CardContent>
     </Card>
-  );
+  )
 }
 
-// ✅ PÁGINA PRINCIPAL
+// ─── ProfitsPage ──────────────────────────────────────────────────────────────
 export default async function ProfitsPage() {
-  // ✅ VALIDAR PERMISOS AL INICIO
-  const permissions = await getUserPermissions();
+  // ── 1. Permisos + company_id en una sola llamada ──────────────────────────
+  const permissions = await getUserPermissions()
+
   if (!permissions?.permissions?.rentabilidad) {
-    redirect("/dashboard");
+    redirect("/dashboard")
   }
-  await requireAuth();
 
-  const supabase = await createClient()
+  const companyId = permissions.company_id
+  if (!companyId) redirect("/auth/sin-empresa")
 
-  // 1️⃣ Calcular rango del mes actual
+  // ── 2. Rango del mes actual ───────────────────────────────────────────────
   const now = new Date()
   const firstDay = new Date(now.getFullYear(), now.getMonth(), 1)
   const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1)
 
-  // 2️⃣ Query filtrando por sale_date del mes actual
+  const supabase = await createClient()
+
+  // ── 3. Query filtrada por empresa ─────────────────────────────────────────
   const { data: profits, error } = await supabase
     .from("sales_profit")
     .select(`
@@ -86,29 +85,22 @@ export default async function ProfitsPage() {
         clients (name)
       )
     `)
+    .eq("company_id", companyId)                    // ← FILTRO MULTIEMPRESA
     .gte("sales.sale_date", firstDay.toISOString())
     .lt("sales.sale_date", nextMonth.toISOString())
     .order("created_at", { ascending: false })
 
   if (error) {
-    console.error("Error:", error)
+    console.error("Error fetching profits:", error)
   }
 
-  // 3️⃣ Cálculos
-  const totalSales =
-    profits?.reduce((sum, p) => sum + Number(p.total_sale || 0), 0) || 0
-
-  const totalCost =
-    profits?.reduce((sum, p) => sum + Number(p.total_cost || 0), 0) || 0
-
-  const totalProfit =
-    profits?.reduce((sum, p) => sum + Number(p.profit || 0), 0) || 0
-
-  const avgMargin = profits?.length
-    ? profits.reduce((sum, p) => sum + Number(p.profit_margin || 0), 0) /
-      profits.length
+  // ── 4. Métricas ───────────────────────────────────────────────────────────
+  const totalSales  = profits?.reduce((sum, p) => sum + Number(p.total_sale  || 0), 0) || 0
+  const totalCost   = profits?.reduce((sum, p) => sum + Number(p.total_cost  || 0), 0) || 0
+  const totalProfit = profits?.reduce((sum, p) => sum + Number(p.profit      || 0), 0) || 0
+  const avgMargin   = profits?.length
+    ? profits.reduce((sum, p) => sum + Number(p.profit_margin || 0), 0) / profits.length
     : 0
-
 
   return (
     <div className="dashboard-page-container">
@@ -120,13 +112,14 @@ export default async function ProfitsPage() {
             Análisis de Rentabilidad Mes Actual
           </h1>
           <p className="dashboard-subtitle">
-            {profits?.length || 0} ventas • Margen promedio <span className="font-bold text-primary">{avgMargin.toFixed(1)}%</span>
+            {profits?.length || 0} ventas • Margen promedio{" "}
+            <span className="font-bold text-primary">{avgMargin.toFixed(1)}%</span>
           </p>
         </div>
         <ExportProfitsButton profits={profits || []} />
       </div>
 
-      {/* Stats Cards */}
+      {/* Stats */}
       <div className="grid gap-4 md:gap-5 md:grid-cols-2 lg:grid-cols-4 mb-6 animate-fadeIn">
         <StatCard
           title="Ventas Totales"
@@ -156,10 +149,10 @@ export default async function ProfitsPage() {
         />
       </div>
 
-      {/* Tabla de Rentabilidad */}
+      {/* Tabla */}
       <div className="card p-0 overflow-hidden animate-fadeIn">
         <ProfitsTable profits={profits || []} />
       </div>
     </div>
-  );
+  )
 }

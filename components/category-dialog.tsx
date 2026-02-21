@@ -17,7 +17,13 @@ type Category = {
   description: string | null
 }
 
-export function CategoryDialog({ category, children }: { category?: Category; children: React.ReactNode }) {
+interface CategoryDialogProps {
+  category?: Category
+  children: React.ReactNode
+  companyId: string   // ← requerido: viene desde page.tsx o categories-table
+}
+
+export function CategoryDialog({ category, children, companyId }: CategoryDialogProps) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -29,35 +35,36 @@ export function CategoryDialog({ category, children }: { category?: Category; ch
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsLoading(true)
-
     const supabase = createClient()
 
     try {
       if (category) {
-        const { error } = await supabase.from("categories").update(formData).eq("id", category.id)
+        // Update — doble filtro id + company_id
+        const { error } = await supabase
+          .from("categories")
+          .update({ ...formData, company_id: companyId })
+          .eq("id", category.id)
+          .eq("company_id", companyId)   // ← SEGURIDAD MULTIEMPRESA
+
         if (error) throw error
-        
-        // ✅ CIERRA EL MODAL PRIMERO
         setOpen(false)
-        // Pequeño delay para que se cierre el DOM
-        await new Promise(resolve => setTimeout(resolve, 100))
+        await new Promise((r) => setTimeout(r, 100))
         await showSuccess("Categoría actualizada correctamente")
       } else {
-        const { error } = await supabase.from("categories").insert(formData)
+        // Insert — siempre incluye company_id
+        const { error } = await supabase
+          .from("categories")
+          .insert({ ...formData, company_id: companyId })  // ← FILTRO MULTIEMPRESA
+
         if (error) throw error
-        
-        // ✅ CIERRA EL MODAL PRIMERO
         setOpen(false)
-        // Pequeño delay para que se cierre el DOM
-        await new Promise(resolve => setTimeout(resolve, 100))
+        await new Promise((r) => setTimeout(r, 100))
         await showSuccess("Categoría creada correctamente")
       }
 
-      // Reset form
       setFormData({ name: "", description: "" })
       router.refresh()
     } catch (error: any) {
-      // ✅ Muestra error específico
       showError(error.message || "Error inesperado")
       console.error("Error completo:", error)
     } finally {
@@ -65,7 +72,7 @@ export function CategoryDialog({ category, children }: { category?: Category; ch
     }
   }
 
-  return ( 
+  return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>{children}</DialogTrigger>
       <DialogContent className="sm:max-w-[425px]">

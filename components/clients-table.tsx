@@ -8,13 +8,35 @@ import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
 import { showError, showConfirm, showSuccess } from "@/lib/sweetalert"
 
-export function ClientsTable({ clients }: { clients: any[] }) {
+interface ClientsTableProps {
+  clients: any[]
+  companyId: string   // ← recibido desde page.tsx
+}
+
+export function ClientsTable({ clients, companyId }: ClientsTableProps) {
   const router = useRouter()
+
   const handleDelete = async (id: string) => {
-    if (await showConfirm("Irreversible", "¿Eliminar Cliente?")) {
-      const { error } = await createClient().from("clients").delete().eq("id", id)
-      if (error) showError("Error")
-      else { showSuccess("Eliminado"); router.refresh(); }
+    const confirmed = await showConfirm(
+      "Esta acción eliminará el cliente permanentemente",
+      "¿Eliminar Cliente?"
+    )
+    if (!confirmed) return
+
+    const supabase = createClient()
+
+    // Doble filtro: id + company_id → nadie puede borrar clientes de otra empresa
+    const { error } = await supabase
+      .from("clients")
+      .delete()
+      .eq("id", id)
+      .eq("company_id", companyId)             // ← FILTRO MULTIEMPRESA
+
+    if (error) {
+      showError(error.message || "Error al eliminar")
+    } else {
+      await showSuccess("Cliente eliminado correctamente")
+      router.refresh()
     }
   }
 
@@ -44,18 +66,27 @@ export function ClientsTable({ clients }: { clients: any[] }) {
               <TableRow key={client.id} className="table-row">
                 <TableCell className="table-cell font-medium">{client.name}</TableCell>
                 <TableCell className="table-cell">
-                   <div className="flex flex-col text-xs text-muted-foreground">
-                     <span>{client.email}</span>
-                     <span>{client.phone}</span>
-                   </div>
+                  <div className="flex flex-col text-xs text-muted-foreground">
+                    <span>{client.email || "—"}</span>
+                    <span>{client.phone || "—"}</span>
+                  </div>
                 </TableCell>
-                <TableCell className="table-cell text-sm text-muted-foreground">{client.address || "N/A"}</TableCell>
+                <TableCell className="table-cell text-sm text-muted-foreground">
+                  {client.address || "N/A"}
+                </TableCell>
                 <TableCell className="table-cell text-right">
                   <div className="flex justify-end gap-1">
                     <Button variant="ghost" size="icon" asChild className="btn-elegant-ghost">
-                      <Link href={`/dashboard/clients/${client.id}/edit`}><Edit className="h-4 w-4" /></Link>
+                      <Link href={`/dashboard/clients/${client.id}/edit`}>
+                        <Edit className="h-4 w-4" />
+                      </Link>
                     </Button>
-                    <Button variant="ghost" size="icon" onClick={() => handleDelete(client.id)} className="btn-elegant-danger">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => handleDelete(client.id)}
+                      className="btn-elegant-danger"
+                    >
                       <Trash2 className="h-4 w-4" />
                     </Button>
                   </div>

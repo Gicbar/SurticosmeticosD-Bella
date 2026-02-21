@@ -1,19 +1,38 @@
+import { getUserPermissions } from "@/lib/auth"
 import { createClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Separator } from "@/components/ui/separator"
-import { notFound } from "next/navigation"
+import { notFound, redirect } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { ArrowLeft, Calendar, DollarSign, User, CreditCard, Package, TrendingUp, ShoppingCart } from "lucide-react"
 
-export default async function SaleDetailPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function SaleDetailPage({
+  params,
+}: {
+  params: Promise<{ id: string }>
+}) {
   const { id } = await params
+
+  // ── 1. Permisos + company_id ──────────────────────────────────────────────
+  const permissionsData = await getUserPermissions()
+
+  if (!permissionsData?.permissions?.ventas) {
+    redirect("/dashboard")
+  }
+
+  const companyId = permissionsData.company_id
+  if (!companyId) redirect("/auth/sin-empresa")
+
+  // ── 2. Queries filtradas por empresa ──────────────────────────────────────
   const supabase = await createClient()
+
   const { data: sale } = await supabase
     .from("sales")
     .select("*, clients(name, email, phone), sales_profit(*)")
     .eq("id", id)
+    .eq("company_id", companyId)              // ← FILTRO MULTIEMPRESA
     .single()
 
   if (!sale) {
@@ -24,12 +43,13 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
     .from("sale_items")
     .select("*, products(name, barcode), purchase_batches(created_at)")
     .eq("sale_id", id)
+    .eq("company_id", companyId)              // ← FILTRO MULTIEMPRESA
 
   const profit = sale.sales_profit?.[0]
 
   return (
     <div className="dashboard-page-container">
-      {/* Header Compacto */}
+      {/* Header */}
       <div className="dashboard-toolbar">
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" asChild className="group">
@@ -43,77 +63,76 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
               Detalle de Venta
             </h1>
             <p className="dashboard-subtitle">
-              Transacción #{id.slice(0, 8)} • {new Date(sale.sale_date).toLocaleDateString("es-CO", {
+              Transacción #{id.slice(0, 8)} •{" "}
+              {new Date(sale.sale_date).toLocaleDateString("es-CO", {
                 day: "2-digit",
                 month: "short",
-                year: "numeric"
+                year: "numeric",
               })}
             </p>
           </div>
         </div>
       </div>
 
-      {/* Stats Grid Compacto */}
-      <div className="grid gap-4 grid-cols-2 lg:grid-cols-4 mb-6 animate-fadeIn">
-        {profit && (
-          <>
-            <Card className="card group">
-              <CardHeader className="card-header flex flex-row items-center justify-between pb-2">
-                <CardTitle className="card-title text-xs uppercase tracking-wide text-muted-foreground">
-                  Ganancia
-                </CardTitle>
-                <TrendingUp className="h-4 w-4 text-chart-4 group-hover:scale-110 transition-transform" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-xl md:text-2xl font-bold text-chart-4">
-                  {profit.profit.toLocaleString("es-CO", {
-                    style: "currency",
-                    currency: "COP",
-                    minimumFractionDigits: 0,
-                  })}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">Neta</p>
-              </CardContent>
-            </Card>
+      {/* Stats de rentabilidad (solo si existen) */}
+      {profit && (
+        <div className="grid gap-4 grid-cols-2 lg:grid-cols-3 mb-6 animate-fadeIn">
+          <Card className="card group">
+            <CardHeader className="card-header flex flex-row items-center justify-between pb-2">
+              <CardTitle className="card-title text-xs uppercase tracking-wide text-muted-foreground">
+                Ganancia
+              </CardTitle>
+              <TrendingUp className="h-4 w-4 text-chart-4 group-hover:scale-110 transition-transform" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-xl md:text-2xl font-bold text-chart-4">
+                {profit.profit.toLocaleString("es-CO", {
+                  style: "currency",
+                  currency: "COP",
+                  minimumFractionDigits: 0,
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Neta</p>
+            </CardContent>
+          </Card>
 
-            <Card className="card group">
-              <CardHeader className="card-header flex flex-row items-center justify-between pb-2">
-                <CardTitle className="card-title text-xs uppercase tracking-wide text-muted-foreground">
-                  Costo
-                </CardTitle>
-                <Package className="h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-xl md:text-2xl font-bold">
-                  {profit.total_cost.toLocaleString("es-CO", {
-                    style: "currency",
-                    currency: "COP",
-                    minimumFractionDigits: 0,
-                  })}
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">Inversión</p>
-              </CardContent>
-            </Card>
+          <Card className="card group">
+            <CardHeader className="card-header flex flex-row items-center justify-between pb-2">
+              <CardTitle className="card-title text-xs uppercase tracking-wide text-muted-foreground">
+                Costo
+              </CardTitle>
+              <Package className="h-4 w-4 text-primary group-hover:scale-110 transition-transform" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-xl md:text-2xl font-bold">
+                {profit.total_cost.toLocaleString("es-CO", {
+                  style: "currency",
+                  currency: "COP",
+                  minimumFractionDigits: 0,
+                })}
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Inversión</p>
+            </CardContent>
+          </Card>
 
-            <Card className="card group">
-              <CardHeader className="card-header flex flex-row items-center justify-between pb-2">
-                <CardTitle className="card-title text-xs uppercase tracking-wide text-muted-foreground">
-                  Margen
-                </CardTitle>
-                <TrendingUp className="h-4 w-4 text-chart-2 group-hover:scale-110 transition-transform" />
-              </CardHeader>
-              <CardContent>
-                <div className="text-xl md:text-2xl font-bold text-chart-2">
-                  {Number(profit.profit_margin).toFixed(1)}%
-                </div>
-                <p className="text-xs text-muted-foreground mt-1">Rentabilidad</p>
-              </CardContent>
-            </Card>
-          </>
-        )}
-      </div>
+          <Card className="card group">
+            <CardHeader className="card-header flex flex-row items-center justify-between pb-2">
+              <CardTitle className="card-title text-xs uppercase tracking-wide text-muted-foreground">
+                Margen
+              </CardTitle>
+              <TrendingUp className="h-4 w-4 text-chart-2 group-hover:scale-110 transition-transform" />
+            </CardHeader>
+            <CardContent>
+              <div className="text-xl md:text-2xl font-bold text-chart-2">
+                {Number(profit.profit_margin).toFixed(1)}%
+              </div>
+              <p className="text-xs text-muted-foreground mt-1">Rentabilidad</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
 
-      {/* Details Grid Compacto */}
+      {/* Detalles */}
       <div className="grid gap-4 md:grid-cols-2 mb-6 animate-fadeIn">
         {/* Información General */}
         <Card className="card">
@@ -132,11 +151,10 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
               <span className="font-medium text-sm">
                 {new Date(sale.sale_date).toLocaleString("es-ES", {
                   dateStyle: "medium",
-                  timeStyle: "short"
+                  timeStyle: "short",
                 })}
               </span>
             </div>
-
             <div className="flex justify-between items-center py-2 px-2 rounded-md bg-secondary/20 hover:bg-secondary/30 transition-colors">
               <span className="text-muted-foreground text-xs flex items-center gap-1.5">
                 <User className="h-3.5 w-3.5" />
@@ -144,21 +162,18 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
               </span>
               <span className="font-medium text-sm">{sale.clients?.name || "Cliente General"}</span>
             </div>
-
             {sale.clients?.email && (
               <div className="flex justify-between items-center py-2 px-2 rounded-md bg-secondary/20 hover:bg-secondary/30 transition-colors">
                 <span className="text-muted-foreground text-xs">Email:</span>
                 <span className="font-medium text-xs truncate">{sale.clients.email}</span>
               </div>
             )}
-
             {sale.clients?.phone && (
               <div className="flex justify-between items-center py-2 px-2 rounded-md bg-secondary/20 hover:bg-secondary/30 transition-colors">
                 <span className="text-muted-foreground text-xs">Teléfono:</span>
                 <span className="font-medium text-xs">{sale.clients.phone}</span>
               </div>
             )}
-
             <div className="flex justify-between items-center py-2 px-2 rounded-md bg-secondary/20 hover:bg-secondary/30 transition-colors">
               <span className="text-muted-foreground text-xs flex items-center gap-1.5">
                 <CreditCard className="h-3.5 w-3.5" />
@@ -190,7 +205,6 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
                 })}
               </span>
             </div>
-
             {profit && (
               <>
                 <div className="flex justify-between items-center py-2 px-2 rounded-md bg-destructive/10 hover:bg-destructive/15 transition-colors">
@@ -203,9 +217,7 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
                     })}
                   </span>
                 </div>
-
                 <Separator className="my-2" />
-
                 <div className="flex justify-between items-center py-2 px-2 rounded-md bg-chart-4/10 hover:bg-chart-4/15 transition-colors">
                   <span className="text-muted-foreground text-xs">Ganancia:</span>
                   <span className="font-bold text-base text-chart-4">
@@ -216,7 +228,6 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
                     })}
                   </span>
                 </div>
-
                 <div className="flex justify-between items-center py-2 px-2 rounded-md bg-chart-2/10 hover:bg-chart-2/15 transition-colors">
                   <span className="text-muted-foreground text-xs">Margen:</span>
                   <span className="font-semibold text-sm text-chart-2">
@@ -261,8 +272,13 @@ export default async function SaleDetailPage({ params }: { params: Promise<{ id:
               </TableHeader>
               <TableBody>
                 {saleItems?.map((item) => (
-                  <TableRow key={item.id} className="border-b border-border/30 hover:bg-primary/5 transition-colors">
-                    <TableCell className="px-4 py-3 text-sm font-medium">{item.products?.name || "N/A"}</TableCell>
+                  <TableRow
+                    key={item.id}
+                    className="border-b border-border/30 hover:bg-primary/5 transition-colors"
+                  >
+                    <TableCell className="px-4 py-3 text-sm font-medium">
+                      {item.products?.name || "N/A"}
+                    </TableCell>
                     <TableCell className="px-4 py-3 text-center">
                       <span className="badge badge-stock in-stock text-[10px] px-1.5 py-0.5">
                         {item.quantity}

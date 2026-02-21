@@ -5,7 +5,8 @@ import { AlertTriangle, Package, CheckCircle } from "lucide-react"
 export async function LowStockAlert() {
   const supabase = await createClient()
 
-  const { data: lowStockProducts } = await supabase.rpc("get_low_stock_products").limit(5)
+  const { data: lowStockProducts } = await supabase.rpc("get_low_stock_products")
+
 
   // Card base para ambos estados
   const baseCardClass = "card-dashboard border-2 transition-all duration-300"

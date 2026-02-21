@@ -25,7 +25,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover"
 
-// Tipos
+// ─── Tipos ────────────────────────────────────────────────────────────────────
+
 type CartItem = {
   product_id: string
   name: string
@@ -47,11 +48,12 @@ type Client = {
   name: string
 }
 
-// Componente Combobox para clientes
+// ─── ClientCombobox ───────────────────────────────────────────────────────────
+
 function ClientCombobox({ clients, value, onChange, placeholder = "Selecciona un cliente" }: {
-  clients: Client[],
-  value: string,
-  onChange: (value: string) => void,
+  clients: Client[]
+  value: string
+  onChange: (value: string) => void
   placeholder?: string
 }) {
   const [open, setOpen] = useState(false)
@@ -66,9 +68,7 @@ function ClientCombobox({ clients, value, onChange, placeholder = "Selecciona un
           aria-expanded={open}
           className="w-full justify-between h-11 border border-border bg-background rounded-lg"
         >
-          {value
-            ? clients.find((client) => client.id === value)?.name
-            : placeholder}
+          {value ? clients.find((client) => client.id === value)?.name : placeholder}
           <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
         </Button>
       </PopoverTrigger>
@@ -87,9 +87,7 @@ function ClientCombobox({ clients, value, onChange, placeholder = "Selecciona un
             <CommandEmpty>No se encontró el cliente</CommandEmpty>
             <CommandGroup>
               {clients
-                .filter(client =>
-                  client.name.toLowerCase().includes(searchValue.toLowerCase())
-                )
+                .filter((client) => client.name.toLowerCase().includes(searchValue.toLowerCase()))
                 .map((client) => (
                   <CommandItem
                     key={client.id}
@@ -115,7 +113,8 @@ function ClientCombobox({ clients, value, onChange, placeholder = "Selecciona un
   )
 }
 
-// Componente Input con Icono Integrado para POS
+// ─── POSInputWithIcon ─────────────────────────────────────────────────────────
+
 function POSInputWithIcon({
   icon,
   className = "",
@@ -123,40 +122,56 @@ function POSInputWithIcon({
 }: React.ComponentProps<typeof Input> & { icon: React.ReactNode }) {
   return (
     <div className="relative flex items-center w-full">
-      <div className="absolute left-4 z-10 text-muted-foreground">
-        {icon}
-      </div>
+      <div className="absolute left-4 z-10 text-muted-foreground">{icon}</div>
       <Input className={`pl-12 ${className}`} {...props} />
     </div>
   )
 }
 
-export function POSInterface() {
-  // Estados y hooks
+// ─── POSInterface ─────────────────────────────────────────────────────────────
+
+interface POSInterfaceProps {
+  companyId: string   // ← recibido desde page.tsx (server component)
+}
+
+export function POSInterface({ companyId }: POSInterfaceProps) {
   const router = useRouter()
   const barcodeInputRef = useRef<HTMLInputElement>(null)
-  const [cart, setCart] = useState<CartItem[]>([])
-  const [barcodeInput, setBarcodeInput] = useState("")
-  const [nameSearch, setNameSearch] = useState("")
-  const [selectedClient, setSelectedClient] = useState<string>("")
-  const [paymentMethod, setPaymentMethod] = useState<string>("efectivo")
-  const [isProcessing, setIsProcessing] = useState(false)
-  const [products, setProducts] = useState<Product[]>([])
-  const [clients, setClients] = useState<Client[]>([])
+
+  const [cart, setCart]                       = useState<CartItem[]>([])
+  const [barcodeInput, setBarcodeInput]       = useState("")
+  const [nameSearch, setNameSearch]           = useState("")
+  const [selectedClient, setSelectedClient]   = useState<string>("")
+  const [paymentMethod, setPaymentMethod]     = useState<string>("efectivo")
+  const [isProcessing, setIsProcessing]       = useState(false)
+  const [products, setProducts]               = useState<Product[]>([])
+  const [clients, setClients]                 = useState<Client[]>([])
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([])
 
-  // Efectos
+  // ── Cargar productos y clientes filtrados por empresa ─────────────────────
   useEffect(() => {
     const fetchData = async () => {
       const supabase = createClient()
-      const { data: productsData } = await supabase.from("products").select("id, name, barcode, sale_price")
-      const { data: clientsData } = await supabase.from("clients").select("id, name")
+
+      const [{ data: productsData }, { data: clientsData }] = await Promise.all([
+        supabase
+          .from("products")
+          .select("id, name, barcode, sale_price")
+          .eq("company_id", companyId),          // ← FILTRO MULTIEMPRESA
+
+        supabase
+          .from("clients")
+          .select("id, name")
+          .eq("company_id", companyId),          // ← FILTRO MULTIEMPRESA
+      ])
+
       setProducts(productsData || [])
       setClients(clientsData || [])
     }
     fetchData()
-  }, [])
+  }, [companyId])
 
+  // ── Filtro de búsqueda por nombre ─────────────────────────────────────────
   useEffect(() => {
     if (nameSearch.trim()) {
       const filtered = products.filter((p) => p.name.toLowerCase().includes(nameSearch.toLowerCase()))
@@ -166,18 +181,23 @@ export function POSInterface() {
     }
   }, [nameSearch, products])
 
+  // ── Focus en input de código de barras tras cada cambio de carrito ────────
   useEffect(() => {
     barcodeInputRef.current?.focus()
   }, [cart])
 
-  // Funciones
-  const checkStockAvailability = async (cart: CartItem[]) => {
+  // ── Verificar stock disponible (filtrado por empresa vía product_id) ──────
+  // purchase_batches no tiene company_id directamente accesible en la query,
+  // pero el product_id ya pertenece a esta empresa gracias al fetch previo.
+  // Añadimos el filtro de company_id para máxima seguridad.
+  const checkStockAvailability = async (cartItems: CartItem[]) => {
     const supabase = createClient()
-    for (const item of cart) {
+    for (const item of cartItems) {
       const { data: batches, error } = await supabase
         .from("purchase_batches")
         .select("remaining_quantity")
         .eq("product_id", item.product_id)
+        .eq("company_id", companyId)             // ← FILTRO MULTIEMPRESA
         .gt("remaining_quantity", 0)
 
       if (error) {
@@ -193,6 +213,7 @@ export function POSInterface() {
     return null
   }
 
+  // ── Barcode submit ────────────────────────────────────────────────────────
   const handleBarcodeSubmit = (e: React.FormEvent) => {
     e.preventDefault()
     if (!barcodeInput.trim()) return
@@ -207,6 +228,7 @@ export function POSInterface() {
     }
   }
 
+  // ── Carrito ───────────────────────────────────────────────────────────────
   const addToCart = (product: Product) => {
     const existingItem = cart.find((item) => item.product_id === product.id)
     if (existingItem) {
@@ -248,10 +270,12 @@ export function POSInterface() {
     )
   }
 
-  const removeFromCart = (product_id: string) => setCart(cart.filter((item) => item.product_id !== product_id))
+  const removeFromCart = (product_id: string) =>
+    setCart(cart.filter((item) => item.product_id !== product_id))
 
   const calculateTotal = () => cart.reduce((sum, item) => sum + item.subtotal, 0)
 
+  // ── Checkout ──────────────────────────────────────────────────────────────
   const handleCheckout = async () => {
     if (cart.length === 0) return showWarning("El carrito está vacío", "No hay productos")
     if (!selectedClient) return showWarning("Selecciona un cliente", "Cliente requerido")
@@ -282,34 +306,50 @@ export function POSInterface() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error("Usuario no autenticado")
 
+      // ── 1. Crear venta con company_id ─────────────────────────────────────
       const { data: sale, error: saleError } = await supabase
         .from("sales")
-        .insert({ client_id: selectedClient, total, payment_method: paymentMethod, created_by: user.id })
+        .insert({
+          client_id: selectedClient,
+          total,
+          payment_method: paymentMethod,
+          created_by: user.id,
+          company_id: companyId,                // ← FILTRO MULTIEMPRESA
+        })
         .select()
         .single()
 
       if (saleError) throw saleError
 
       let totalCost = 0
+
       for (const item of cart) {
+        // ── 2. Obtener lotes filtrados por empresa ────────────────────────
         const { data: batches } = await supabase
           .from("purchase_batches")
           .select("*")
           .eq("product_id", item.product_id)
+          .eq("company_id", companyId)          // ← FILTRO MULTIEMPRESA
           .gt("remaining_quantity", 0)
           .order("purchase_date", { ascending: true })
 
-        if (!batches || batches.length === 0) throw new Error(`No hay stock disponible para ${item.name}`)
+        if (!batches || batches.length === 0)
+          throw new Error(`No hay stock disponible para ${item.name}`)
 
         let remainingQty = item.quantity
+
         for (const batch of batches) {
           if (remainingQty <= 0) break
           const qtyToDeduct = Math.min(batch.remaining_quantity, remainingQty)
+
+          // ── 3. Descontar stock ──────────────────────────────────────────
           await supabase
             .from("purchase_batches")
             .update({ remaining_quantity: batch.remaining_quantity - qtyToDeduct })
             .eq("id", batch.id)
+            .eq("company_id", companyId)        // ← doble filtro en update
 
+          // ── 4. Insertar sale_item con company_id ────────────────────────
           await supabase.from("sale_items").insert({
             sale_id: sale.id,
             product_id: item.product_id,
@@ -317,6 +357,7 @@ export function POSInterface() {
             quantity: qtyToDeduct,
             unit_price: item.unit_price,
             subtotal: qtyToDeduct * item.unit_price,
+            company_id: companyId,              // ← FILTRO MULTIEMPRESA
           })
 
           totalCost += qtyToDeduct * Number(batch.purchase_price)
@@ -325,17 +366,20 @@ export function POSInterface() {
 
         if (remainingQty > 0) throw new Error(`Stock insuficiente para ${item.name}`)
 
+        // ── 5. Movimiento de inventario con company_id ──────────────────
         await supabase.from("inventory_movements").insert({
           product_id: item.product_id,
           movement_type: "salida",
           quantity: item.quantity,
           reason: `Venta #${sale.id}`,
           created_by: user.id,
+          company_id: companyId,                // ← FILTRO MULTIEMPRESA
         })
       }
 
+      // ── 6. Registrar rentabilidad con company_id ──────────────────────────
       const profit = total - totalCost
-      const profitMargin = (profit / total) * 100
+      const profitMargin = total > 0 ? (profit / total) * 100 : 0
 
       await supabase.from("sales_profit").insert({
         sale_id: sale.id,
@@ -343,8 +387,10 @@ export function POSInterface() {
         total_sale: total,
         profit,
         profit_margin: profitMargin,
+        company_id: companyId,                  // ← FILTRO MULTIEMPRESA
       })
 
+      // ── 7. Reset y confirmación ───────────────────────────────────────────
       setCart([])
       setSelectedClient("")
       setPaymentMethod("efectivo")
@@ -357,6 +403,7 @@ export function POSInterface() {
       } else {
         await showSuccess(`Total: $${total.toFixed(2)}`, "¡Venta Completada!")
       }
+
       router.refresh()
     } catch (error) {
       console.error("Error en venta:", error)
@@ -366,11 +413,13 @@ export function POSInterface() {
     }
   }
 
+  // ── Render ────────────────────────────────────────────────────────────────
   return (
     <div className="dashboard-page-container">
       <div className="grid gap-5 lg:grid-cols-3">
         {/* Columna Izquierda */}
         <div className="lg:col-span-2 space-y-5">
+
           {/* Escáner de Productos */}
           <Card className="card">
             <CardHeader className="card-header">
@@ -455,12 +504,8 @@ export function POSInterface() {
                     <div className="w-20 h-20 mx-auto flex items-center justify-center rounded-full bg-gradient-to-br from-secondary to-primary/20">
                       <ShoppingCart className="h-10 w-10 text-primary/50" />
                     </div>
-                    <p className="text-base font-medium text-muted-foreground">
-                      El carrito está vacío
-                    </p>
-                    <p className="text-sm text-muted-foreground/70">
-                      Escanea un producto para comenzar
-                    </p>
+                    <p className="text-base font-medium text-muted-foreground">El carrito está vacío</p>
+                    <p className="text-sm text-muted-foreground/70">Escanea un producto para comenzar</p>
                   </div>
                 </div>
               ) : (
@@ -480,7 +525,8 @@ export function POSInterface() {
                             currency: "COP",
                             minimumFractionDigits: 0,
                             maximumFractionDigits: 0,
-                          })} c/u
+                          })}{" "}
+                          c/u
                         </p>
                       </div>
                       <div className="flex items-center gap-2">
@@ -535,11 +581,9 @@ export function POSInterface() {
               <CardTitle className="card-title text-xl font-bold">Detalles de Venta</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 p-4 pt-2">
-              {/* Cliente con búsqueda */}
+              {/* Cliente */}
               <div className="space-y-2">
-                <Label className="text-sm font-medium text-muted-foreground">
-                  Cliente *
-                </Label>
+                <Label className="text-sm font-medium text-muted-foreground">Cliente *</Label>
                 <ClientCombobox
                   clients={clients}
                   value={selectedClient}

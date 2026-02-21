@@ -17,7 +17,12 @@ type Product = {
   barcode: string | null
 }
 
-export function PurchaseBatchDialog({ children }: { children: React.ReactNode }) {
+interface PurchaseBatchDialogProps {
+  children: React.ReactNode
+  companyId: string   // ← recibido desde la page (server component)
+}
+
+export function PurchaseBatchDialog({ children, companyId }: PurchaseBatchDialogProps) {
   const router = useRouter()
   const [open, setOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -35,13 +40,26 @@ export function PurchaseBatchDialog({ children }: { children: React.ReactNode })
   useEffect(() => {
     const fetchData = async () => {
       const supabase = createClient()
-      const { data: productsData } = await supabase.from("products").select("id, name, barcode").order("name")
-      const { data: suppliersData } = await supabase.from("suppliers").select("id, name").order("name")
+
+      // ── Solo productos y proveedores de esta empresa ──────────────────────
+      const [{ data: productsData }, { data: suppliersData }] = await Promise.all([
+        supabase
+          .from("products")
+          .select("id, name, barcode")
+          .eq("company_id", companyId)    // ← FILTRO MULTIEMPRESA
+          .order("name"),
+        supabase
+          .from("suppliers")
+          .select("id, name")
+          .eq("company_id", companyId)    // ← FILTRO MULTIEMPRESA
+          .order("name"),
+      ])
+
       setProducts(productsData || [])
       setSuppliers(suppliersData || [])
     }
     fetchData()
-  }, [])
+  }, [companyId])
 
   useEffect(() => {
     if (searchTerm.trim()) {
@@ -59,7 +77,6 @@ export function PurchaseBatchDialog({ children }: { children: React.ReactNode })
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Validación frontend
     if (!formData.product_id || !formData.quantity || !formData.purchase_price) {
       showError("Por favor completa todos los campos requeridos")
       return
@@ -67,6 +84,7 @@ export function PurchaseBatchDialog({ children }: { children: React.ReactNode })
 
     setIsLoading(true)
     const supabase = createClient()
+
     try {
       const batchData = {
         product_id: formData.product_id,
@@ -74,21 +92,19 @@ export function PurchaseBatchDialog({ children }: { children: React.ReactNode })
         purchase_price: Number.parseFloat(formData.purchase_price),
         remaining_quantity: Number.parseInt(formData.quantity),
         supplier_id: formData.supplier_id || null,
+        company_id: companyId,   // ← SIEMPRE incluido en el insert
       }
 
       const { error } = await supabase.from("purchase_batches").insert(batchData)
       if (error) throw error
 
-      // ✅ CIERRA EL MODAL PRIMERO
       setOpen(false)
-      await new Promise(resolve => setTimeout(resolve, 150))
+      await new Promise((resolve) => setTimeout(resolve, 150))
       await showSuccess("Compra registrada correctamente")
-      // Reset form
       setFormData({ product_id: "", quantity: "", purchase_price: "", supplier_id: "" })
       setSearchTerm("")
       router.refresh()
     } catch (error: any) {
-      // ✅ Muestra error específico
       showError(error.message || "Error al registrar la compra")
       console.error("Error completo:", error)
     } finally {
@@ -98,6 +114,8 @@ export function PurchaseBatchDialog({ children }: { children: React.ReactNode })
 
   const handleProductSelect = (productId: string) => {
     setFormData({ ...formData, product_id: productId })
+    setSearchTerm("")        // limpiar búsqueda al seleccionar
+    setFilteredProducts([])  // cerrar dropdown
   }
 
   const clearProductSelection = () => {
@@ -119,13 +137,12 @@ export function PurchaseBatchDialog({ children }: { children: React.ReactNode })
         </DialogHeader>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {/* Busqueda de Producto */}
+          {/* Búsqueda de Producto */}
           <div className="space-y-2">
             <Label className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
               <Search className="h-4 w-4" />
               Buscar Producto *
             </Label>
-
             <div className="relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
@@ -192,21 +209,13 @@ export function PurchaseBatchDialog({ children }: { children: React.ReactNode })
                 </div>
               </div>
             ) : (
-              <Select
-                value={formData.product_id}
-                onValueChange={handleProductSelect}
-                disabled={isLoading}
-              >
+              <Select value={formData.product_id} onValueChange={handleProductSelect} disabled={isLoading}>
                 <SelectTrigger className="h-11 border border-border bg-background rounded-lg">
                   <SelectValue placeholder="Selecciona un producto" />
                 </SelectTrigger>
                 <SelectContent className="bg-white dark:bg-[#1e1e1e] border-border rounded-lg shadow-lg">
                   {products.map((product) => (
-                    <SelectItem 
-                      key={product.id}
-                      value={product.id}
-                      className="hover:bg-secondary/20 cursor-pointer"
-                    >
+                    <SelectItem key={product.id} value={product.id} className="hover:bg-secondary/20 cursor-pointer">
                       {product.name}
                     </SelectItem>
                   ))}
@@ -231,11 +240,7 @@ export function PurchaseBatchDialog({ children }: { children: React.ReactNode })
               </SelectTrigger>
               <SelectContent className="bg-white dark:bg-[#1e1e1e] border-border rounded-lg shadow-lg">
                 {suppliers.map((supplier) => (
-                  <SelectItem
-                    key={supplier.id}
-                    value={supplier.id}
-                    className="hover:bg-secondary/20 cursor-pointer"
-                  >
+                  <SelectItem key={supplier.id} value={supplier.id} className="hover:bg-secondary/20 cursor-pointer">
                     {supplier.name}
                   </SelectItem>
                 ))}

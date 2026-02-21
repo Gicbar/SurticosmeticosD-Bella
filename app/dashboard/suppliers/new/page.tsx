@@ -1,11 +1,22 @@
-import { requireAuth } from "@/lib/auth"
+import { getUserPermissions } from "@/lib/auth"
 import { SupplierForm } from "@/components/supplier-form"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { ArrowLeft, Truck } from "lucide-react"
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { redirect } from "next/navigation"
 
-export default function NewSupplierPage() {
+export default async function NewSupplierPage() {
+  // ── Obtener companyId para pasarlo al form (client component) ─────────────
+  const permissions = await getUserPermissions()
+
+  if (!permissions?.permissions?.proveedores) {
+    redirect("/dashboard")
+  }
+
+  const companyId = permissions.company_id
+  if (!companyId) redirect("/auth/sin-empresa")
+
   return (
     <div className="dashboard-page-container">
       {/* Header */}
@@ -21,9 +32,7 @@ export default function NewSupplierPage() {
               <Truck className="dashboard-title-icon" />
               Nuevo Proveedor
             </h1>
-            <p className="dashboard-subtitle">
-              Registra un nuevo proveedor para tus compras
-            </p>
+            <p className="dashboard-subtitle">Registra un nuevo proveedor para tus compras</p>
           </div>
         </div>
       </div>
@@ -37,7 +46,7 @@ export default function NewSupplierPage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="p-6">
-          <SupplierForm />
+          <SupplierForm companyId={companyId} />
         </CardContent>
       </Card>
     </div>

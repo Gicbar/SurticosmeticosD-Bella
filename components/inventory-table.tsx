@@ -4,7 +4,7 @@ import { useState, useMemo, useEffect } from "react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Edit, Search, Package, Barcode, Calendar, User, DollarSign, AlertTriangle, CheckCircle, Eye, EyeOff } from "lucide-react"
+import { Edit, Search, Package, Eye, EyeOff, AlertTriangle, CheckCircle } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
 import { showSuccess, showError } from "@/lib/sweetalert"
@@ -12,6 +12,7 @@ import { formatCurrency, formatDate } from "@/lib/utils"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { useCompany } from "@/contexts/CompanyContext"  // ← hook del contexto global
 
 type Batch = {
   id: string
@@ -23,11 +24,13 @@ type Batch = {
   suppliers: { name: string } | null
 }
 
+// ─── StockStatusBadge ────────────────────────────────────────────────────────
+
 function StockStatusBadge({ status, quantity }: { status: "ok" | "low" | "out"; quantity: number }) {
   const config = {
-    ok: { text: "Disponible", class: "badge-stock-ok", icon: <CheckCircle className="h-3 w-3" /> },
+    ok:  { text: "Disponible", class: "badge-stock-ok",  icon: <CheckCircle  className="h-3 w-3" /> },
     low: { text: "Bajo Stock", class: "badge-stock-low", icon: <AlertTriangle className="h-3 w-3" /> },
-    out: { text: "Agotado", class: "badge-stock-out", icon: <Package className="h-3 w-3" /> },
+    out: { text: "Agotado",    class: "badge-stock-out", icon: <Package       className="h-3 w-3" /> },
   }
   return (
     <div className={`badge ${config[status].class} gap-1`}>
@@ -38,7 +41,9 @@ function StockStatusBadge({ status, quantity }: { status: "ok" | "low" | "out"; 
   )
 }
 
-function SearchInput({ value, onChange, placeholder }: { value: string, onChange: (v: string) => void, placeholder: string }) {
+// ─── SearchInput ─────────────────────────────────────────────────────────────
+
+function SearchInput({ value, onChange, placeholder }: { value: string; onChange: (v: string) => void; placeholder: string }) {
   return (
     <div className="search-container">
       <Search className="search-icon" />
@@ -52,15 +57,26 @@ function SearchInput({ value, onChange, placeholder }: { value: string, onChange
   )
 }
 
-function EditBatchDialog({ batch, products, suppliers, children }: { batch: Batch, products: any[], suppliers: any[], children: React.ReactNode }) {
+// ─── EditBatchDialog ─────────────────────────────────────────────────────────
+
+function EditBatchDialog({
+  batch,
+  suppliers,
+  children,
+}: {
+  batch: Batch
+  suppliers: { id: string; name: string }[]
+  children: React.ReactNode
+}) {
   const router = useRouter()
+  const { companyId } = useCompany()  // ← company_id desde el contexto global
   const [open, setOpen] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
-  
+
   const [formData, setFormData] = useState({
     quantity: batch.quantity.toString(),
     purchase_price: batch.purchase_price.toString(),
-    supplier_id: batch.suppliers?.id || "",
+    supplier_id: (batch.suppliers as any)?.id || "",
   })
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -69,11 +85,17 @@ function EditBatchDialog({ batch, products, suppliers, children }: { batch: Batc
     const supabase = createClient()
 
     try {
-      const { data: currentBatch } = await supabase.from("purchase_batches").select("remaining_quantity, quantity").eq("id", batch.id).single()
+      // Verificar que no se hayan vendido unidades — con filtro de empresa
+      const { data: currentBatch } = await supabase
+        .from("purchase_batches")
+        .select("remaining_quantity, quantity")
+        .eq("id", batch.id)
+        .eq("company_id", companyId!)   // ← seguridad: solo lotes de esta empresa
+        .single()
 
       if (!currentBatch || currentBatch.remaining_quantity !== currentBatch.quantity) {
         setOpen(false)
-        await new Promise(resolve => setTimeout(resolve, 300))
+        await new Promise((resolve) => setTimeout(resolve, 300))
         showError("No se puede editar: ya se han vendido productos de este lote")
         return
       }
@@ -83,13 +105,19 @@ function EditBatchDialog({ batch, products, suppliers, children }: { batch: Batc
         purchase_price: Number.parseFloat(formData.purchase_price),
         remaining_quantity: Number.parseInt(formData.quantity),
         supplier_id: formData.supplier_id || null,
+        company_id: companyId,  // ← siempre presente en el update
       }
 
-      const { error } = await supabase.from("purchase_batches").update(updateData).eq("id", batch.id)
+      const { error } = await supabase
+        .from("purchase_batches")
+        .update(updateData)
+        .eq("id", batch.id)
+        .eq("company_id", companyId!)   // ← doble filtro en update
+
       if (error) throw error
 
       setOpen(false)
-      await new Promise(resolve => setTimeout(resolve, 300))
+      await new Promise((resolve) => setTimeout(resolve, 300))
       await showSuccess("Lote actualizado")
       router.refresh()
     } catch (error: any) {
@@ -118,27 +146,51 @@ function EditBatchDialog({ batch, products, suppliers, children }: { batch: Batc
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label>Cantidad *</Label>
-              <Input type="number" min="1" required value={formData.quantity} onChange={(e) => setFormData({ ...formData, quantity: e.target.value })} className="input-modern" />
+              <Input
+                type="number"
+                min="1"
+                required
+                value={formData.quantity}
+                onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
+                className="input-modern"
+              />
             </div>
             <div className="space-y-2">
               <Label>Precio Unitario *</Label>
-              <Input type="number" step="0.01" min="0" required value={formData.purchase_price} onChange={(e) => setFormData({ ...formData, purchase_price: e.target.value })} className="input-modern" />
+              <Input
+                type="number"
+                step="0.01"
+                min="0"
+                required
+                value={formData.purchase_price}
+                onChange={(e) => setFormData({ ...formData, purchase_price: e.target.value })}
+                className="input-modern"
+              />
             </div>
           </div>
           <div className="space-y-2">
             <Label>Proveedor</Label>
-            <Select value={formData.supplier_id} onValueChange={(value) => setFormData({ ...formData, supplier_id: value })}>
+            <Select
+              value={formData.supplier_id}
+              onValueChange={(value) => setFormData({ ...formData, supplier_id: value })}
+            >
               <SelectTrigger className="input-modern">
-                <SelectValue placeholder={batch.suppliers?.name || "Selecciona..."} />
+                <SelectValue placeholder={(batch.suppliers as any)?.name || "Selecciona..."} />
               </SelectTrigger>
               <SelectContent>
-                {suppliers.map((s) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                {suppliers.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>
+                ))}
               </SelectContent>
             </Select>
           </div>
           <div className="flex gap-2 justify-end pt-4">
-            <Button type="button" variant="outline" onClick={() => setOpen(false)} className="btn-elegant-secondary">Cancelar</Button>
-            <Button type="submit" disabled={isLoading} className="btn-action-new">Guardar Cambios</Button>
+            <Button type="button" variant="outline" onClick={() => setOpen(false)} className="btn-elegant-secondary">
+              Cancelar
+            </Button>
+            <Button type="submit" disabled={isLoading} className="btn-action-new">
+              Guardar Cambios
+            </Button>
           </div>
         </form>
       </DialogContent>
@@ -146,31 +198,43 @@ function EditBatchDialog({ batch, products, suppliers, children }: { batch: Batc
   )
 }
 
+// ─── InventoryTable ───────────────────────────────────────────────────────────
+
 export function InventoryTable({ batches }: { batches: Batch[] }) {
+  const { companyId } = useCompany()  // ← company_id del contexto global
   const [searchTerm, setSearchTerm] = useState("")
   const [showZeroStock, setShowZeroStock] = useState(false)
-  const [products, setProducts] = useState<any[]>([])
-  const [suppliers, setSuppliers] = useState<any[]>([])
+  const [suppliers, setSuppliers] = useState<{ id: string; name: string }[]>([])
 
   useEffect(() => {
-    const fetchData = async () => {
+    if (!companyId) return
+
+    const fetchSuppliers = async () => {
       const supabase = createClient()
-      const { data: p } = await supabase.from("products").select("id, name, barcode").order("name")
-      const { data: s } = await supabase.from("suppliers").select("id, name").order("name")
-      setProducts(p || [])
-      setSuppliers(s || [])
+      // Solo proveedores de esta empresa para el dropdown de edición
+      const { data } = await supabase
+        .from("suppliers")
+        .select("id, name")
+        .eq("company_id", companyId)   // ← FILTRO MULTIEMPRESA
+        .order("name")
+      setSuppliers(data || [])
     }
-    fetchData()
-  }, [])
+
+    fetchSuppliers()
+  }, [companyId])
 
   const filteredBatches = useMemo(() => {
     let filtered = batches
     if (searchTerm.trim()) {
       const search = searchTerm.toLowerCase()
-      filtered = filtered.filter(b => b.products?.name.toLowerCase().includes(search) || b.suppliers?.name.toLowerCase().includes(search))
+      filtered = filtered.filter(
+        (b) =>
+          b.products?.name.toLowerCase().includes(search) ||
+          b.suppliers?.name.toLowerCase().includes(search)
+      )
     }
     if (!showZeroStock) {
-      filtered = filtered.filter(b => b.remaining_quantity > 0)
+      filtered = filtered.filter((b) => b.remaining_quantity > 0)
     }
     return filtered
   }, [batches, searchTerm, showZeroStock])
@@ -217,22 +281,43 @@ export function InventoryTable({ batches }: { batches: Batch[] }) {
               </TableRow>
             ) : (
               filteredBatches.map((batch) => {
-                const stockStatus = batch.remaining_quantity === 0 ? "out" : batch.remaining_quantity <= (batch.products?.min_stock || 0) ? "low" : "ok"
+                const stockStatus =
+                  batch.remaining_quantity === 0
+                    ? "out"
+                    : batch.remaining_quantity <= (batch.products?.min_stock || 0)
+                    ? "low"
+                    : "ok"
                 const canModify = batch.remaining_quantity === batch.quantity
 
                 return (
-                  <TableRow key={batch.id} className={`table-row ${batch.remaining_quantity === 0 ? "opacity-60" : ""}`}>
+                  <TableRow
+                    key={batch.id}
+                    className={`table-row ${batch.remaining_quantity === 0 ? "opacity-60" : ""}`}
+                  >
                     <TableCell className="table-cell font-medium">{batch.products?.name}</TableCell>
-                    <TableCell className="table-cell font-mono text-xs text-muted-foreground">{batch.products?.barcode || "N/A"}</TableCell>
+                    <TableCell className="table-cell font-mono text-xs text-muted-foreground">
+                      {batch.products?.barcode || "N/A"}
+                    </TableCell>
                     <TableCell className="table-cell text-sm">{batch.suppliers?.name}</TableCell>
                     <TableCell className="table-cell text-right font-mono">{batch.quantity}</TableCell>
                     <TableCell className="table-cell text-right font-bold">{batch.remaining_quantity}</TableCell>
-                    <TableCell className="table-cell text-right text-chart-2 font-medium">{formatCurrency(batch.purchase_price)}</TableCell>
-                    <TableCell className="table-cell text-xs text-muted-foreground">{formatDate(batch.purchase_date)}</TableCell>
-                    <TableCell className="table-cell text-center"><StockStatusBadge status={stockStatus} quantity={batch.remaining_quantity} /></TableCell>
+                    <TableCell className="table-cell text-right text-chart-2 font-medium">
+                      {formatCurrency(batch.purchase_price)}
+                    </TableCell>
+                    <TableCell className="table-cell text-xs text-muted-foreground">
+                      {formatDate(batch.purchase_date)}
+                    </TableCell>
+                    <TableCell className="table-cell text-center">
+                      <StockStatusBadge status={stockStatus} quantity={batch.remaining_quantity} />
+                    </TableCell>
                     <TableCell className="table-cell text-right">
-                      <EditBatchDialog batch={batch} products={products} suppliers={suppliers}>
-                        <Button variant="ghost" size="icon" className="btn-elegant-ghost" disabled={!canModify}>
+                      <EditBatchDialog batch={batch} suppliers={suppliers}>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="btn-elegant-ghost"
+                          disabled={!canModify}
+                        >
                           <Edit className="h-4 w-4" />
                         </Button>
                       </EditBatchDialog>

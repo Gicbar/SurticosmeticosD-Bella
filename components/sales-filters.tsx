@@ -1,4 +1,5 @@
 "use client"
+
 import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -9,28 +10,38 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { createClient } from "@/lib/supabase/client"
 import { Filter } from "lucide-react"
 
-export function SalesFilters() {
+interface SalesFiltersProps {
+  companyId: string   // ← recibido desde page.tsx
+}
+
+export function SalesFilters({ companyId }: SalesFiltersProps) {
   const router = useRouter()
   const searchParams = useSearchParams()
-  const [from, setFrom] = useState(searchParams.get("from") || "")
-  const [to, setTo] = useState(searchParams.get("to") || "")
-  const [client, setClient] = useState(searchParams.get("client") || "")
+
+  const [from,    setFrom]    = useState(searchParams.get("from")    || "")
+  const [to,      setTo]      = useState(searchParams.get("to")      || "")
+  const [client,  setClient]  = useState(searchParams.get("client")  || "")
   const [clients, setClients] = useState<{ id: string; name: string }[]>([])
 
+  // ── Cargar clientes filtrados por empresa ─────────────────────────────────
   useEffect(() => {
     const fetchClients = async () => {
       const supabase = createClient()
-      const { data } = await supabase.from("clients").select("id, name").order("name")
+      const { data } = await supabase
+        .from("clients")
+        .select("id, name")
+        .eq("company_id", companyId)          // ← FILTRO MULTIEMPRESA
+        .order("name")
       setClients(data || [])
     }
     fetchClients()
-  }, [])
+  }, [companyId])
 
   const handleFilter = () => {
     const params = new URLSearchParams()
-    if (from) params.set("from", from)
-    if (to) params.set("to", to)
-    if (client) params.set("client", client)
+    if (from)                    params.set("from",   from)
+    if (to)                      params.set("to",     to)
+    if (client && client !== "all") params.set("client", client)
     router.push(`/dashboard/sales?${params.toString()}`)
   }
 
@@ -79,7 +90,7 @@ export function SalesFilters() {
             />
           </div>
 
-          {/* Cliente */}
+          {/* Cliente — solo los de esta empresa */}
           <div className="space-y-2">
             <Label htmlFor="client" className="text-sm font-medium text-muted-foreground">
               Cliente
@@ -101,17 +112,10 @@ export function SalesFilters() {
 
           {/* Botones */}
           <div className="flex gap-2">
-            <Button
-              onClick={handleFilter}
-              className="btn-action-new flex-1"
-            >
+            <Button onClick={handleFilter} className="btn-action-new flex-1">
               Aplicar Filtros
             </Button>
-            <Button
-              variant="outline"
-              onClick={handleClear}
-              className="btn-elegant-secondary"
-            >
+            <Button variant="outline" onClick={handleClear} className="btn-elegant-secondary">
               Limpiar
             </Button>
           </div>

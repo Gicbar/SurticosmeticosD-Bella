@@ -38,11 +38,13 @@ export default async function CatalogPage() {
       .order("id", { ascending: false }),
 
     supabase
-      .from("categories")
+      .from("public_categories")
       .select("name")
       .eq("company_id", company.id)
       .order("name"),
   ])
+
+  console.log(categories)
 
   // ── 3. CSS del theme ─────────────────────────────────────────────────────
   // buildThemeCSS retorna el bloque :root { --primary: ...; } etc.

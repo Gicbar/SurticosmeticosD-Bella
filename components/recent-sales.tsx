@@ -2,12 +2,13 @@ import { createClient } from "@/lib/supabase/server"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Receipt, User, CreditCard, ShoppingCart } from "lucide-react"
 
-export async function RecentSales() {
+export async function RecentSales({ companyId }: { companyId: string }) {
   const supabase = await createClient()
 
   const { data: recentSales } = await supabase
     .from("sales")
     .select("*, clients(name)")
+    .eq("company_id", companyId)             // ← FILTRO MULTIEMPRESA
     .order("sale_date", { ascending: false })
     .limit(5)
 
@@ -57,11 +58,20 @@ export async function RecentSales() {
                   <CreditCard className="h-3 w-3" />
                   <span className="capitalize">{sale.payment_method}</span>
                   <span className="text-border mx-1">|</span>
-                  <span>{new Date(sale.sale_date).toLocaleDateString("es-CO", { day: 'numeric', month: 'short' })}</span>
+                  <span>
+                    {new Date(sale.sale_date).toLocaleDateString("es-CO", {
+                      day: "numeric",
+                      month: "short",
+                    })}
+                  </span>
                 </div>
               </div>
               <span className="text-sm font-bold text-chart-2 group-hover:scale-105 transition-transform">
-                {Number(sale.total).toLocaleString("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 })}
+                {Number(sale.total).toLocaleString("es-CO", {
+                  style: "currency",
+                  currency: "COP",
+                  maximumFractionDigits: 0,
+                })}
               </span>
             </div>
           ))}

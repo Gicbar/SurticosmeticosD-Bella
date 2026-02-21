@@ -1,27 +1,15 @@
-import { requireAuth } from "@/lib/auth"
+import { getUserPermissions } from "@/lib/auth"
 import { createClient } from "@/lib/supabase/server"
-import { 
-  Card, 
-  CardContent, 
-  CardHeader, 
-  CardTitle 
-} from "@/components/ui/card"
-import { 
-  Package, 
-  ShoppingCart, 
-  TrendingUp, 
-  AlertTriangle, 
-  DollarSign, 
-  Users, 
-  LayoutDashboard, 
-  CalendarDays,
-  ArrowUpRight
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import {
+  Package, ShoppingCart, TrendingUp, AlertTriangle,
+  DollarSign, Users, LayoutDashboard, CalendarDays, ArrowUpRight
 } from "lucide-react"
 import { LowStockAlert } from "@/components/low-stock-alert"
 import { RecentSales } from "@/components/recent-sales"
 import { cn } from "@/lib/utils"
+import { redirect } from "next/navigation"
 
-// Definimos la interfaz de permisos
 interface UserPermissions {
   ventas: boolean
   productos: boolean
@@ -36,79 +24,99 @@ interface UserPermissions {
 }
 
 export default async function DashboardPage() {
-  const user = await requireAuth()
-  const supabase = await createClient()
+  // ── 1. Permisos + company_id ──────────────────────────────────────────────
+  const permData = await getUserPermissions()
 
-  // 1. Obtener permisos del usuario primero
-  const { data: permData } = await supabase
-    .from("user_permissions")
-    .select("permissions")
-    .eq("user_id", user.id)
-    .single()
+  if (!permData?.company_id) redirect("/auth/sin-empresa")
 
-  // Fallback seguro si no hay permisos definidos
-  const perms: UserPermissions = permData?.permissions || {
-    ventas: false, products: false, inventario: false, rentabilidad: false, clientes: false
+  const companyId = permData.company_id  // ← FILTRO MULTIEMPRESA
+
+  const perms: UserPermissions = permData.permissions || {
+    ventas: false, productos: false, inventario: false,
+    rentabilidad: false, clientes: false, categorias: false,
+    proveedores: false, gastos: false, configuracion: false,
   }
 
-  // 2. Preparar promesas de datos (Solo se ejecutan si hay permiso)
-  // Usamos promesas condicionales para no gastar recursos en datos que no se mostrarán
-  
-  const productsQuery = perms.productos 
-    ? supabase.from("products").select("*", { count: "exact", head: true }) 
+  const supabase = await createClient()
+
+  // Fecha de hace 30 días
+  const since30d = new Date()
+  since30d.setDate(since30d.getDate() - 30)
+  const since30dISO = since30d.toISOString()
+
+  // ── 2. Queries — TODAS filtradas por company_id ───────────────────────────
+
+  const productsQuery = perms.productos
+    ? supabase
+        .from("products")
+        .select("*", { count: "exact", head: true })
+        .eq("company_id", companyId)               // ← FILTRO
     : Promise.resolve({ count: 0 })
 
   const salesQuery = perms.ventas
-    ? supabase.from("sales").select("*", { count: "exact", head: true }).gte("sale_date", new Date(new Date().setDate(new Date().getDate() - 30)).toISOString())
+    ? supabase
+        .from("sales")
+        .select("*", { count: "exact", head: true })
+        .eq("company_id", companyId)               // ← FILTRO
+        .gte("sale_date", since30dISO)
     : Promise.resolve({ count: 0 })
 
-  // Ingresos (Requiere permiso de Rentabilidad o Ventas, prefiriendo Rentabilidad para ver montos)
   const revenueQuery = perms.rentabilidad
-    ? supabase.from("sales").select("total").gte("sale_date", new Date(new Date().setDate(new Date().getDate() - 30)).toISOString())
+    ? supabase
+        .from("sales")
+        .select("total")
+        .eq("company_id", companyId)               // ← FILTRO
+        .gte("sale_date", since30dISO)
     : Promise.resolve({ data: [] })
 
-  // Ganancia (Estrictamente permiso de Rentabilidad)
   const profitQuery = perms.rentabilidad
-    ? supabase.from("sales_profit").select("profit").gte("created_at", new Date(new Date().setDate(new Date().getDate() - 30)).toISOString())
+    ? supabase
+        .from("sales_profit")
+        .select("profit")
+        .eq("company_id", companyId)               // ← FILTRO
+        .gte("created_at", since30dISO)
     : Promise.resolve({ data: [] })
 
+  // get_low_stock_products necesita company_id como parámetro
   const lowStockQuery = perms.inventario
-    ? supabase.rpc("get_low_stock_products", {}, { count: "exact", head: true })
+    ? supabase.rpc("get_low_stock_products", { p_company_id: companyId }, { count: "exact", head: true })
     : Promise.resolve({ count: 0 })
 
   const clientsQuery = perms.clientes
-    ? supabase.from("clients").select("*", { count: "exact", head: true })
+    ? supabase
+        .from("clients")
+        .select("*", { count: "exact", head: true })
+        .eq("company_id", companyId)               // ← FILTRO
     : Promise.resolve({ count: 0 })
 
-  // 3. Ejecutar consultas en paralelo
+  // ── 3. Ejecutar en paralelo ───────────────────────────────────────────────
   const [
     { count: productsCount },
     { count: salesCount },
     { data: salesTotal },
-    { data: profitData },
+    { data: profitDataRaw },
     { count: lowStockCount },
-    { count: clientsCount }
+    { count: clientsCount },
   ] = await Promise.all([
     productsQuery,
     salesQuery,
     revenueQuery,
     profitQuery,
     lowStockQuery,
-    clientsQuery
+    clientsQuery,
   ])
 
-  // Calcular totales
-  const totalRevenue = salesTotal?.reduce((sum: number, sale: any) => sum + Number(sale.total), 0) || 0
-  const totalProfit = profitData?.reduce((sum: number, item: any) => sum + Number(item.profit), 0) || 0
+  const totalRevenue = (salesTotal as any[])?.reduce((s, v) => s + Number(v.total), 0) || 0
+  const totalProfit  = (profitDataRaw as any[])?.reduce((s, v) => s + Number(v.profit), 0) || 0
 
-  // Formateador de moneda
-  const formatCurrency = (value: number) => 
-    value.toLocaleString("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 })
+  const formatCurrency = (v: number) =>
+    v.toLocaleString("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 })
 
+  // ── 4. Render ─────────────────────────────────────────────────────────────
   return (
     <div className="flex-1 flex flex-col space-y-6">
-      
-      {/* Header del Dashboard */}
+
+      {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-border/40">
         <div>
           <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text text-transparent flex items-center gap-2">
@@ -116,10 +124,10 @@ export default async function DashboardPage() {
             Panel de Control
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
-            Bienvenido de nuevo, aquí tienes el resumen de <span className="font-semibold text-primary">D'Bella</span>.
+            Resumen de tu empresa — últimos 30 días.
           </p>
         </div>
-        
+
         <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/50 dark:bg-white/5 border border-white/20 shadow-sm backdrop-blur-md">
           <CalendarDays className="h-4 w-4 text-primary" />
           <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Hoy:</span>
@@ -129,38 +137,33 @@ export default async function DashboardPage() {
         </div>
       </div>
 
-      {/* Grid de Estadísticas */}
+      {/* Grid de KPIs */}
       <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-        
-        {/* 1. Productos */}
+
         {perms.productos && (
-          <StatCard 
+          <StatCard
             title="Productos Activos"
             value={productsCount || 0}
             subtitle="Referencias en catálogo"
             icon={Package}
-            trend="catálogo"
             colorClass="text-blue-500"
             bgClass="bg-blue-500/10"
           />
         )}
 
-        {/* 2. Ventas */}
         {perms.ventas && (
-          <StatCard 
+          <StatCard
             title="Ventas del Mes"
             value={salesCount || 0}
             subtitle="Transacciones completadas"
             icon={ShoppingCart}
-            trend="+4.5%" // Esto podría calcularse real
             colorClass="text-primary"
             bgClass="bg-primary/10"
           />
         )}
 
-        {/* 3. Ingresos (Rentabilidad) */}
         {perms.rentabilidad && (
-          <StatCard 
+          <StatCard
             title="Ingresos Totales"
             value={formatCurrency(totalRevenue)}
             subtitle="Facturación (30 días)"
@@ -170,9 +173,8 @@ export default async function DashboardPage() {
           />
         )}
 
-        {/* 4. Ganancia (Rentabilidad) */}
         {perms.rentabilidad && (
-          <StatCard 
+          <StatCard
             title="Ganancia Neta"
             value={formatCurrency(totalProfit)}
             subtitle="Utilidad real"
@@ -183,9 +185,8 @@ export default async function DashboardPage() {
           />
         )}
 
-        {/* 5. Stock Bajo (Inventario) */}
         {perms.inventario && (
-          <StatCard 
+          <StatCard
             title="Alertas de Stock"
             value={lowStockCount || 0}
             subtitle="Productos por agotarse"
@@ -196,9 +197,8 @@ export default async function DashboardPage() {
           />
         )}
 
-        {/* 6. Clientes */}
         {perms.clientes && (
-          <StatCard 
+          <StatCard
             title="Clientes Totales"
             value={clientsCount || 0}
             subtitle="Base de datos activa"
@@ -209,49 +209,42 @@ export default async function DashboardPage() {
         )}
       </div>
 
-      {/* Grilla Inferior - Tablas y Alertas */}
+      {/* Tablas inferiores — pasamos companyId para que también filtren */}
       <div className="grid gap-6 md:grid-cols-7 mt-4">
-        
-        {/* Alertas de Stock - Ocupa 3 columnas */}
         {perms.inventario && (
           <div className="md:col-span-3 flex flex-col">
             <div className="rounded-2xl border border-border/50 bg-card/40 backdrop-blur-xl shadow-sm flex-1 overflow-hidden">
-               <LowStockAlert />
+              <LowStockAlert companyId={companyId} />
             </div>
           </div>
         )}
 
-        {/* Ventas Recientes - Ocupa 4 columnas (o 7 si no hay inventario) */}
         {perms.ventas && (
-          <div className={cn(
-            "flex flex-col",
-            perms.inventario ? "md:col-span-4" : "md:col-span-7"
-          )}>
+          <div className={cn("flex flex-col", perms.inventario ? "md:col-span-4" : "md:col-span-7")}>
             <div className="rounded-2xl border border-border/50 bg-card/40 backdrop-blur-xl shadow-sm flex-1 overflow-hidden">
-              <RecentSales />
+              <RecentSales companyId={companyId} />
             </div>
           </div>
         )}
       </div>
-      
-      {/* Mensaje si no hay permisos para nada */}
+
+      {/* Sin permisos */}
       {!Object.values(perms).some(Boolean) && (
         <div className="flex flex-col items-center justify-center h-64 text-center p-8 rounded-2xl border border-dashed border-border/50 bg-secondary/20">
           <div className="bg-secondary/50 p-4 rounded-full mb-4">
-             <LayoutDashboard className="h-8 w-8 text-muted-foreground" />
+            <LayoutDashboard className="h-8 w-8 text-muted-foreground" />
           </div>
           <h3 className="text-lg font-semibold">Vista Limitada</h3>
           <p className="text-muted-foreground max-w-sm mt-2">
-            Tu cuenta no tiene permisos habilitados para ver las estadísticas del dashboard. Contacta al administrador.
+            Tu cuenta no tiene permisos habilitados. Contacta al administrador.
           </p>
         </div>
       )}
-
     </div>
   )
 }
 
-// --- COMPONENTE DE TARJETA REUTILIZABLE CON ESTILO PREMIUM ---
+// ─── StatCard ─────────────────────────────────────────────────────────────────
 
 interface StatCardProps {
   title: string
@@ -281,17 +274,9 @@ function StatCard({ title, value, subtitle, icon: Icon, trend, colorClass, bgCla
       <CardContent>
         <div className="flex items-end justify-between">
           <div>
-            <div className={cn(
-              "text-2xl font-bold tracking-tight",
-              colorClass === "text-primary" ? "text-foreground" : "" // Mantener números legibles
-            )}>
-              {value}
-            </div>
-            <p className="text-xs text-muted-foreground mt-1 font-medium">
-              {subtitle}
-            </p>
+            <div className="text-2xl font-bold tracking-tight">{value}</div>
+            <p className="text-xs text-muted-foreground mt-1 font-medium">{subtitle}</p>
           </div>
-          
           {trend && (
             <div className="flex items-center text-[10px] font-bold px-2 py-1 rounded-full bg-green-500/10 text-green-600 dark:text-green-400 mb-1">
               <ArrowUpRight className="h-3 w-3 mr-1" />
@@ -299,11 +284,9 @@ function StatCard({ title, value, subtitle, icon: Icon, trend, colorClass, bgCla
             </div>
           )}
         </div>
-        
-        {/* Efecto de brillo sutil en el fondo */}
         <div className={cn(
           "absolute -right-6 -bottom-6 h-24 w-24 rounded-full opacity-10 blur-2xl pointer-events-none transition-opacity group-hover:opacity-20",
-          bgClass.replace("/10", "") // Usamos el color base para el blur
+          bgClass.replace("/10", "")
         )} />
       </CardContent>
     </Card>

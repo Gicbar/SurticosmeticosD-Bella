@@ -55,7 +55,7 @@ export async function resolveCompanyFromHost(host: string): Promise<CompanyInfo 
   if (type === "slug") {
     // Buscar por slug
     const { data } = await supabase
-      .from("companies")
+      .from("public_companies")
       .select("id, name, slug, domain, phone, logo_url, theme")
       .eq("slug", value)
       .single()
@@ -70,7 +70,7 @@ export async function resolveCompanyFromHost(host: string): Promise<CompanyInfo 
     // Fallback: buscar por domain completo
     const hostname = host.split(":")[0]
     const { data: byDomain } = await supabase
-      .from("companies")
+      .from("public_companies")
       .select("id, name, slug, domain, phone, logo_url, theme")
       .eq("domain", hostname)
       .single()
@@ -84,7 +84,7 @@ export async function resolveCompanyFromHost(host: string): Promise<CompanyInfo 
 
   // Buscar por domain completo
   const { data } = await supabase
-    .from("companies")
+    .from("public_companies")
     .select("id, name, slug, domain, phone, logo_url, theme")
     .eq("domain", value)
     .single()

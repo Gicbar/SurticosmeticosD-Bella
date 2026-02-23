@@ -13,7 +13,10 @@ export async function generateMetadata(): Promise<Metadata> {
   const host = headersList.get("host") || ""
   const company = await resolveCompanyFromHost(host)
   
-  const iconUrl = company?.logo_url || "/favicon.png"
+  const iconUrl =
+  company?.slug?.trim()
+    ? `/${company.slug}.png`
+    : "/favicon.png"
 
   if (!company) {
       return {
@@ -31,7 +34,7 @@ export async function generateMetadata(): Promise<Metadata> {
     title: `${company.name}`,
     description: `Gestiona inventario, ventas y rentabilidad de ${company.name} en tiempo real.`,
     icons: {
-      icon: iconUrl, // 🔥 dinámico
+      icon: iconUrl, 
     },
   }
 }

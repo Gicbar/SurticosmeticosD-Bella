@@ -7,12 +7,13 @@ const _geist = Geist({ subsets: ["latin"] })
 const _geistMono = Geist_Mono({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: 'DBella',
-  description: 'Surticosmeticos DBella',
-  generator: 'v0.app',
+  title: "Gestión Empresarial Inteligente.",
+  description:
+    "Plataforma inteligente para la gestión empresarial multiempresa. Controla inventario, ventas y rentabilidad en tiempo real desde un solo lugar.",
+  generator: "V1.app",
   icons: {
-    icon: "/logo.png"
-  }
+    icon: "/favicon.png",
+  },
 }
 
 export default function RootLayout({

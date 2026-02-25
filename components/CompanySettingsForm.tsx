@@ -1,248 +1,220 @@
 "use client"
 
 import { useState } from "react"
-import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
 import { showError, showSuccess } from "@/lib/sweetalert"
-import { Building2, Globe, Phone, Hash, Pencil, X, Check, Upload, Palette } from "lucide-react"
-import { getCompanyInitials, type CompanyTheme } from "@/lib/theme"
-import Image from "next/image"
+import { Building2, Globe, Hash, Phone, Save } from "lucide-react"
 
-type Company = {
-  id: string
-  name: string
-  slug: string
-  domain: string | null
-  phone: string | null
-  logo_url: string | null
-  theme: CompanyTheme | null
+// ── CSS ───────────────────────────────────────────────────────────────────────
+const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap');
+.csf {
+  font-family:'DM Sans',sans-serif;
+  --p:     var(--primary,#984ca8);
+  --p10:   rgba(var(--primary-rgb,152,76,168),.10);
+  --p20:   rgba(var(--primary-rgb,152,76,168),.20);
+  --txt:   #1a1a18;
+  --muted: rgba(26,26,24,.45);
+  --border:rgba(26,26,24,.08);
 }
 
-// Paletas predefinidas — fácil de extender
-const PRESET_THEMES: { label: string; emoji: string; theme: CompanyTheme }[] = [
-  { label: "Orquídea",   emoji: "🪻", theme: { primary: "oklch(0.60 0.18 320)", secondary: "oklch(0.92 0.04 340)", accent: "oklch(0.88 0.12 85)",  darkPrimary: "oklch(0.70 0.18 330)" } },
-  { label: "Esmeralda",  emoji: "💚", theme: { primary: "oklch(0.55 0.20 155)", secondary: "oklch(0.90 0.06 150)", accent: "oklch(0.85 0.10 90)",  darkPrimary: "oklch(0.65 0.18 155)" } },
-  { label: "Zafiro",     emoji: "💙", theme: { primary: "oklch(0.55 0.20 250)", secondary: "oklch(0.90 0.05 240)", accent: "oklch(0.85 0.10 60)",  darkPrimary: "oklch(0.65 0.18 250)" } },
-  { label: "Rubí",       emoji: "❤️", theme: { primary: "oklch(0.55 0.22 20)",  secondary: "oklch(0.92 0.04 20)",  accent: "oklch(0.88 0.10 70)",  darkPrimary: "oklch(0.65 0.20 20)"  } },
-  { label: "Ámbar",      emoji: "🧡", theme: { primary: "oklch(0.65 0.18 60)",  secondary: "oklch(0.94 0.04 60)",  accent: "oklch(0.85 0.12 40)",  darkPrimary: "oklch(0.72 0.16 60)"  } },
-  { label: "Grafito",    emoji: "🩶", theme: { primary: "oklch(0.45 0.04 265)", secondary: "oklch(0.90 0.02 265)", accent: "oklch(0.85 0.08 80)",  darkPrimary: "oklch(0.60 0.04 265)" } },
-]
+/* Grid 2 columnas */
+.csf-g2 { display:grid; gap:16px; grid-template-columns:1fr 1fr; margin-bottom:16px; }
+@media(max-width:560px){ .csf-g2{ grid-template-columns:1fr; } }
+.csf-row { margin-bottom:16px; }
 
-export function CompanySettingsForm({ company, isAdmin }: { company: Company; isAdmin: boolean }) {
-  const router = useRouter()
-  const [editing, setEditing] = useState(false)
-  const [isLoading, setIsLoading] = useState(false)
-  const [logoFile, setLogoFile] = useState<File | null>(null)
-  const [logoPreview, setLogoPreview] = useState<string | null>(company.logo_url)
-  const [selectedTheme, setSelectedTheme] = useState<CompanyTheme | null>(company.theme)
+/* Label */
+.csf-lbl {
+  display:flex; align-items:center; gap:5px; margin-bottom:5px;
+  font-size:9px; font-weight:700; letter-spacing:.2em; text-transform:uppercase; color:var(--muted);
+}
+.csf-lbl svg { width:11px; height:11px; }
 
-  const [formData, setFormData] = useState({
-    name:   company.name,
+/* Input */
+.csf-inp {
+  width:100%; height:42px; padding:0 13px;
+  border:1px solid var(--border); background:#fff;
+  font-family:'DM Sans',sans-serif; font-size:13px; color:var(--txt);
+  outline:none; -webkit-appearance:none; transition:border-color .14s;
+}
+.csf-inp:focus   { border-color:var(--p); }
+.csf-inp:disabled{ opacity:.45; cursor:not-allowed; background:rgba(26,26,24,.02); }
+
+/* Hint */
+.csf-hint { font-size:10px; color:var(--muted); margin-top:4px; }
+
+/* Separador */
+.csf-sep { height:1px; background:var(--border); margin:20px 0 16px; }
+
+/* Readonly info (no admin) */
+.csf-info-grid { display:grid; gap:0; }
+.csf-info-row {
+  display:flex; align-items:center; justify-content:space-between;
+  padding:11px 0; border-bottom:1px solid var(--border);
+}
+.csf-info-row:last-child { border-bottom:none; }
+.csf-info-lbl { font-size:9px; font-weight:700; letter-spacing:.2em; text-transform:uppercase; color:var(--muted); }
+.csf-info-val { display:flex; align-items:center; gap:6px; font-size:12px; font-weight:500; color:var(--txt); }
+.csf-info-val svg { width:11px; height:11px; color:var(--muted); }
+.csf-mono { font-family:monospace; font-size:10px; color:var(--muted); background:rgba(26,26,24,.03); padding:2px 8px; border:1px solid var(--border); }
+
+/* Botón guardar */
+.csf-foot { display:flex; justify-content:flex-end; gap:8px; }
+.csf-btn-save {
+  height:40px; padding:0 22px; border:none; background:var(--p); cursor:pointer;
+  font-family:'DM Sans',sans-serif; font-size:12px; font-weight:600;
+  letter-spacing:.08em; text-transform:uppercase; color:#fff;
+  display:flex; align-items:center; gap:6px; transition:opacity .14s;
+}
+.csf-btn-save:hover:not(:disabled) { opacity:.88; }
+.csf-btn-save:disabled { opacity:.4; cursor:not-allowed; }
+.csf-btn-save svg { width:12px; height:12px; }
+.csf-spin { width:13px; height:13px; border:2px solid rgba(255,255,255,.3); border-top-color:#fff; border-radius:50%; animation:csfSpin .7s linear infinite; flex-shrink:0; }
+@keyframes csfSpin { to{ transform:rotate(360deg); } }
+`
+
+interface Company {
+  id:         string
+  name:       string
+  slug:       string | null
+  domain:     string | null
+  phone:      string | null
+  created_at: string
+}
+
+interface Props {
+  company:  Company
+  isAdmin:  boolean
+}
+
+const FMT = (s: string) => {
+  try { return new Date(s).toLocaleDateString("es-CO", { day:"2-digit", month:"long", year:"numeric" }) }
+  catch { return s }
+}
+
+export function CompanySettingsForm({ company, isAdmin }: Props) {
+  const [loading, setLoading] = useState(false)
+  const [form, setForm] = useState({
+    name:   company.name   || "",
+    slug:   company.slug   || "",
     domain: company.domain || "",
     phone:  company.phone  || "",
   })
 
-  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    setLogoFile(file)
-    const reader = new FileReader()
-    reader.onloadend = () => setLogoPreview(reader.result as string)
-    reader.readAsDataURL(file)
-  }
+  const set = (k: keyof typeof form) =>
+    (e: React.ChangeEvent<HTMLInputElement>) =>
+      setForm(f => ({ ...f, [k]: e.target.value }))
 
-  const handleSave = async () => {
-    setIsLoading(true)
-    const supabase = createClient()
-
+  const handleSave = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!form.name.trim()) { showError("El nombre de la empresa es requerido"); return }
+    setLoading(true)
     try {
-      let logoUrl = company.logo_url
-
-      // ── Subir logo si hay uno nuevo ────────────────────────────────────
-      if (logoFile) {
-        const ext = logoFile.name.split(".").pop()
-        const path = `${company.slug}/logo.${ext}`
-
-        const { error: uploadError } = await supabase.storage
-          .from("company-logos")
-          .upload(path, logoFile, { upsert: true })
-
-        if (uploadError) throw uploadError
-
-        const { data } = supabase.storage.from("company-logos").getPublicUrl(path)
-        logoUrl = `${data.publicUrl}?t=${Date.now()}` // cache bust
-      }
-
-      // ── Actualizar empresa ─────────────────────────────────────────────
-      const { error } = await supabase
+      const { error } = await createClient()
         .from("companies")
         .update({
-          name:     formData.name.trim(),
-          domain:   formData.domain.trim() || null,
-          phone:    formData.phone.trim()  || null,
-          logo_url: logoUrl,
-          theme:    selectedTheme,
+          name:   form.name.trim(),
+          slug:   form.slug.trim()   || null,
+          domain: form.domain.trim() || null,
+          phone:  form.phone.trim()  || null,
         })
         .eq("id", company.id)
-
       if (error) throw error
-
-      setEditing(false)
-      setLogoFile(null)
-      await showSuccess("Empresa actualizada correctamente")
-      router.refresh()
+      await showSuccess("Información de la empresa actualizada")
     } catch (err: any) {
       showError(err.message || "Error al guardar")
     } finally {
-      setIsLoading(false)
+      setLoading(false)
     }
   }
 
-  const handleCancel = () => {
-    setFormData({ name: company.name, domain: company.domain || "", phone: company.phone || "" })
-    setLogoPreview(company.logo_url)
-    setLogoFile(null)
-    setSelectedTheme(company.theme)
-    setEditing(false)
+  // ── Vista solo lectura para no-admins ─────────────────────────────────────
+  if (!isAdmin) {
+    return (
+      <>
+        <style dangerouslySetInnerHTML={{ __html: CSS }} />
+        <div className="csf">
+          <div className="csf-info-grid">
+            <div className="csf-info-row">
+              <span className="csf-info-lbl">Nombre</span>
+              <span className="csf-info-val"><Building2 aria-hidden />{company.name}</span>
+            </div>
+            {company.slug && (
+              <div className="csf-info-row">
+                <span className="csf-info-lbl">Slug</span>
+                <span className="csf-info-val"><Hash aria-hidden /><span className="csf-mono">{company.slug}</span></span>
+              </div>
+            )}
+            {company.domain && (
+              <div className="csf-info-row">
+                <span className="csf-info-lbl">Dominio</span>
+                <span className="csf-info-val"><Globe aria-hidden />{company.domain}</span>
+              </div>
+            )}
+            {company.phone && (
+              <div className="csf-info-row">
+                <span className="csf-info-lbl">Teléfono</span>
+                <span className="csf-info-val"><Phone aria-hidden />{company.phone}</span>
+              </div>
+            )}
+            <div className="csf-info-row">
+              <span className="csf-info-lbl">Registrada</span>
+              <span className="csf-info-val">{FMT(company.created_at)}</span>
+            </div>
+          </div>
+        </div>
+      </>
+    )
   }
 
-  const initials = getCompanyInitials(company.name)
-
+  // ── Vista editable solo para admins ──────────────────────────────────────
   return (
-    <div className="space-y-6">
-
-      {/* ── Logo ──────────────────────────────────────────────────────────── */}
-      <div className="flex items-center gap-5">
-        {/* Preview */}
-        <div className="relative w-16 h-16 rounded-xl overflow-hidden border-2 border-border shadow-sm flex-shrink-0 bg-gradient-to-br from-primary/20 to-secondary">
-          {logoPreview ? (
-            <Image src={logoPreview} alt="Logo" fill className="object-cover" />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center text-lg font-black text-primary">
-              {initials}
-            </div>
-          )}
-        </div>
-
-        <div>
-          <p className="text-sm font-semibold">{company.name}</p>
-          <p className="text-xs text-muted-foreground font-mono">{company.slug}</p>
-          {isAdmin && editing && (
-            <label className="mt-2 inline-flex items-center gap-1.5 text-xs text-primary cursor-pointer hover:underline">
-              <Upload className="h-3 w-3" />
-              Cambiar logo
-              <input type="file" accept="image/*" className="hidden" onChange={handleLogoChange} />
-            </label>
-          )}
-        </div>
-      </div>
-
-      {/* ── Campos de texto ───────────────────────────────────────────────── */}
-      <div className="space-y-1 divide-y divide-border/40">
-        {/* Slug — siempre solo lectura */}
-        <div className="flex justify-between items-center py-3">
-          <span className="text-xs uppercase tracking-wide text-muted-foreground">Identificador</span>
-          <div className="flex items-center gap-2">
-            <Hash className="h-3 w-3 text-muted-foreground" />
-            <span className="font-mono text-xs text-muted-foreground bg-muted px-2 py-0.5 rounded">{company.slug}</span>
-          </div>
-        </div>
-
-        {[
-          { label: "Nombre de la empresa", icon: <Building2 className="h-3 w-3 text-muted-foreground" />, field: "name" as const, placeholder: "Nombre" },
-          { label: "Dominio del catálogo", icon: <Globe className="h-3 w-3 text-muted-foreground" />, field: "domain" as const, placeholder: "empresa.vercel.app", hint: "Dominio del catálogo público" },
-          { label: "WhatsApp para pedidos", icon: <Phone className="h-3 w-3 text-muted-foreground" />, field: "phone" as const, placeholder: "573001234567", hint: "Sin + ni espacios" },
-        ].map(({ label, icon, field, placeholder, hint }) => (
-          <div key={field} className="flex justify-between items-start py-3 gap-4">
+    <>
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
+      <div className="csf">
+        <form onSubmit={handleSave}>
+          <div className="csf-g2">
             <div>
-              <span className="text-xs uppercase tracking-wide text-muted-foreground">{label}</span>
-              {hint && <p className="text-[10px] text-muted-foreground/60 mt-0.5">{hint}</p>}
+              <label className="csf-lbl" htmlFor="csf-name"><Building2 aria-hidden />Nombre *</label>
+              <input id="csf-name" className="csf-inp" required
+                placeholder="Nombre de la empresa"
+                value={form.name} disabled={loading} onChange={set("name")} />
             </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {icon}
-              {editing ? (
-                <Input
-                  value={formData[field]}
-                  onChange={(e) => setFormData({ ...formData, [field]: e.target.value })}
-                  placeholder={placeholder}
-                  className="h-7 text-sm w-52"
-                  disabled={isLoading}
-                />
-              ) : (
-                <span className="font-medium text-sm text-right">
-                  {formData[field] || <span className="text-muted-foreground italic text-xs">Sin configurar</span>}
-                </span>
-              )}
+            <div>
+              <label className="csf-lbl" htmlFor="csf-phone"><Phone aria-hidden />Teléfono</label>
+              <input id="csf-phone" className="csf-inp" type="tel"
+                placeholder="Número de contacto"
+                value={form.phone} disabled={loading} onChange={set("phone")} />
             </div>
           </div>
-        ))}
+
+          <div className="csf-g2">
+            <div>
+              <label className="csf-lbl" htmlFor="csf-slug"><Hash aria-hidden />Slug</label>
+              <input id="csf-slug" className="csf-inp"
+                placeholder="mi-empresa"
+                value={form.slug} disabled={loading} onChange={set("slug")} />
+              <p className="csf-hint">Identificador único en URLs</p>
+            </div>
+            <div>
+              <label className="csf-lbl" htmlFor="csf-domain"><Globe aria-hidden />Dominio</label>
+              <input id="csf-domain" className="csf-inp"
+                placeholder="miempresa.com"
+                value={form.domain} disabled={loading} onChange={set("domain")} />
+              <p className="csf-hint">Sin https://</p>
+            </div>
+          </div>
+
+          <div className="csf-sep" aria-hidden />
+          <div className="csf-foot">
+            <button type="submit" className="csf-btn-save" disabled={loading}>
+              {loading
+                ? <><div className="csf-spin" />Guardando…</>
+                : <><Save aria-hidden />Guardar cambios</>}
+            </button>
+          </div>
+        </form>
       </div>
-
-      {/* ── Selector de theme ─────────────────────────────────────────────── */}
-      {(editing || company.theme) && (
-        <div className="space-y-2">
-          <div className="flex items-center gap-2">
-            <Palette className="h-4 w-4 text-primary" />
-            <span className="text-sm font-semibold">Color del sistema</span>
-          </div>
-          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
-            {PRESET_THEMES.map((preset) => {
-              const isSelected = selectedTheme?.primary === preset.theme.primary
-              return (
-                <button
-                  key={preset.label}
-                  type="button"
-                  disabled={!editing || isLoading}
-                  onClick={() => setSelectedTheme(preset.theme)}
-                  className={`flex flex-col items-center gap-1.5 p-2 rounded-xl border-2 transition-all text-xs font-medium
-                    ${isSelected
-                      ? "border-primary bg-primary/10 shadow-sm scale-105"
-                      : "border-border hover:border-primary/40 hover:bg-muted/50"
-                    }
-                    ${!editing ? "opacity-70 cursor-default" : "cursor-pointer"}
-                  `}
-                >
-                  {/* Muestra el color primary del preset */}
-                  <div
-                    className="w-8 h-8 rounded-lg shadow-inner border border-white/20"
-                    style={{ background: preset.theme.primary }}
-                  />
-                  <span className="text-[10px]">{preset.emoji} {preset.label}</span>
-                </button>
-              )
-            })}
-          </div>
-          {!editing && (
-            <p className="text-[10px] text-muted-foreground">Activa "Editar empresa" para cambiar el color.</p>
-          )}
-        </div>
-      )}
-
-      {/* ── Botones — solo admin ───────────────────────────────────────────── */}
-      {isAdmin && (
-        <div className="flex justify-end gap-2 pt-2 border-t border-border/40">
-          {editing ? (
-            <>
-              <Button variant="outline" size="sm" onClick={handleCancel} disabled={isLoading} className="h-8 gap-1.5">
-                <X className="h-3 w-3" /> Cancelar
-              </Button>
-              <Button size="sm" onClick={handleSave} disabled={isLoading || !formData.name.trim()} className="h-8 gap-1.5 btn-action-new">
-                {isLoading
-                  ? <span className="h-3 w-3 rounded-full border-2 border-white border-t-transparent animate-spin" />
-                  : <Check className="h-3 w-3" />}
-                Guardar cambios
-              </Button>
-            </>
-          ) : (
-            <Button variant="outline" size="sm" onClick={() => setEditing(true)} className="h-8 gap-1.5">
-              <Pencil className="h-3 w-3" /> Editar empresa
-            </Button>
-          )}
-        </div>
-      )}
-    </div>
+    </>
   )
 }

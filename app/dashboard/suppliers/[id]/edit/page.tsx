@@ -1,73 +1,71 @@
-import { getUserPermissions } from "@/lib/auth"
 import { createClient } from "@/lib/supabase/server"
-import { SupplierForm } from "@/components/supplier-form"
-import { notFound, redirect } from "next/navigation"
-import { Button } from "@/components/ui/button"
+import { notFound } from "next/navigation"
+import { Edit } from "lucide-react"
+import { getUserPermissions } from "@/lib/auth"
 import Link from "next/link"
-import { ArrowLeft, Edit, Truck } from "lucide-react"
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { ArrowLeft, Truck } from "lucide-react"
+import { redirect } from "next/navigation"
+import { SupplierForm } from "@/components/supplier-form"
 
-export default async function EditSupplierPage({
-  params,
-}: {
-  params: Promise<{ id: string }>
-}) {
+const FORM_CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400&family=DM+Sans:opsz,wght@9..40,400;9..40,500&display=swap');
+.sfp {
+  font-family:'DM Sans',sans-serif;
+  --p:var(--primary,#984ca8); --border:rgba(26,26,24,.08);
+}
+.sfp-hd { display:flex; flex-direction:column; gap:14px; padding-bottom:20px; border-bottom:1px solid var(--border); margin-bottom:22px; }
+@media(min-width:640px){ .sfp-hd{ flex-direction:row; align-items:center; justify-content:space-between; } }
+.sfp-left { display:flex; align-items:center; gap:12px; }
+.sfp-back {
+  width:34px; height:34px; border:1px solid var(--border); background:#fff;
+  display:flex; align-items:center; justify-content:center; text-decoration:none;
+  color:rgba(26,26,24,.4); flex-shrink:0; transition:border-color .14s, color .14s;
+}
+.sfp-back:hover { border-color:var(--p); color:var(--p); }
+.sfp-back svg { width:14px; height:14px; }
+.sfp-title { font-family:'Cormorant Garamond',Georgia,serif; font-size:22px; font-weight:400; color:#1a1a18; margin:0; display:flex; align-items:center; gap:10px; }
+.sfp-dot { width:8px; height:8px; background:var(--p); flex-shrink:0; }
+.sfp-sub { font-size:12px; color:rgba(26,26,24,.45); margin:3px 0 0; }
+.sfp-card { background:#fff; border:1px solid var(--border); padding:24px; max-width:680px; }
+@media(max-width:640px){ .sfp-card{ padding:16px; } }
+`
+
+export async function EditSupplierPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-
-  // ── 1. Permisos + company_id ──────────────────────────────────────────────
   const permissions = await getUserPermissions()
-
-  if (!permissions?.permissions?.proveedores) {
-    redirect("/dashboard")
-  }
-
+  if (!permissions?.permissions?.proveedores) redirect("/dashboard")
   const companyId = permissions.company_id
   if (!companyId) redirect("/auth/sin-empresa")
 
-  // ── 2. Query con doble filtro: id + company_id ────────────────────────────
   const supabase = await createClient()
-
   const { data: supplier } = await supabase
-    .from("suppliers")
-    .select("*")
-    .eq("id", id)
-    .eq("company_id", companyId)              // ← FILTRO MULTIEMPRESA
-    .single()
+    .from("suppliers").select("*")
+    .eq("id", id).eq("company_id", companyId).single()
 
-  if (!supplier) {
-    notFound()
-  }
+  if (!supplier) notFound()
 
   return (
-    <div className="flex-1 flex flex-col bg-card/70 backdrop-blur-md p-4 md:p-6 rounded-2xl shadow-inner border border-border/20">
-      {/* Header */}
-      <div className="flex items-center gap-4 mb-6 pb-4 border-b border-border">
-        <Button variant="ghost" size="icon" asChild className="group">
-          <Link href="/dashboard/suppliers">
-            <ArrowLeft className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
-          </Link>
-        </Button>
-        <div>
-          <h1 className="dashboard-title">
-            <Truck className="dashboard-title-icon" />
-            Editar Proveedor
-          </h1>
-          <p className="dashboard-subtitle mt-1">Modifica la información de {supplier.name}</p>
+    <>
+      <style dangerouslySetInnerHTML={{ __html: FORM_CSS }} />
+      <div className="sfp">
+        <div className="sfp-hd">
+          <div className="sfp-left">
+            <Link href="/dashboard/suppliers" className="sfp-back" aria-label="Volver a proveedores">
+              <ArrowLeft aria-hidden />
+            </Link>
+            <div>
+              <h1 className="sfp-title"><span className="sfp-dot" aria-hidden />Editar Proveedor</h1>
+              <p className="sfp-sub">Modificando: <strong>{supplier.name}</strong></p>
+            </div>
+          </div>
+        </div>
+        <div className="sfp-card">
+          <SupplierForm supplier={supplier} companyId={companyId} />
         </div>
       </div>
-
-      {/* Formulario */}
-      <Card className="card-dashboard max-w-3xl mx-auto w-full">
-        <CardHeader className="card-header-dashboard">
-          <div className="flex items-center gap-2">
-            <Edit className="h-5 w-5 text-primary" />
-            <CardTitle className="card-title-dashboard">Datos del Proveedor</CardTitle>
-          </div>
-        </CardHeader>
-        <CardContent className="p-6">
-          <SupplierForm supplier={supplier} companyId={companyId} />
-        </CardContent>
-      </Card>
-    </div>
+    </>
   )
 }
+
+// default export para Next.js (edit page)
+export default EditSupplierPage

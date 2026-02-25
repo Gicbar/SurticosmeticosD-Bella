@@ -3,120 +3,264 @@
 import { useState, useMemo } from "react"
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
-  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
 } from "recharts"
 import {
   TrendingUp, TrendingDown, DollarSign, ShoppingCart, Package,
-  AlertTriangle, Calendar, BarChart2, PieChart as PieIcon,
-  Clock, Zap, ArrowUpRight, ArrowDownRight, Filter, Download,
-  ChevronRight, Tag, RotateCcw
+  AlertTriangle, BarChart2, PieChart as PieIcon, Clock, Zap,
+  ArrowUpRight, ArrowDownRight, Tag, RotateCcw, ChevronRight,
 } from "lucide-react"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
+
+// ─── CSS — mismo token system que dashboard, POS, Ventas ─────────────────────
+const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap');
+
+.rd {
+  font-family: 'DM Sans', sans-serif;
+  --p:      var(--primary, #984ca8);
+  --p06:    rgba(var(--primary-rgb,152,76,168),.06);
+  --p10:    rgba(var(--primary-rgb,152,76,168),.10);
+  --p20:    rgba(var(--primary-rgb,152,76,168),.20);
+  --p40:    rgba(var(--primary-rgb,152,76,168),.40);
+  --txt:    #1a1a18;
+  --muted:  rgba(26,26,24,.45);
+  --faint:  rgba(26,26,24,.22);
+  --border: rgba(26,26,24,.08);
+  --ok:     #16a34a;
+  --warn:   #d97706;
+  --danger: #dc2626;
+}
+
+/* ── Página header ─────────────────────────────────────────────────────── */
+.rd-page-hd {
+  display:flex; flex-direction:column; gap:14px;
+  padding-bottom:20px; border-bottom:1px solid var(--border); margin-bottom:22px;
+}
+@media(min-width:640px){ .rd-page-hd{ flex-direction:row; align-items:center; justify-content:space-between; } }
+
+.rd-title {
+  font-family:'Cormorant Garamond',Georgia,serif;
+  font-size:22px; font-weight:400; color:var(--txt); margin:0;
+  display:flex; align-items:center; gap:10px;
+}
+.rd-dot { width:8px; height:8px; background:var(--p); flex-shrink:0; }
+.rd-sub  { font-size:12px; color:var(--muted); margin:3px 0 0; }
+
+/* Período */
+.rd-period { display:flex; flex-wrap:wrap; gap:5px; }
+.rd-pbtn {
+  padding:5px 12px; border:1px solid var(--border); background:#fff;
+  font-family:'DM Sans',sans-serif; font-size:11px; font-weight:500;
+  color:var(--muted); cursor:pointer; letter-spacing:.04em;
+  transition:border-color .15s, color .15s, background .15s;
+}
+.rd-pbtn:hover { border-color:var(--p20); color:var(--txt); }
+.rd-pbtn.on { background:var(--p); border-color:var(--p); color:#fff; }
+
+/* ── KPI grid ─────────────────────────────────────────────────────────── */
+.rd-kpi-grid {
+  display:grid; gap:10px; grid-template-columns:repeat(2,1fr); margin-bottom:20px;
+}
+@media(min-width:640px)  { .rd-kpi-grid{ grid-template-columns:repeat(3,1fr); } }
+@media(min-width:1024px) { .rd-kpi-grid{ grid-template-columns:repeat(6,1fr); } }
+
+.rd-kpi {
+  background:#fff; border:1px solid var(--border);
+  padding:15px 14px; position:relative; overflow:hidden;
+  transition:box-shadow .18s, transform .18s;
+}
+.rd-kpi:hover { box-shadow:0 4px 18px var(--p10); transform:translateY(-1px); }
+.rd-kpi::before {
+  content:''; position:absolute; top:0; left:0; right:0; height:2px;
+  background:var(--p); opacity:0; transition:opacity .18s;
+}
+.rd-kpi:hover::before { opacity:1; }
+.rd-kpi-top { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; }
+.rd-kpi-lbl { font-size:8px; font-weight:700; letter-spacing:.2em; text-transform:uppercase; color:var(--muted); }
+.rd-kpi-ico { width:26px; height:26px; background:var(--p10); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.rd-kpi-ico svg { color:var(--p); width:12px; height:12px; }
+.rd-kpi-val {
+  font-family:'Cormorant Garamond',Georgia,serif;
+  font-size:21px; font-weight:500; color:var(--txt); margin:0; line-height:1;
+}
+.rd-kpi-sub  { font-size:10px; color:var(--muted); margin:4px 0 0; }
+.rd-trend    { display:inline-flex; align-items:center; gap:2px; font-size:9px; font-weight:600; margin-top:5px; }
+.rd-trend.up   { color:var(--ok); }
+.rd-trend.down { color:var(--danger); }
+
+/* ── Tabs ─────────────────────────────────────────────────────────────── */
+.rd-tabs { display:flex; flex-wrap:wrap; border-bottom:2px solid var(--border); margin-bottom:20px; gap:0; }
+.rd-tab {
+  display:flex; align-items:center; gap:7px; padding:10px 14px;
+  border:none; background:none; cursor:pointer;
+  font-family:'DM Sans',sans-serif; font-size:12px; font-weight:400;
+  color:var(--muted); border-bottom:2px solid transparent; margin-bottom:-2px;
+  transition:color .14s, border-color .14s; white-space:nowrap;
+}
+@media(max-width:500px){ .rd-tab{ padding:8px 10px; font-size:11px; } .rd-tab span.lbl{ display:none; } }
+.rd-tab:hover { color:var(--txt); }
+.rd-tab.on { color:var(--p); border-bottom-color:var(--p); font-weight:500; }
+.rd-tab svg { width:13px; height:13px; flex-shrink:0; }
+
+/* ── Card ─────────────────────────────────────────────────────────────── */
+.rd-card { background:#fff; border:1px solid var(--border); overflow:hidden; margin-bottom:14px; }
+.rd-card-hd { padding:13px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:8px; }
+.rd-card-ico { width:24px; height:24px; background:var(--p10); display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.rd-card-ico svg { color:var(--p); width:12px; height:12px; }
+.rd-card-title { font-size:10px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--txt); margin:0; }
+.rd-card-sub   { font-size:10px; color:var(--muted); margin:1px 0 0; }
+.rd-card-body  { padding:16px; }
+
+/* ── Grids de contenido ──────────────────────────────────────────────── */
+.rd-g2 { display:grid; gap:14px; grid-template-columns:1fr; }
+@media(min-width:768px){ .rd-g2{ grid-template-columns:1fr 1fr; } }
+.rd-g3 { display:grid; gap:10px; grid-template-columns:1fr; }
+@media(min-width:768px){ .rd-g3{ grid-template-columns:repeat(3,1fr); } }
+
+/* Cashflow */
+.rd-cashflow { display:grid; gap:14px; grid-template-columns:1fr; margin-bottom:14px; }
+@media(min-width:768px){ .rd-cashflow{ grid-template-columns:200px 1fr; } }
+.rd-net { background:#fff; border:1px solid var(--border); padding:18px; display:flex; flex-direction:column; }
+.rd-net-lbl { font-size:8px; font-weight:700; letter-spacing:.2em; text-transform:uppercase; color:var(--muted); margin:0 0 5px; }
+.rd-net-val { font-family:'Cormorant Garamond',Georgia,serif; font-size:26px; font-weight:500; margin:0; line-height:1; }
+.rd-net-val.pos { color:var(--ok); }
+.rd-net-val.neg { color:var(--danger); }
+.rd-net-note { font-size:10px; color:var(--muted); margin:3px 0 0; }
+.rd-net-sep  { height:1px; background:var(--border); margin:12px 0; }
+.rd-net-roi-lbl { font-size:8px; font-weight:700; letter-spacing:.2em; text-transform:uppercase; color:var(--muted); margin:0 0 3px; }
+.rd-net-roi { font-family:'Cormorant Garamond',Georgia,serif; font-size:20px; font-weight:500; color:var(--p); margin:0; }
+
+/* Barra progreso */
+.rd-bar-row { margin-bottom:12px; }
+.rd-bar-header { display:flex; justify-content:space-between; margin-bottom:4px; }
+.rd-bar-name { font-size:11px; color:var(--muted); }
+.rd-bar-amt  { font-size:11px; font-weight:600; color:var(--txt); }
+.rd-bar-track { height:4px; background:var(--border); overflow:hidden; }
+.rd-bar-fill  { height:100%; background:var(--p); transition:width .6s ease; }
+.rd-bar-fill.ok     { background:var(--ok); }
+.rd-bar-fill.warn   { background:var(--warn); }
+.rd-bar-fill.danger { background:var(--danger); }
+
+/* ── Tabla inventario ─────────────────────────────────────────────────── */
+.rd-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+.rd-table  { width:100%; border-collapse:collapse; min-width:540px; }
+.rd-table thead tr { border-bottom:2px solid var(--border); background:rgba(26,26,24,.02); }
+.rd-table th {
+  padding:9px 13px; font-size:8px; font-weight:700;
+  letter-spacing:.2em; text-transform:uppercase; color:var(--muted); text-align:left; white-space:nowrap;
+}
+.rd-table tbody tr { border-bottom:1px solid var(--border); transition:background .1s; }
+.rd-table tbody tr:last-child { border-bottom:none; }
+.rd-table tbody tr:hover { background:rgba(26,26,24,.02); }
+.rd-table td { padding:10px 13px; font-size:12px; color:var(--txt); }
+.rd-table td.muted { color:var(--muted); }
+
+/* Badge urgencia */
+.rd-badge { display:inline-flex; align-items:center; padding:2px 8px; font-size:9px; font-weight:700; letter-spacing:.08em; text-transform:uppercase; }
+.rd-badge.ok     { background:rgba(22,163,74,.08);   color:var(--ok); }
+.rd-badge.warn   { background:rgba(217,119,6,.08);   color:var(--warn); }
+.rd-badge.danger { background:rgba(220,38,38,.08);   color:var(--danger); }
+
+/* Moneda serif */
+.rd-money { font-family:'Cormorant Garamond',Georgia,serif; font-size:14px; font-weight:500; color:var(--p); }
+
+/* ── Alertas recomendaciones ─────────────────────────────────────────── */
+.rd-alert { padding:13px 15px; border-left:3px solid var(--p); background:var(--p06); margin-bottom:9px; display:flex; gap:11px; align-items:flex-start; }
+.rd-alert.ok     { border-left-color:var(--ok);     background:rgba(22,163,74,.05); }
+.rd-alert.warn   { border-left-color:var(--warn);   background:rgba(217,119,6,.05); }
+.rd-alert.danger { border-left-color:var(--danger); background:rgba(220,38,38,.05); }
+.rd-alert svg { flex-shrink:0; margin-top:1px; }
+.rd-alert-title { font-size:12px; font-weight:600; color:var(--txt); margin:0 0 3px; }
+.rd-alert-body  { font-size:11px; color:var(--muted); margin:0; line-height:1.5; }
+.rd-alert-hint  { font-size:10px; font-weight:600; color:var(--p); margin:5px 0 0; }
+.rd-alert.ok .rd-alert-hint     { color:var(--ok); }
+.rd-alert.warn .rd-alert-hint   { color:var(--warn); }
+.rd-alert.danger .rd-alert-hint { color:var(--danger); }
+
+/* Tags */
+.rd-tags { display:flex; flex-wrap:wrap; gap:5px; margin-top:7px; }
+.rd-tag  { padding:2px 8px; font-size:10px; font-weight:500; background:var(--p10); color:var(--p); }
+.rd-tag.ok     { background:rgba(22,163,74,.08);   color:var(--ok); }
+.rd-tag.danger { background:rgba(220,38,38,.08);   color:var(--danger); }
+
+/* Sin movimiento grid */
+.rd-nm-grid { display:grid; gap:8px; grid-template-columns:1fr; }
+@media(min-width:540px){ .rd-nm-grid{ grid-template-columns:1fr 1fr; } }
+.rd-nm-item {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:10px 13px; border:1px solid var(--border); transition:border-color .14s;
+}
+.rd-nm-item:hover { border-color:var(--p20); }
+.rd-nm-name { font-size:12px; font-weight:500; color:var(--txt); margin:0 0 2px; }
+.rd-nm-meta { font-size:10px; color:var(--muted); margin:0; }
+
+/* Resumen ejecutivo */
+.rd-exec-grid { display:grid; gap:0 20px; grid-template-columns:1fr; }
+@media(min-width:640px){ .rd-exec-grid{ grid-template-columns:1fr 1fr; } }
+.rd-exec-row { display:flex; justify-content:space-between; align-items:flex-start; padding:11px 0; border-bottom:1px solid var(--border); }
+.rd-exec-row:last-child { border-bottom:none; }
+.rd-exec-lbl  { font-size:12px; font-weight:500; color:var(--txt); margin:0 0 2px; }
+.rd-exec-note { font-size:10px; color:var(--muted); margin:0; }
+.rd-exec-val  { font-family:'Cormorant Garamond',Georgia,serif; font-size:15px; font-weight:500; color:var(--p); text-align:right; }
+
+/* Gastos detalle scroll */
+.rd-exp-item {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:10px 16px; border-bottom:1px solid var(--border);
+}
+.rd-exp-item:last-child { border-bottom:none; }
+.rd-exp-dot { width:6px; height:6px; border-radius:50%; flex-shrink:0; }
+
+/* Tooltip */
+.rd-tt { background:#fff; border:1px solid var(--border); padding:9px 13px; font-family:'DM Sans',sans-serif; font-size:11px; box-shadow:0 4px 20px rgba(0,0,0,.07); }
+.rd-tt-lbl  { font-weight:600; color:var(--txt); margin:0 0 4px; }
+.rd-tt-item { margin:2px 0; font-weight:500; }
+
+/* Vacío */
+.rd-empty { display:flex; flex-direction:column; align-items:center; gap:8px; padding:40px 20px; text-align:center; }
+.rd-empty-ico { width:38px; height:38px; background:var(--p10); display:flex; align-items:center; justify-content:center; }
+.rd-empty-ico svg { color:var(--p); opacity:.35; width:17px; height:17px; }
+.rd-empty-t { font-size:12px; font-weight:500; color:var(--txt); margin:0; }
+.rd-empty-s { font-size:11px; color:var(--muted); margin:0; }
+`
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
-
 interface Sale { id: string; total: number; payment_method: string; sale_date: string; client_id: string | null; clients: { name: string } | null }
 interface SaleItem { id: string; sale_id: string; product_id: string; quantity: number; unit_price: number; subtotal: number; products: { name: string; category_id: string | null; categories: { name: string } | null } | null }
 interface Profit { sale_id: string; total_cost: number; total_sale: number; profit: number; profit_margin: number; created_at: string }
 interface Expense { id: string; description: string; amount: number; date: string; categories_expense: { name: string } | null }
 interface Product { id: string; name: string; sale_price: number; min_stock: number; category_id: string | null; categories: { name: string } | null }
 interface Batch { id: string; product_id: string; quantity: number; purchase_price: number; purchase_date: string; remaining_quantity: number; products: { name: string } | null }
-
-interface Props {
-  sales: Sale[]
-  saleItems: SaleItem[]
-  profits: Profit[]
-  expenses: Expense[]
-  products: Product[]
-  batches: Batch[]
-  companyId: string
-}
+interface Props { sales: Sale[]; saleItems: SaleItem[]; profits: Profit[]; expenses: Expense[]; products: Product[]; batches: Batch[]; companyId: string }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
+const COP   = (n: number) => n.toLocaleString("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 })
+const PCT   = (n: number) => `${n.toFixed(1)}%`
+const SHORT = (n: number) => n >= 1_000_000 ? `${(n/1_000_000).toFixed(1)}M` : n >= 1_000 ? `${(n/1_000).toFixed(0)}K` : `${n}`
 
-const COP = (n: number) => n.toLocaleString("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 })
-const PCT = (n: number) => `${n.toFixed(1)}%`
-const SHORT = (n: number) => n >= 1_000_000 ? `${(n / 1_000_000).toFixed(1)}M` : n >= 1_000 ? `${(n / 1_000).toFixed(0)}K` : `${n}`
-
-const PERIOD_OPTIONS = [
-  { label: "7 días",   days: 7 },
-  { label: "30 días",  days: 30 },
-  { label: "90 días",  days: 90 },
-  { label: "6 meses",  days: 180 },
-  { label: "1 año",    days: 365 },
+// Paleta de gráficas — derivada del primario + complementos neutros
+// Recharts no puede leer var() en atributos SVG nativos, usamos hex consistentes
+// El color primario lo asignamos directamente al primer slot
+const C = ["#984ca8","#c48fd4","#7b3d95","#ddb8e8","#5e2f73","#b870d8"]
+const PERIOD = [
+  { label:"7 días", days:7 }, { label:"30 días", days:30 },
+  { label:"90 días", days:90 }, { label:"6 meses", days:180 }, { label:"1 año", days:365 },
 ]
-
-// Colores usando CSS variables del tema
-const CHART_COLORS = [
-  "var(--primary)",
-  "var(--accent)",
-  "oklch(0.65 0.12 180)",
-  "oklch(0.70 0.15 60)",
-  "oklch(0.60 0.10 280)",
-  "oklch(0.70 0.15 10)",
-]
+const TABS = [
+  { key:"ventas",       label:"Ventas",       icon:BarChart2  },
+  { key:"rentabilidad", label:"Rentabilidad",  icon:TrendingUp },
+  { key:"inventario",   label:"Inventario",    icon:Package    },
+  { key:"decisiones",   label:"Decisiones",    icon:Zap        },
+] as const
 
 // ─── Sub-componentes ──────────────────────────────────────────────────────────
-
-function KpiCard({ title, value, sub, trend, icon: Icon, good = true }: {
-  title: string; value: string; sub?: string; trend?: number; icon: any; good?: boolean
-}) {
-  const hasTrend = trend !== undefined
-  const isUp = trend && trend >= 0
-  return (
-    <Card className="card relative overflow-hidden group hover:shadow-md transition-all duration-300">
-      <div className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-        style={{ background: "linear-gradient(135deg, color-mix(in oklch, var(--primary) 4%, transparent), transparent)" }} />
-      <CardContent className="p-5 relative z-10">
-        <div className="flex items-start justify-between mb-3">
-          <span className="text-xs uppercase tracking-widest font-bold text-muted-foreground">{title}</span>
-          <div className="h-8 w-8 rounded-lg flex items-center justify-center" style={{ background: "color-mix(in oklch, var(--primary) 12%, transparent)" }}>
-            <Icon className="h-4 w-4" style={{ color: "var(--primary)" }} />
-          </div>
-        </div>
-        <div className="text-2xl font-black tracking-tight mb-1" style={{
-          background: "linear-gradient(90deg, var(--foreground), var(--primary))",
-          WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent", backgroundClip: "text"
-        }}>{value}</div>
-        {(sub || hasTrend) && (
-          <div className="flex items-center gap-2 mt-2">
-            {sub && <span className="text-xs text-muted-foreground">{sub}</span>}
-            {hasTrend && (
-              <span className={`flex items-center gap-0.5 text-xs font-semibold ${isUp ? (good ? "text-emerald-500" : "text-red-500") : (good ? "text-red-500" : "text-emerald-500")}`}>
-                {isUp ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-                {Math.abs(trend!).toFixed(1)}%
-              </span>
-            )}
-          </div>
-        )}
-      </CardContent>
-    </Card>
-  )
-}
-
-function SectionTitle({ icon: Icon, title, subtitle }: { icon: any; title: string; subtitle?: string }) {
-  return (
-    <div className="flex items-center gap-3 mb-4">
-      <div className="h-9 w-9 rounded-xl flex items-center justify-center shadow-sm" style={{ background: "color-mix(in oklch, var(--primary) 15%, transparent)" }}>
-        <Icon className="h-5 w-5" style={{ color: "var(--primary)" }} />
-      </div>
-      <div>
-        <h2 className="text-base font-bold text-foreground">{title}</h2>
-        {subtitle && <p className="text-xs text-muted-foreground">{subtitle}</p>}
-      </div>
-    </div>
-  )
-}
-
-const CustomTooltip = ({ active, payload, label }: any) => {
+function Tt({ active, payload, label }: any) {
   if (!active || !payload?.length) return null
   return (
-    <div className="bg-card/95 backdrop-blur-md border border-border/50 rounded-xl p-3 shadow-xl text-xs">
-      {label && <p className="font-bold text-foreground mb-1">{label}</p>}
+    <div className="rd-tt">
+      {label && <p className="rd-tt-lbl">{label}</p>}
       {payload.map((p: any, i: number) => (
-        <p key={i} style={{ color: p.color }} className="font-medium">
+        <p key={i} className="rd-tt-item" style={{ color: p.color }}>
           {p.name}: {typeof p.value === "number" && p.value > 1000 ? COP(p.value) : p.value}
         </p>
       ))}
@@ -124,709 +268,540 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   )
 }
 
+function Kpi({ title, value, sub, trend, icon: Icon, inv = false }: {
+  title: string; value: string; sub?: string; trend?: number; icon: any; inv?: boolean
+}) {
+  const isUp = trend !== undefined && trend >= 0
+  const good = inv ? !isUp : isUp
+  return (
+    <div className="rd-kpi">
+      <div className="rd-kpi-top">
+        <span className="rd-kpi-lbl">{title}</span>
+        <div className="rd-kpi-ico" aria-hidden><Icon /></div>
+      </div>
+      <p className="rd-kpi-val">{value}</p>
+      {sub && <p className="rd-kpi-sub">{sub}</p>}
+      {trend !== undefined && (
+        <span className={`rd-trend ${good ? "up" : "down"}`}>
+          {isUp ? <ArrowUpRight size={9}/> : <ArrowDownRight size={9}/>}
+          {Math.abs(trend).toFixed(1)}%
+        </span>
+      )}
+    </div>
+  )
+}
+
+function CardHd({ icon: Icon, title, sub }: { icon: any; title: string; sub?: string }) {
+  return (
+    <div className="rd-card-hd">
+      <div className="rd-card-ico" aria-hidden><Icon /></div>
+      <div>
+        <p className="rd-card-title">{title}</p>
+        {sub && <p className="rd-card-sub">{sub}</p>}
+      </div>
+    </div>
+  )
+}
+
 // ─── Componente principal ─────────────────────────────────────────────────────
-
 export function ReportsDashboard({ sales, saleItems, profits, expenses, products, batches }: Props) {
-  const [periodDays, setPeriodDays] = useState(30)
-  const [activeTab, setActiveTab] = useState<"ventas" | "rentabilidad" | "inventario" | "decisiones">("ventas")
+  const [days, setDays]   = useState(30)
+  const [tab, setTab]     = useState<"ventas"|"rentabilidad"|"inventario"|"decisiones">("ventas")
 
-  // ── Filtrar por período ───────────────────────────────────────────────────
-  const cutoff = useMemo(() => {
-    const d = new Date()
-    d.setDate(d.getDate() - periodDays)
-    return d
-  }, [periodDays])
+  /* ── Filtros de período ─────────────────────────────────────────────────── */
+  const cutoff = useMemo(() => { const d = new Date(); d.setDate(d.getDate()-days); return d }, [days])
+  const prevCutoff = useMemo(() => { const d = new Date(cutoff); d.setDate(d.getDate()-days); return d }, [cutoff, days])
 
-  const prevCutoff = useMemo(() => {
-    const d = new Date(cutoff)
-    d.setDate(d.getDate() - periodDays)
-    return d
-  }, [cutoff, periodDays])
+  const fSales    = useMemo(() => sales.filter(s => new Date(s.sale_date) >= cutoff), [sales, cutoff])
+  const prevSales = useMemo(() => sales.filter(s => new Date(s.sale_date) >= prevCutoff && new Date(s.sale_date) < cutoff), [sales, cutoff, prevCutoff])
+  const fItems    = useMemo(() => { const ids = new Set(fSales.map(s => s.id)); return saleItems.filter(i => ids.has(i.sale_id)) }, [fSales, saleItems])
+  const fProfits  = useMemo(() => { const ids = new Set(fSales.map(s => s.id)); return profits.filter(p => ids.has(p.sale_id)) }, [fSales, profits])
+  const fExp      = useMemo(() => expenses.filter(e => new Date(e.date) >= cutoff), [expenses, cutoff])
 
-  const filteredSales = useMemo(() => sales.filter(s => new Date(s.sale_date) >= cutoff), [sales, cutoff])
-  const prevSales     = useMemo(() => sales.filter(s => new Date(s.sale_date) >= prevCutoff && new Date(s.sale_date) < cutoff), [sales, cutoff, prevCutoff])
-  const filteredItems = useMemo(() => {
-    const ids = new Set(filteredSales.map(s => s.id))
-    return saleItems.filter(i => ids.has(i.sale_id))
-  }, [filteredSales, saleItems])
-  const filteredProfits = useMemo(() => {
-    const ids = new Set(filteredSales.map(s => s.id))
-    return profits.filter(p => ids.has(p.sale_id))
-  }, [filteredSales, profits])
-  const filteredExpenses = useMemo(() => expenses.filter(e => new Date(e.date) >= cutoff), [expenses, cutoff])
+  /* ── KPIs ───────────────────────────────────────────────────────────────── */
+  const rev     = fSales.reduce((s, v) => s + Number(v.total), 0)
+  const prevRev = prevSales.reduce((s, v) => s + Number(v.total), 0)
+  const revT    = prevRev ? ((rev - prevRev)/prevRev)*100 : 0
+  const profit  = fProfits.reduce((s, p) => s + Number(p.profit), 0)
+  const prevPIDs = new Set(prevSales.map(s => s.id))
+  const prevP   = profits.filter(p => prevPIDs.has(p.sale_id)).reduce((s, p) => s + Number(p.profit), 0)
+  const profT   = prevP ? ((profit - prevP)/prevP)*100 : 0
+  const margin  = fProfits.length ? fProfits.reduce((s, p) => s + Number(p.profit_margin), 0)/fProfits.length : 0
+  const expT    = fExp.reduce((s, e) => s + Number(e.amount), 0)
+  const qty     = fItems.reduce((s, i) => s + i.quantity, 0)
+  const ticket  = fSales.length ? rev/fSales.length : 0
 
-  // ── KPIs ──────────────────────────────────────────────────────────────────
-  const totalRevenue  = filteredSales.reduce((s, v) => s + Number(v.total), 0)
-  const prevRevenue   = prevSales.reduce((s, v) => s + Number(v.total), 0)
-  const revTrend      = prevRevenue ? ((totalRevenue - prevRevenue) / prevRevenue) * 100 : 0
-  const totalProfit   = filteredProfits.reduce((s, p) => s + Number(p.profit), 0)
-  const prevIds       = new Set(prevSales.map(s => s.id))
-  const prevProfit    = profits.filter(p => prevIds.has(p.sale_id)).reduce((s, p) => s + Number(p.profit), 0)
-  const profitTrend   = prevProfit ? ((totalProfit - prevProfit) / prevProfit) * 100 : 0
-  const avgMargin     = filteredProfits.length ? filteredProfits.reduce((s, p) => s + Number(p.profit_margin), 0) / filteredProfits.length : 0
-  const totalExpenses = filteredExpenses.reduce((s, e) => s + Number(e.amount), 0)
-  const totalQty      = filteredItems.reduce((s, i) => s + i.quantity, 0)
-  const ticketAvg     = filteredSales.length ? totalRevenue / filteredSales.length : 0
-
-  // ── Ventas por día ────────────────────────────────────────────────────────
-  const salesByDay = useMemo(() => {
-    const map: Record<string, { revenue: number; profit: number; qty: number }> = {}
-    filteredSales.forEach(s => {
-      const d = s.sale_date.slice(0, 10)
-      if (!map[d]) map[d] = { revenue: 0, profit: 0, qty: 0 }
-      map[d].revenue += Number(s.total)
-      map[d].qty += 1
+  /* ── Datos gráficas ─────────────────────────────────────────────────────── */
+  const byDay = useMemo(() => {
+    const m: Record<string, { revenue: number; profit: number }> = {}
+    fSales.forEach(s => {
+      const d = s.sale_date.slice(0,10)
+      if (!m[d]) m[d] = { revenue:0, profit:0 }
+      m[d].revenue += Number(s.total)
     })
-    filteredProfits.forEach(p => {
-      const sale = filteredSales.find(s => s.id === p.sale_id)
+    fProfits.forEach(p => {
+      const sale = fSales.find(s => s.id === p.sale_id)
       if (!sale) return
-      const d = sale.sale_date.slice(0, 10)
-      if (map[d]) map[d].profit += Number(p.profit)
+      const d = sale.sale_date.slice(0,10)
+      if (m[d]) m[d].profit += Number(p.profit)
     })
-    return Object.entries(map).sort().map(([date, v]) => ({
-      date: new Date(date).toLocaleDateString("es-CO", { month: "short", day: "numeric" }),
-      "Ingresos": v.revenue,
-      "Ganancia": v.profit,
-      "# Ventas": v.qty,
+    return Object.entries(m).sort().map(([date, v]) => ({
+      date: new Date(date).toLocaleDateString("es-CO", { month:"short", day:"numeric" }),
+      Ingresos: v.revenue, Ganancia: v.profit,
     }))
-  }, [filteredSales, filteredProfits])
+  }, [fSales, fProfits])
 
-  // ── Top productos ─────────────────────────────────────────────────────────
-  const topProducts = useMemo(() => {
-    const map: Record<string, { name: string; qty: number; revenue: number }> = {}
-    filteredItems.forEach(i => {
-      const name = i.products?.name || "Sin nombre"
-      if (!map[name]) map[name] = { name, qty: 0, revenue: 0 }
-      map[name].qty += i.quantity
-      map[name].revenue += Number(i.subtotal)
+  const topProds = useMemo(() => {
+    const m: Record<string, { name: string; qty: number; revenue: number }> = {}
+    fItems.forEach(i => {
+      const n = i.products?.name || "Sin nombre"
+      if (!m[n]) m[n] = { name:n, qty:0, revenue:0 }
+      m[n].qty += i.quantity; m[n].revenue += Number(i.subtotal)
     })
-    return Object.values(map).sort((a, b) => b.revenue - a.revenue).slice(0, 8)
-  }, [filteredItems])
+    return Object.values(m).sort((a,b) => b.revenue - a.revenue).slice(0, 8)
+  }, [fItems])
 
-  // ── Ventas por método de pago ─────────────────────────────────────────────
-  const byPayment = useMemo(() => {
-    const map: Record<string, number> = {}
-    filteredSales.forEach(s => { map[s.payment_method] = (map[s.payment_method] || 0) + Number(s.total) })
-    return Object.entries(map).map(([name, value]) => ({ name, value }))
-  }, [filteredSales])
+  const byPay = useMemo(() => {
+    const m: Record<string, number> = {}
+    fSales.forEach(s => { m[s.payment_method] = (m[s.payment_method]||0) + Number(s.total) })
+    return Object.entries(m).map(([name, value]) => ({ name, value }))
+  }, [fSales])
 
-  // ── Gastos por categoría ──────────────────────────────────────────────────
-  const expensesByCategory = useMemo(() => {
-    const map: Record<string, number> = {}
-    filteredExpenses.forEach(e => {
-      const cat = e.categories_expense?.name || "Sin categoría"
-      map[cat] = (map[cat] || 0) + Number(e.amount)
-    })
-    return Object.entries(map).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value)
-  }, [filteredExpenses])
+  const byCat = useMemo(() => {
+    const m: Record<string, number> = {}
+    fExp.forEach(e => { const c = e.categories_expense?.name||"Sin categoría"; m[c] = (m[c]||0) + Number(e.amount) })
+    return Object.entries(m).map(([name, value]) => ({ name, value })).sort((a,b) => b.value-a.value)
+  }, [fExp])
 
-  // ── Margen por producto ───────────────────────────────────────────────────
-  const marginByProduct = useMemo(() => {
-    const map: Record<string, { name: string; revenue: number; cost: number }> = {}
-    filteredItems.forEach(i => {
-      const name = i.products?.name || "Desconocido"
-      if (!map[name]) map[name] = { name, revenue: 0, cost: 0 }
-      map[name].revenue += Number(i.subtotal)
-    })
-    filteredProfits.forEach(p => {
-      const sale = filteredSales.find(s => s.id === p.sale_id)
-      if (!sale) return
-      // Distribuir costo proporcional (simplificado)
-    })
-    return Object.values(map).filter(v => v.revenue > 0).map(v => ({
-      ...v,
-      margin: v.revenue > 0 ? ((v.revenue - v.cost) / v.revenue) * 100 : 0
-    })).sort((a, b) => b.revenue - a.revenue).slice(0, 6)
-  }, [filteredItems, filteredProfits, filteredSales])
-
-  // ── INVENTARIO: Lotes más antiguos (rotación) ─────────────────────────────
-  const staleInventory = useMemo(() => {
+  const stale = useMemo(() => {
     const today = new Date()
-    return batches
-      .filter(b => b.remaining_quantity > 0)
-      .map(b => {
-        const purchaseDate = new Date(b.purchase_date)
-        const daysSincePurchase = Math.floor((today.getTime() - purchaseDate.getTime()) / (1000 * 60 * 60 * 24))
-        const immobilizedValue = b.remaining_quantity * Number(b.purchase_price)
-        const product = products.find(p => p.id === b.product_id)
-        return {
-          name: b.products?.name || "Desconocido",
-          days: daysSincePurchase,
-          remaining: b.remaining_quantity,
-          value: immobilizedValue,
-          salePrice: product?.sale_price || 0,
-          potential: b.remaining_quantity * (product?.sale_price || 0),
-          purchaseDate: purchaseDate.toLocaleDateString("es-CO"),
-          urgency: daysSincePurchase > 90 ? "alta" : daysSincePurchase > 45 ? "media" : "baja",
-        }
-      })
-      .sort((a, b) => b.days - a.days)
+    return batches.filter(b => b.remaining_quantity > 0).map(b => {
+      const d = new Date(b.purchase_date)
+      const age = Math.floor((today.getTime()-d.getTime())/86400000)
+      const prod = products.find(p => p.id === b.product_id)
+      return {
+        name: b.products?.name||"Desconocido", days: age,
+        remaining: b.remaining_quantity,
+        value: b.remaining_quantity * Number(b.purchase_price),
+        potential: b.remaining_quantity * (prod?.sale_price||0),
+        purchaseDate: d.toLocaleDateString("es-CO"),
+        urgency: age > 90 ? "alta" : age > 45 ? "media" : "baja" as const,
+      }
+    }).sort((a,b) => b.days-a.days)
   }, [batches, products])
 
-  // ── INVENTARIO: Productos sin movimiento en el período ────────────────────
-  const soldIds = useMemo(() => new Set(filteredItems.map(i => i.product_id)), [filteredItems])
-  const noMovement = useMemo(() => {
-    return products.filter(p => {
-      const hasStock = batches.some(b => b.product_id === p.id && b.remaining_quantity > 0)
-      return hasStock && !soldIds.has(p.id)
-    }).map(p => {
-      const stock = batches.filter(b => b.product_id === p.id).reduce((s, b) => s + b.remaining_quantity, 0)
-      const value = stock * Number(p.sale_price)
-      return { ...p, stock, value }
-    }).sort((a, b) => b.value - a.value).slice(0, 10)
-  }, [products, batches, soldIds])
+  const soldIds = useMemo(() => new Set(fItems.map(i => i.product_id)), [fItems])
+  const noMov   = useMemo(() => products.filter(p => {
+    const hasStock = batches.some(b => b.product_id===p.id && b.remaining_quantity>0)
+    return hasStock && !soldIds.has(p.id)
+  }).map(p => {
+    const stock = batches.filter(b => b.product_id===p.id).reduce((s,b) => s+b.remaining_quantity, 0)
+    return { ...p, stock, value: stock * Number(p.sale_price) }
+  }).sort((a,b) => b.value-a.value).slice(0,10), [products, batches, soldIds])
 
-  // ── Resumen de flujo de caja ──────────────────────────────────────────────
   const cashflow = useMemo(() => {
-    const netProfit = totalProfit - totalExpenses
-    const roi = totalExpenses > 0 ? (netProfit / totalExpenses) * 100 : 0
-    return { netProfit, roi }
-  }, [totalProfit, totalExpenses])
-
-  // ─── TABS ─────────────────────────────────────────────────────────────────
-
-  const tabs = [
-    { key: "ventas",       label: "Ventas",        icon: BarChart2 },
-    { key: "rentabilidad", label: "Rentabilidad",   icon: TrendingUp },
-    { key: "inventario",   label: "Inventario",     icon: Package },
-    { key: "decisiones",   label: "Decisiones",     icon: Zap },
-  ] as const
+    const net = profit - expT
+    return { net, roi: expT > 0 ? (net/expT)*100 : 0 }
+  }, [profit, expT])
 
   // ─── RENDER ───────────────────────────────────────────────────────────────
-
   return (
-    <div className="dashboard-page-container space-y-6">
+    <>
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
+      <div className="rd">
 
-      {/* ── Header ──────────────────────────────────────────────────────────── */}
-      <div className="dashboard-toolbar">
-        <div className="dashboard-header">
-          <h1 className="dashboard-title">
-            <BarChart2 className="dashboard-title-icon" />
-            Centro de Reportes
-          </h1>
-          <p className="dashboard-subtitle">
-            Análisis gerencial · {filteredSales.length} ventas en los últimos {periodDays} días
-          </p>
+        {/* ── Header ──────────────────────────────────────────────────────── */}
+        <div className="rd-page-hd">
+          <div>
+            <h1 className="rd-title"><span className="rd-dot" aria-hidden />Centro de Reportes</h1>
+            <p className="rd-sub">Análisis gerencial · {fSales.length} ventas en los últimos {days} días</p>
+          </div>
+          <div className="rd-period">
+            {PERIOD.map(o => (
+              <button key={o.days} className={`rd-pbtn${days===o.days?" on":""}`} onClick={() => setDays(o.days)}>
+                {o.label}
+              </button>
+            ))}
+          </div>
         </div>
 
-        {/* Selector de período */}
-        <div className="flex items-center gap-2 flex-wrap">
-          {PERIOD_OPTIONS.map(opt => (
-            <button
-              key={opt.days}
-              onClick={() => setPeriodDays(opt.days)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
-                periodDays === opt.days
-                  ? "text-white shadow-sm"
-                  : "text-muted-foreground hover:text-foreground border border-border hover:border-primary/40"
-              }`}
-              style={periodDays === opt.days ? {
-                background: "linear-gradient(135deg, var(--primary), color-mix(in oklch, var(--primary) 70%, black))"
-              } : {}}
-            >
-              {opt.label}
+        {/* ── KPIs ────────────────────────────────────────────────────────── */}
+        <div className="rd-kpi-grid">
+          <Kpi title="Ingresos"     value={`$${SHORT(rev)}`}    sub={COP(rev)}    trend={revT}  icon={DollarSign}   />
+          <Kpi title="Ganancia"     value={`$${SHORT(profit)}`} sub={COP(profit)} trend={profT} icon={TrendingUp}   />
+          <Kpi title="Margen prom." value={PCT(margin)}         sub="sobre ingr."              icon={PieIcon}      />
+          <Kpi title="# Ventas"     value={`${fSales.length}`}  sub={`${qty} uds`}             icon={ShoppingCart} />
+          <Kpi title="Ticket prom." value={`$${SHORT(ticket)}`} sub={COP(ticket)}              icon={Tag}          />
+          <Kpi title="Gastos"       value={`$${SHORT(expT)}`}   sub={COP(expT)}                icon={TrendingDown} inv />
+        </div>
+
+        {/* ── Tabs ────────────────────────────────────────────────────────── */}
+        <div className="rd-tabs" role="tablist">
+          {TABS.map(t => (
+            <button key={t.key} className={`rd-tab${tab===t.key?" on":""}`}
+              onClick={() => setTab(t.key)} role="tab" aria-selected={tab===t.key}>
+              <t.icon aria-hidden="true" />
+              <span className="lbl">{t.label}</span>
             </button>
           ))}
         </div>
-      </div>
 
-      {/* ── KPIs principales ────────────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-        <KpiCard title="Ingresos"      value={`$${SHORT(totalRevenue)}`}  sub={COP(totalRevenue)}  trend={revTrend}    icon={DollarSign}    />
-        <KpiCard title="Ganancia neta" value={`$${SHORT(totalProfit)}`}   sub={COP(totalProfit)}   trend={profitTrend} icon={TrendingUp}    />
-        <KpiCard title="Margen prom."  value={PCT(avgMargin)}             sub="sobre ingresos"                         icon={PieIcon}       />
-        <KpiCard title="# Ventas"      value={`${filteredSales.length}`}  sub={`${totalQty} unds`}                     icon={ShoppingCart}  />
-        <KpiCard title="Ticket prom."  value={`$${SHORT(ticketAvg)}`}     sub={COP(ticketAvg)}                         icon={Tag}           />
-        <KpiCard title="Gastos"        value={`$${SHORT(totalExpenses)}`} sub={COP(totalExpenses)}                     icon={TrendingDown} good={false} />
-      </div>
+        {/* ════════════ TAB VENTAS ════════════════════════════════════════ */}
+        {tab === "ventas" && (
+          <div>
+            <div className="rd-card">
+              <CardHd icon={BarChart2} title="Ingresos y Ganancia por día" sub="Evolución del período seleccionado" />
+              <div className="rd-card-body">
+                {byDay.length === 0 ? (
+                  <div className="rd-empty"><div className="rd-empty-ico"><BarChart2/></div><p className="rd-empty-t">Sin datos en este período</p></div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={250}>
+                    <AreaChart data={byDay} margin={{ top:5, right:8, left:0, bottom:5 }}>
+                      <defs>
+                        <linearGradient id="gR" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%"  stopColor={C[0]} stopOpacity={.22}/>
+                          <stop offset="95%" stopColor={C[0]} stopOpacity={0}/>
+                        </linearGradient>
+                        <linearGradient id="gP" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%"  stopColor={C[1]} stopOpacity={.22}/>
+                          <stop offset="95%" stopColor={C[1]} stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(26,26,24,.06)"/>
+                      <XAxis dataKey="date" tick={{ fontSize:10, fill:"rgba(26,26,24,.4)" }} axisLine={false} tickLine={false}/>
+                      <YAxis tickFormatter={v => `$${SHORT(v)}`} tick={{ fontSize:10, fill:"rgba(26,26,24,.4)" }} axisLine={false} tickLine={false}/>
+                      <Tooltip content={<Tt/>}/>
+                      <Legend wrapperStyle={{ fontSize:11 }}/>
+                      <Area type="monotone" dataKey="Ingresos" stroke={C[0]} fill="url(#gR)" strokeWidth={2} dot={false}/>
+                      <Area type="monotone" dataKey="Ganancia" stroke={C[1]} fill="url(#gP)" strokeWidth={2} dot={false}/>
+                    </AreaChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </div>
 
-      {/* ── Tabs de navegación ───────────────────────────────────────────────── */}
-      <div className="flex gap-1 p-1 rounded-xl bg-muted/50 border border-border/50 w-fit">
-        {tabs.map(t => (
-          <button
-            key={t.key}
-            onClick={() => setActiveTab(t.key)}
-            className={`flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all duration-200 ${
-              activeTab === t.key
-                ? "bg-card text-foreground shadow-sm"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <t.icon className="h-4 w-4" />
-            {t.label}
-          </button>
-        ))}
-      </div>
-
-      {/* ════════════════════════════════════════════════════════════════════ */}
-      {/* TAB: VENTAS                                                         */}
-      {/* ════════════════════════════════════════════════════════════════════ */}
-      {activeTab === "ventas" && (
-        <div className="space-y-5 animate-fadeIn">
-
-          {/* Ventas por día — área */}
-          <Card className="card">
-            <CardHeader className="card-header">
-              <SectionTitle icon={BarChart2} title="Ingresos y Ganancia por día" subtitle="Evolución temporal del período seleccionado" />
-            </CardHeader>
-            <CardContent className="p-4 pt-0">
-              {salesByDay.length === 0 ? (
-                <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">
-                  Sin datos en este período
+            <div className="rd-g2">
+              <div className="rd-card" style={{ margin:0 }}>
+                <CardHd icon={TrendingUp} title="Top productos" sub="Por ingresos generados"/>
+                <div className="rd-card-body">
+                  {topProds.length === 0 ? (
+                    <div className="rd-empty"><div className="rd-empty-ico"><Package/></div><p className="rd-empty-t">Sin datos</p></div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={230}>
+                      <BarChart data={topProds} layout="vertical" margin={{ left:0, right:14 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(26,26,24,.06)" horizontal={false}/>
+                        <XAxis type="number" tickFormatter={v => `$${SHORT(v)}`} tick={{ fontSize:10, fill:"rgba(26,26,24,.4)" }} axisLine={false} tickLine={false}/>
+                        <YAxis type="category" dataKey="name" width={96} tick={{ fontSize:10, fill:"rgba(26,26,24,.4)" }} axisLine={false} tickLine={false}/>
+                        <Tooltip content={<Tt/>}/>
+                        <Bar dataKey="revenue" name="Ingresos" radius={[0,2,2,0]}>
+                          {topProds.map((_,i) => <Cell key={i} fill={C[i % C.length]}/>)}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  )}
                 </div>
-              ) : (
-                <ResponsiveContainer width="100%" height={280}>
-                  <AreaChart data={salesByDay} margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
-                    <defs>
-                      <linearGradient id="gradRevenue" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--primary)" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="var(--primary)" stopOpacity={0} />
-                      </linearGradient>
-                      <linearGradient id="gradProfit" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="var(--accent)" stopOpacity={0.3} />
-                        <stop offset="95%" stopColor="var(--accent)" stopOpacity={0} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" strokeOpacity={0.5} />
-                    <XAxis dataKey="date" tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
-                    <YAxis tickFormatter={v => `$${SHORT(v)}`} tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Area type="monotone" dataKey="Ingresos" stroke="var(--primary)" fill="url(#gradRevenue)" strokeWidth={2} dot={false} />
-                    <Area type="monotone" dataKey="Ganancia" stroke="var(--accent)" fill="url(#gradProfit)" strokeWidth={2} dot={false} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              )}
-            </CardContent>
-          </Card>
-
-          <div className="grid md:grid-cols-2 gap-5">
-            {/* Top productos por ingreso */}
-            <Card className="card">
-              <CardHeader className="card-header">
-                <SectionTitle icon={TrendingUp} title="Top productos" subtitle="Por ingresos generados" />
-              </CardHeader>
-              <CardContent className="p-4 pt-0">
-                <ResponsiveContainer width="100%" height={240}>
-                  <BarChart data={topProducts} layout="vertical" margin={{ left: 0, right: 20 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" strokeOpacity={0.5} horizontal={false} />
-                    <XAxis type="number" tickFormatter={v => `$${SHORT(v)}`} tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
-                    <YAxis type="category" dataKey="name" width={110} tick={{ fontSize: 10, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Bar dataKey="revenue" name="Ingresos" radius={[0, 4, 4, 0]}>
-                      {topProducts.map((_, i) => (
-                        <Cell key={i} fill={`color-mix(in oklch, var(--primary) ${100 - i * 10}%, var(--secondary))`} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </CardContent>
-            </Card>
-
-            {/* Método de pago */}
-            <Card className="card">
-              <CardHeader className="card-header">
-                <SectionTitle icon={PieIcon} title="Métodos de pago" subtitle="Distribución de ingresos" />
-              </CardHeader>
-              <CardContent className="p-4 pt-0">
-                {byPayment.length === 0 ? (
-                  <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">Sin datos</div>
-                ) : (
-                  <ResponsiveContainer width="100%" height={240}>
-                    <PieChart>
-                      <Pie data={byPayment} cx="50%" cy="50%" innerRadius={60} outerRadius={95} paddingAngle={3} dataKey="value" nameKey="name">
-                        {byPayment.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-                      </Pie>
-                      <Tooltip formatter={(v: number) => COP(v)} />
-                      <Legend wrapperStyle={{ fontSize: 11 }} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                )}
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      )}
-
-      {/* ════════════════════════════════════════════════════════════════════ */}
-      {/* TAB: RENTABILIDAD                                                   */}
-      {/* ════════════════════════════════════════════════════════════════════ */}
-      {activeTab === "rentabilidad" && (
-        <div className="space-y-5 animate-fadeIn">
-
-          {/* Flujo de caja neto */}
-          <div className="grid md:grid-cols-3 gap-4">
-            <Card className="card col-span-1 p-5">
-              <p className="text-xs uppercase tracking-widest text-muted-foreground mb-2 font-bold">Flujo neto</p>
-              <p className={`text-3xl font-black mb-1 ${cashflow.netProfit >= 0 ? "text-emerald-500" : "text-red-500"}`}>
-                {COP(cashflow.netProfit)}
-              </p>
-              <p className="text-xs text-muted-foreground">Ganancia − Gastos operativos</p>
-              <div className="mt-3 pt-3 border-t border-border/40">
-                <p className="text-xs text-muted-foreground">ROI operativo</p>
-                <p className="text-xl font-bold" style={{ color: "var(--primary)" }}>{PCT(cashflow.roi)}</p>
               </div>
-            </Card>
 
-            <Card className="card col-span-2 p-5">
-              <p className="text-xs uppercase tracking-widest text-muted-foreground mb-3 font-bold">Ingresos vs Costos</p>
-              <div className="space-y-3">
-                {[
-                  { label: "Ingresos brutos",  value: totalRevenue,   color: "var(--primary)",     pct: 100 },
-                  { label: "Costo de ventas",   value: totalRevenue - totalProfit, color: "oklch(0.60 0.20 20)", pct: totalRevenue ? ((totalRevenue - totalProfit) / totalRevenue) * 100 : 0 },
-                  { label: "Ganancia bruta",    value: totalProfit,    color: "oklch(0.65 0.12 150)", pct: totalRevenue ? (totalProfit / totalRevenue) * 100 : 0 },
-                  { label: "Gastos operativos", value: totalExpenses,  color: "oklch(0.60 0.15 60)", pct: totalRevenue ? (totalExpenses / totalRevenue) * 100 : 0 },
-                ].map(r => (
-                  <div key={r.label}>
-                    <div className="flex justify-between text-xs mb-1">
-                      <span className="text-muted-foreground font-medium">{r.label}</span>
-                      <span className="font-bold text-foreground">{COP(r.value)}</span>
-                    </div>
-                    <div className="h-2 rounded-full bg-muted overflow-hidden">
-                      <div className="h-full rounded-full transition-all duration-700" style={{ width: `${Math.min(r.pct, 100)}%`, background: r.color }} />
-                    </div>
-                  </div>
-                ))}
+              <div className="rd-card" style={{ margin:0 }}>
+                <CardHd icon={PieIcon} title="Métodos de pago" sub="Distribución de ingresos"/>
+                <div className="rd-card-body">
+                  {byPay.length === 0 ? (
+                    <div className="rd-empty"><div className="rd-empty-ico"><PieIcon/></div><p className="rd-empty-t">Sin datos</p></div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={230}>
+                      <PieChart>
+                        <Pie data={byPay} cx="50%" cy="50%" innerRadius={52} outerRadius={86} paddingAngle={3} dataKey="value" nameKey="name">
+                          {byPay.map((_,i) => <Cell key={i} fill={C[i % C.length]}/>)}
+                        </Pie>
+                        <Tooltip formatter={(v: number) => COP(v)}/>
+                        <Legend wrapperStyle={{ fontSize:11 }}/>
+                      </PieChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
               </div>
-            </Card>
+            </div>
           </div>
+        )}
 
-          {/* Evolución de margen */}
-          <Card className="card">
-            <CardHeader className="card-header">
-              <SectionTitle icon={TrendingUp} title="Evolución del margen de ganancia" subtitle="% de ganancia sobre cada venta en el tiempo" />
-            </CardHeader>
-            <CardContent className="p-4 pt-0">
-              {filteredProfits.length === 0 ? (
-                <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">Sin datos de rentabilidad</div>
-              ) : (
-                <ResponsiveContainer width="100%" height={240}>
-                  <AreaChart
-                    data={filteredProfits
-                      .map(p => ({ date: p.created_at.slice(0, 10), margin: Number(p.profit_margin) }))
-                      .sort((a, b) => a.date.localeCompare(b.date))
-                      .map(p => ({ ...p, date: new Date(p.date).toLocaleDateString("es-CO", { month: "short", day: "numeric" }) }))
-                    }
-                  >
-                    <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" strokeOpacity={0.5} />
-                    <XAxis dataKey="date" tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
-                    <YAxis tickFormatter={v => `${v.toFixed(0)}%`} tick={{ fontSize: 11, fill: "var(--muted-foreground)" }} axisLine={false} tickLine={false} />
-                    <Tooltip formatter={(v: number) => `${v.toFixed(1)}%`} content={<CustomTooltip />} />
-                    <Area type="monotone" dataKey="margin" name="Margen %" stroke="var(--primary)" fill="url(#gradRevenue)" strokeWidth={2} dot={false} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              )}
-            </CardContent>
-          </Card>
+        {/* ════════════ TAB RENTABILIDAD ══════════════════════════════════ */}
+        {tab === "rentabilidad" && (
+          <div>
+            <div className="rd-cashflow">
+              {/* Panel neto */}
+              <div className="rd-net">
+                <p className="rd-net-lbl">Flujo neto</p>
+                <p className={`rd-net-val${cashflow.net >= 0 ? " pos" : " neg"}`}>{COP(cashflow.net)}</p>
+                <p className="rd-net-note">Ganancia − Gastos operativos</p>
+                <div className="rd-net-sep"/>
+                <p className="rd-net-roi-lbl">ROI operativo</p>
+                <p className="rd-net-roi">{PCT(cashflow.roi)}</p>
+              </div>
 
-          {/* Gastos por categoría */}
-          <div className="grid md:grid-cols-2 gap-5">
-            <Card className="card">
-              <CardHeader className="card-header">
-                <SectionTitle icon={PieIcon} title="Gastos por categoría" />
-              </CardHeader>
-              <CardContent className="p-4 pt-0">
-                {expensesByCategory.length === 0 ? (
-                  <div className="h-48 flex items-center justify-center text-muted-foreground text-sm">Sin gastos registrados</div>
-                ) : (
-                  <ResponsiveContainer width="100%" height={220}>
-                    <PieChart>
-                      <Pie data={expensesByCategory} cx="50%" cy="50%" outerRadius={85} dataKey="value" nameKey="name" paddingAngle={3}>
-                        {expensesByCategory.map((_, i) => <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />)}
-                      </Pie>
-                      <Tooltip formatter={(v: number) => COP(v)} />
-                      <Legend wrapperStyle={{ fontSize: 11 }} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                )}
-              </CardContent>
-            </Card>
-
-            <Card className="card">
-              <CardHeader className="card-header">
-                <SectionTitle icon={DollarSign} title="Detalle de gastos" />
-              </CardHeader>
-              <CardContent className="p-0">
-                <div className="divide-y divide-border/40 max-h-[240px] overflow-y-auto">
-                  {expensesByCategory.map((cat, i) => (
-                    <div key={i} className="flex items-center justify-between px-5 py-3 hover:bg-muted/30 transition-colors">
-                      <div className="flex items-center gap-3">
-                        <div className="w-2 h-2 rounded-full" style={{ background: CHART_COLORS[i % CHART_COLORS.length] }} />
-                        <span className="text-sm font-medium">{cat.name}</span>
+              {/* Barras ingresos vs costos */}
+              <div className="rd-card" style={{ margin:0 }}>
+                <CardHd icon={BarChart2} title="Ingresos vs Costos"/>
+                <div className="rd-card-body">
+                  {[
+                    { label:"Ingresos brutos",   value:rev,                           pct:100,                                            cls:"" },
+                    { label:"Costo de ventas",    value:rev - profit,                  pct:rev ? ((rev-profit)/rev)*100 : 0,               cls:"danger" },
+                    { label:"Ganancia bruta",     value:profit,                        pct:rev ? (profit/rev)*100 : 0,                     cls:"ok" },
+                    { label:"Gastos operativos",  value:expT,                          pct:rev ? (expT/rev)*100 : 0,                       cls:"warn" },
+                  ].map(r => (
+                    <div key={r.label} className="rd-bar-row">
+                      <div className="rd-bar-header">
+                        <span className="rd-bar-name">{r.label}</span>
+                        <span className="rd-bar-amt">{COP(r.value)}</span>
                       </div>
-                      <div className="text-right">
-                        <span className="text-sm font-bold">{COP(cat.value)}</span>
-                        <p className="text-xs text-muted-foreground">{totalExpenses ? PCT((cat.value / totalExpenses) * 100) : "0%"}</p>
+                      <div className="rd-bar-track">
+                        <div className={`rd-bar-fill ${r.cls}`} style={{ width:`${Math.min(r.pct,100)}%` }}/>
                       </div>
                     </div>
                   ))}
-                  {expensesByCategory.length === 0 && (
-                    <p className="text-center text-sm text-muted-foreground py-8">Sin gastos en este período</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Evolución margen */}
+            <div className="rd-card">
+              <CardHd icon={TrendingUp} title="Evolución del margen" sub="% de ganancia por venta en el tiempo"/>
+              <div className="rd-card-body">
+                {fProfits.length === 0 ? (
+                  <div className="rd-empty"><div className="rd-empty-ico"><TrendingUp/></div><p className="rd-empty-t">Sin datos de rentabilidad</p></div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={210}>
+                    <AreaChart data={fProfits
+                      .map(p => ({ date: new Date(p.created_at.slice(0,10)).toLocaleDateString("es-CO", { month:"short", day:"numeric" }), margin: Number(p.profit_margin) }))
+                      .sort((a,b) => a.date.localeCompare(b.date))}>
+                      <defs>
+                        <linearGradient id="gM" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%"  stopColor={C[0]} stopOpacity={.18}/>
+                          <stop offset="95%" stopColor={C[0]} stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(26,26,24,.06)"/>
+                      <XAxis dataKey="date" tick={{ fontSize:10, fill:"rgba(26,26,24,.4)" }} axisLine={false} tickLine={false}/>
+                      <YAxis tickFormatter={v => `${v.toFixed(0)}%`} tick={{ fontSize:10, fill:"rgba(26,26,24,.4)" }} axisLine={false} tickLine={false}/>
+                      <Tooltip formatter={(v: number) => `${v.toFixed(1)}%`} content={<Tt/>}/>
+                      <Area type="monotone" dataKey="margin" name="Margen %" stroke={C[0]} fill="url(#gM)" strokeWidth={2} dot={false}/>
+                    </AreaChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </div>
+
+            {/* Gastos */}
+            <div className="rd-g2">
+              <div className="rd-card" style={{ margin:0 }}>
+                <CardHd icon={PieIcon} title="Gastos por categoría"/>
+                <div className="rd-card-body">
+                  {byCat.length === 0 ? (
+                    <div className="rd-empty"><div className="rd-empty-ico"><PieIcon/></div><p className="rd-empty-t">Sin gastos registrados</p></div>
+                  ) : (
+                    <ResponsiveContainer width="100%" height={200}>
+                      <PieChart>
+                        <Pie data={byCat} cx="50%" cy="50%" outerRadius={78} dataKey="value" nameKey="name" paddingAngle={3}>
+                          {byCat.map((_,i) => <Cell key={i} fill={C[i % C.length]}/>)}
+                        </Pie>
+                        <Tooltip formatter={(v: number) => COP(v)}/>
+                        <Legend wrapperStyle={{ fontSize:11 }}/>
+                      </PieChart>
+                    </ResponsiveContainer>
                   )}
                 </div>
-              </CardContent>
-            </Card>
+              </div>
+
+              <div className="rd-card" style={{ margin:0 }}>
+                <CardHd icon={DollarSign} title="Detalle de gastos"/>
+                <div style={{ maxHeight:220, overflowY:"auto" }}>
+                  {byCat.length === 0 ? (
+                    <div className="rd-empty"><p className="rd-empty-t">Sin gastos en este período</p></div>
+                  ) : byCat.map((cat, i) => (
+                    <div key={i} className="rd-exp-item">
+                      <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                        <span className="rd-exp-dot" style={{ background: C[i % C.length] }}/>
+                        <span style={{ fontSize:12, color:"#1a1a18" }}>{cat.name}</span>
+                      </div>
+                      <div style={{ textAlign:"right" }}>
+                        <span className="rd-money">{COP(cat.value)}</span>
+                        <p style={{ fontSize:10, color:"rgba(26,26,24,.45)", margin:0 }}>{expT ? PCT((cat.value/expT)*100) : "0%"}</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
           </div>
-        </div>
-      )}
+        )}
 
-      {/* ════════════════════════════════════════════════════════════════════ */}
-      {/* TAB: INVENTARIO                                                     */}
-      {/* ════════════════════════════════════════════════════════════════════ */}
-      {activeTab === "inventario" && (
-        <div className="space-y-5 animate-fadeIn">
+        {/* ════════════ TAB INVENTARIO ════════════════════════════════════ */}
+        {tab === "inventario" && (
+          <div>
+            <div className="rd-g3" style={{ marginBottom:14 }}>
+              <Kpi title="Lotes críticos (+90d)" value={`${stale.filter(b => b.urgency==="alta").length}`} sub="requieren acción" icon={AlertTriangle} inv/>
+              <Kpi title="Capital inmovilizado"   value={`$${SHORT(stale.reduce((s,b) => s+b.value,0))}`} sub="sin rotar" icon={DollarSign} inv/>
+              <Kpi title="Potencial de venta"     value={`$${SHORT(stale.reduce((s,b) => s+b.potential,0))}`} sub="al precio lista" icon={TrendingUp}/>
+            </div>
 
-          {/* Alertas de rotación */}
-          <div className="grid md:grid-cols-3 gap-4">
-            <KpiCard title="Lotes críticos (+90 días)" value={`${staleInventory.filter(b => b.urgency === "alta").length}`} sub="requieren acción inmediata" icon={AlertTriangle} good={false} />
-            <KpiCard title="Capital inmovilizado"       value={`$${SHORT(staleInventory.reduce((s, b) => s + b.value, 0))}`} sub="en inventario sin rotar" icon={DollarSign} good={false} />
-            <KpiCard title="Potencial de venta"         value={`$${SHORT(staleInventory.reduce((s, b) => s + b.potential, 0))}`} sub="si se vende al precio lista" icon={TrendingUp} />
-          </div>
-
-          {/* Tabla de inventario antiguo */}
-          <Card className="card">
-            <CardHeader className="card-header">
-              <SectionTitle icon={Clock} title="Inventario por antigüedad" subtitle="Lotes activos ordenados por días desde su compra — los más viejos primero" />
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="overflow-x-auto">
-                <table className="w-full text-sm">
+            <div className="rd-card">
+              <CardHd icon={Clock} title="Inventario por antigüedad" sub="Lotes activos — más viejos primero"/>
+              <div className="rd-scroll">
+                <table className="rd-table">
                   <thead>
-                    <tr className="border-b border-border/60 bg-muted/30">
-                      {["Producto", "Fecha compra", "Días stock", "Unidades", "Valor costo", "Valor venta", "Urgencia"].map(h => (
-                        <th key={h} className="px-4 py-3 text-left text-xs font-bold uppercase tracking-wider text-muted-foreground">{h}</th>
-                      ))}
-                    </tr>
+                    <tr>{["Producto","Fecha compra","Días","Unidades","Valor costo","Valor venta","Urgencia"].map(h => <th key={h}>{h}</th>)}</tr>
                   </thead>
-                  <tbody className="divide-y divide-border/30">
-                    {staleInventory.slice(0, 20).map((b, i) => (
-                      <tr key={i} className={`hover:bg-muted/20 transition-colors ${b.urgency === "alta" ? "bg-red-50/30 dark:bg-red-900/10" : ""}`}>
-                        <td className="px-4 py-3 font-medium text-foreground">{b.name}</td>
-                        <td className="px-4 py-3 text-muted-foreground">{b.purchaseDate}</td>
-                        <td className="px-4 py-3">
-                          <span className="font-bold" style={{ color: b.urgency === "alta" ? "oklch(0.60 0.20 20)" : b.urgency === "media" ? "oklch(0.65 0.15 60)" : "var(--primary)" }}>
-                            {b.days} días
+                  <tbody>
+                    {stale.length === 0 ? (
+                      <tr><td colSpan={7} style={{ padding:36, textAlign:"center", color:"rgba(26,26,24,.4)", fontSize:12 }}>No hay lotes activos</td></tr>
+                    ) : stale.slice(0,20).map((b,i) => (
+                      <tr key={i} style={b.urgency==="alta" ? { background:"rgba(220,38,38,.025)" } : {}}>
+                        <td style={{ fontWeight:500 }}>{b.name}</td>
+                        <td className="muted">{b.purchaseDate}</td>
+                        <td style={{ fontWeight:700, color: b.urgency==="alta"?"#dc2626":b.urgency==="media"?"#d97706":"#984ca8" }}>{b.days}d</td>
+                        <td className="muted">{b.remaining} uds</td>
+                        <td className="muted">{COP(b.value)}</td>
+                        <td><span className="rd-money">{COP(b.potential)}</span></td>
+                        <td>
+                          <span className={`rd-badge ${b.urgency==="alta"?"danger":b.urgency==="media"?"warn":"ok"}`}>
+                            {b.urgency==="alta"?"Crítico":b.urgency==="media"?"Medio":"Normal"}
                           </span>
-                        </td>
-                        <td className="px-4 py-3 text-muted-foreground">{b.remaining} uds</td>
-                        <td className="px-4 py-3 text-muted-foreground">{COP(b.value)}</td>
-                        <td className="px-4 py-3 font-semibold" style={{ color: "var(--primary)" }}>{COP(b.potential)}</td>
-                        <td className="px-4 py-3">
-                          <Badge variant={b.urgency === "alta" ? "destructive" : "outline"} className="text-[10px]">
-                            {b.urgency === "alta" ? "🔴 Crítico" : b.urgency === "media" ? "🟡 Medio" : "🟢 Normal"}
-                          </Badge>
                         </td>
                       </tr>
                     ))}
-                    {staleInventory.length === 0 && (
-                      <tr><td colSpan={7} className="px-4 py-12 text-center text-muted-foreground">No hay lotes activos</td></tr>
-                    )}
                   </tbody>
                 </table>
               </div>
-            </CardContent>
-          </Card>
+            </div>
 
-          {/* Productos sin movimiento */}
-          <Card className="card">
-            <CardHeader className="card-header">
-              <SectionTitle icon={RotateCcw} title={`Productos sin venta en ${periodDays} días`} subtitle="Con stock disponible pero sin rotación en el período" />
-            </CardHeader>
-            <CardContent className="p-4 pt-0">
-              {noMovement.length === 0 ? (
-                <div className="py-8 text-center text-muted-foreground text-sm flex flex-col items-center gap-2">
-                  <TrendingUp className="h-8 w-8 opacity-30" style={{ color: "var(--primary)" }} />
-                  <p>¡Todos los productos con stock tuvieron movimiento!</p>
-                </div>
-              ) : (
-                <div className="grid sm:grid-cols-2 gap-3">
-                  {noMovement.map((p, i) => (
-                    <div key={i} className="flex items-center justify-between p-3 rounded-xl border border-border/50 hover:border-primary/30 transition-colors">
-                      <div>
-                        <p className="text-sm font-semibold text-foreground">{p.name}</p>
-                        <p className="text-xs text-muted-foreground">{p.categories?.name || "Sin categoría"} · {p.stock} uds</p>
+            <div className="rd-card">
+              <CardHd icon={RotateCcw} title={`Sin venta en ${days} días`} sub="Con stock pero sin rotación en el período"/>
+              <div className="rd-card-body">
+                {noMov.length === 0 ? (
+                  <div className="rd-empty">
+                    <div className="rd-empty-ico"><TrendingUp/></div>
+                    <p className="rd-empty-t">¡Todos los productos rotaron!</p>
+                    <p className="rd-empty-s">Todos los artículos con stock tuvieron al menos una venta</p>
+                  </div>
+                ) : (
+                  <div className="rd-nm-grid">
+                    {noMov.map((p,i) => (
+                      <div key={i} className="rd-nm-item">
+                        <div>
+                          <p className="rd-nm-name">{p.name}</p>
+                          <p className="rd-nm-meta">{p.categories?.name||"Sin categoría"} · {p.stock} uds</p>
+                        </div>
+                        <span className="rd-money">{COP(p.value)}</span>
                       </div>
-                      <div className="text-right">
-                        <p className="text-sm font-bold" style={{ color: "var(--primary)" }}>{COP(p.value)}</p>
-                        <p className="text-xs text-muted-foreground">en stock</p>
-                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ════════════ TAB DECISIONES ════════════════════════════════════ */}
+        {tab === "decisiones" && (
+          <div>
+            <div className="rd-card">
+              <CardHd icon={Zap} title="Recomendaciones para el negocio" sub="Generadas automáticamente con los datos del período"/>
+              <div className="rd-card-body">
+
+                {stale.filter(b => b.urgency==="alta").length > 0 && (
+                  <div className="rd-alert danger">
+                    <AlertTriangle size={15} style={{ color:"#dc2626" }}/>
+                    <div>
+                      <p className="rd-alert-title">🔥 Activar promociones urgentes</p>
+                      <p className="rd-alert-body">{stale.filter(b => b.urgency==="alta").length} productos llevan +90 días. Capital: <strong>{COP(stale.filter(b => b.urgency==="alta").reduce((s,b) => s+b.value,0))}</strong></p>
+                      <div className="rd-tags">{stale.filter(b => b.urgency==="alta").slice(0,5).map((b,i) => <span key={i} className="rd-tag danger">{b.name} ({b.remaining}u)</span>)}</div>
+                      <p className="rd-alert-hint">→ Descuento del 15-25% para liquidar antes de que pierdan valor</p>
+                    </div>
+                  </div>
+                )}
+
+                {topProds.length > 0 && (
+                  <div className="rd-alert ok">
+                    <TrendingUp size={15} style={{ color:"#16a34a" }}/>
+                    <div>
+                      <p className="rd-alert-title">📈 Potenciar los más vendidos</p>
+                      <p className="rd-alert-body">Verifica stock suficiente para al menos 30 días en los top productos.</p>
+                      <div className="rd-tags">{topProds.slice(0,3).map((p,i) => <span key={i} className="rd-tag ok">{p.name}: {COP(p.revenue)}</span>)}</div>
+                      <p className="rd-alert-hint">→ Mantener inventario de al menos 30 días en estos productos</p>
+                    </div>
+                  </div>
+                )}
+
+                {margin < 20 && fProfits.length > 0 && (
+                  <div className="rd-alert warn">
+                    <TrendingDown size={15} style={{ color:"#d97706" }}/>
+                    <div>
+                      <p className="rd-alert-title">⚠️ Margen por debajo del 20%</p>
+                      <p className="rd-alert-body">El margen promedio de <strong>{PCT(margin)}</strong> está por debajo del mínimo saludable.</p>
+                      <p className="rd-alert-hint">→ Revisar precios o negociar mejores condiciones con proveedores</p>
+                    </div>
+                  </div>
+                )}
+
+                {noMov.length > 0 && (
+                  <div className="rd-alert">
+                    <RotateCcw size={15} style={{ color:"var(--p)" }}/>
+                    <div>
+                      <p className="rd-alert-title">🔄 {noMov.length} productos sin rotación en {days} días</p>
+                      <p className="rd-alert-body">Capital dormido: <strong>{COP(noMov.reduce((s,p) => s+p.value,0))}</strong></p>
+                      <div className="rd-tags">{noMov.slice(0,4).map((p,i) => <span key={i} className="rd-tag">{p.name}</span>)}</div>
+                      <p className="rd-alert-hint">→ Combos, destacar en catálogo o hacer oferta puntual</p>
+                    </div>
+                  </div>
+                )}
+
+                {cashflow.net < 0 && (
+                  <div className="rd-alert danger">
+                    <AlertTriangle size={15} style={{ color:"#dc2626" }}/>
+                    <div>
+                      <p className="rd-alert-title">🚨 Flujo de caja negativo</p>
+                      <p className="rd-alert-body">Los gastos superaron la ganancia bruta en <strong>{COP(Math.abs(cashflow.net))}</strong>.</p>
+                      <p className="rd-alert-hint">→ Revisar estructura de gastos y aumentar volumen de ventas</p>
+                    </div>
+                  </div>
+                )}
+
+                {stale.filter(b => b.urgency==="alta").length===0 && margin>=20 && noMov.length===0 && cashflow.net>=0 && (
+                  <div className="rd-alert ok">
+                    <TrendingUp size={15} style={{ color:"#16a34a" }}/>
+                    <div>
+                      <p className="rd-alert-title">✅ El negocio está en buen estado</p>
+                      <p className="rd-alert-body">Margen saludable, inventario con rotación y flujo positivo. Sigue monitoreando.</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Resumen ejecutivo */}
+            <div className="rd-card">
+              <CardHd icon={ChevronRight} title="Resumen ejecutivo" sub={`Últimos ${days} días`}/>
+              <div className="rd-card-body">
+                <div className="rd-exec-grid">
+                  {[
+                    { label:"Ventas totales",             value:COP(rev),             note:`${fSales.length} transacciones` },
+                    { label:"Costo de mercancía vendida", value:COP(rev - profit),    note:`${PCT(rev ? ((rev-profit)/rev)*100 : 0)} del ingreso` },
+                    { label:"Ganancia bruta",             value:COP(profit),          note:`Margen: ${PCT(margin)}` },
+                    { label:"Gastos operativos",          value:COP(expT),            note:`${PCT(rev ? (expT/rev)*100 : 0)} del ingreso` },
+                    { label:"Resultado neto",             value:COP(cashflow.net),    note:`ROI: ${PCT(cashflow.roi)}` },
+                    { label:"Unidades vendidas",          value:`${qty} uds`,         note:`Ticket promedio: ${COP(ticket)}` },
+                  ].map((r,i) => (
+                    <div key={i} className="rd-exec-row">
+                      <div><p className="rd-exec-lbl">{r.label}</p><p className="rd-exec-note">{r.note}</p></div>
+                      <p className="rd-exec-val">{r.value}</p>
                     </div>
                   ))}
                 </div>
-              )}
-            </CardContent>
-          </Card>
-        </div>
-      )}
-
-      {/* ════════════════════════════════════════════════════════════════════ */}
-      {/* TAB: DECISIONES                                                     */}
-      {/* ════════════════════════════════════════════════════════════════════ */}
-      {activeTab === "decisiones" && (
-        <div className="space-y-5 animate-fadeIn">
-
-          {/* Oportunidades automáticas */}
-          <Card className="card">
-            <CardHeader className="card-header">
-              <SectionTitle icon={Zap} title="Recomendaciones para el negocio" subtitle="Generadas automáticamente con los datos del período" />
-            </CardHeader>
-            <CardContent className="p-4 pt-0 space-y-3">
-
-              {/* Productos para promoción */}
-              {staleInventory.filter(b => b.urgency === "alta").length > 0 && (
-                <div className="p-4 rounded-xl border-l-4 bg-red-50/50 dark:bg-red-900/10" style={{ borderLeftColor: "oklch(0.60 0.20 20)" }}>
-                  <div className="flex items-start gap-3">
-                    <AlertTriangle className="h-5 w-5 mt-0.5 flex-shrink-0" style={{ color: "oklch(0.60 0.20 20)" }} />
-                    <div>
-                      <p className="font-bold text-sm text-foreground mb-1">🔥 Activar promociones urgentes</p>
-                      <p className="text-xs text-muted-foreground mb-2">
-                        {staleInventory.filter(b => b.urgency === "alta").length} productos llevan más de 90 días en inventario.
-                        Capital inmovilizado: <strong>{COP(staleInventory.filter(b => b.urgency === "alta").reduce((s, b) => s + b.value, 0))}</strong>
-                      </p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {staleInventory.filter(b => b.urgency === "alta").slice(0, 5).map((b, i) => (
-                          <span key={i} className="px-2 py-0.5 rounded-md text-xs font-medium bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400">
-                            {b.name} ({b.remaining} uds)
-                          </span>
-                        ))}
-                      </div>
-                      <p className="text-xs font-semibold mt-2" style={{ color: "oklch(0.60 0.20 20)" }}>
-                        → Sugerencia: descuento del 15-25% para liquidar antes de que pierdan valor
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Potenciar top productos */}
-              {topProducts.length > 0 && (
-                <div className="p-4 rounded-xl border-l-4 bg-emerald-50/50 dark:bg-emerald-900/10" style={{ borderLeftColor: "oklch(0.65 0.12 150)" }}>
-                  <div className="flex items-start gap-3">
-                    <TrendingUp className="h-5 w-5 mt-0.5 flex-shrink-0" style={{ color: "oklch(0.65 0.12 150)" }} />
-                    <div>
-                      <p className="font-bold text-sm text-foreground mb-1">📈 Potenciar los más vendidos</p>
-                      <p className="text-xs text-muted-foreground mb-2">
-                        Estos productos generaron el mayor ingreso en el período. Verifica que tengan stock suficiente.
-                      </p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {topProducts.slice(0, 3).map((p, i) => (
-                          <span key={i} className="px-2 py-0.5 rounded-md text-xs font-medium bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400">
-                            {p.name}: {COP(p.revenue)}
-                          </span>
-                        ))}
-                      </div>
-                      <p className="text-xs font-semibold mt-2" style={{ color: "oklch(0.65 0.12 150)" }}>
-                        → Sugerencia: mantener inventario de al menos 30 días de estos productos
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Margen bajo */}
-              {avgMargin < 20 && filteredProfits.length > 0 && (
-                <div className="p-4 rounded-xl border-l-4 bg-amber-50/50 dark:bg-amber-900/10" style={{ borderLeftColor: "oklch(0.65 0.15 60)" }}>
-                  <div className="flex items-start gap-3">
-                    <TrendingDown className="h-5 w-5 mt-0.5 flex-shrink-0" style={{ color: "oklch(0.65 0.15 60)" }} />
-                    <div>
-                      <p className="font-bold text-sm text-foreground mb-1">⚠️ Margen por debajo del 20%</p>
-                      <p className="text-xs text-muted-foreground">
-                        El margen promedio de <strong>{PCT(avgMargin)}</strong> está por debajo del mínimo saludable.
-                      </p>
-                      <p className="text-xs font-semibold mt-2" style={{ color: "oklch(0.65 0.15 60)" }}>
-                        → Revisar precios de venta o negociar mejores precios con proveedores
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Sin movimiento */}
-              {noMovement.length > 0 && (
-                <div className="p-4 rounded-xl border-l-4" style={{ borderLeft: "4px solid var(--primary)", background: "color-mix(in oklch, var(--primary) 5%, transparent)" }}>
-                  <div className="flex items-start gap-3">
-                    <RotateCcw className="h-5 w-5 mt-0.5 flex-shrink-0" style={{ color: "var(--primary)" }} />
-                    <div>
-                      <p className="font-bold text-sm text-foreground mb-1">🔄 Productos sin rotación en {periodDays} días</p>
-                      <p className="text-xs text-muted-foreground mb-2">
-                        {noMovement.length} productos tienen stock pero no registraron ventas. Capital dormido: <strong>{COP(noMovement.reduce((s, p) => s + p.value, 0))}</strong>
-                      </p>
-                      <div className="flex flex-wrap gap-1.5">
-                        {noMovement.slice(0, 4).map((p, i) => (
-                          <span key={i} className="px-2 py-0.5 rounded-md text-xs font-medium" style={{ background: "color-mix(in oklch, var(--primary) 12%, transparent)", color: "var(--primary)" }}>
-                            {p.name}
-                          </span>
-                        ))}
-                      </div>
-                      <p className="text-xs font-semibold mt-2" style={{ color: "var(--primary)" }}>
-                        → Sugerencia: incluirlos en combos, destacarlos en catálogo o hacer oferta puntual
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Flujo negativo */}
-              {cashflow.netProfit < 0 && (
-                <div className="p-4 rounded-xl border-l-4 bg-red-50/50 dark:bg-red-900/10" style={{ borderLeftColor: "oklch(0.60 0.20 20)" }}>
-                  <div className="flex items-start gap-3">
-                    <AlertTriangle className="h-5 w-5 mt-0.5 flex-shrink-0" style={{ color: "oklch(0.60 0.20 20)" }} />
-                    <div>
-                      <p className="font-bold text-sm text-foreground mb-1">🚨 Flujo de caja negativo</p>
-                      <p className="text-xs text-muted-foreground">
-                        Los gastos operativos superaron la ganancia bruta en <strong>{COP(Math.abs(cashflow.netProfit))}</strong>.
-                      </p>
-                      <p className="text-xs font-semibold mt-2" style={{ color: "oklch(0.60 0.20 20)" }}>
-                        → Revisar estructura de gastos y aumentar volumen de ventas
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Mensaje positivo si todo está bien */}
-              {staleInventory.filter(b => b.urgency === "alta").length === 0 &&
-               avgMargin >= 20 &&
-               noMovement.length === 0 &&
-               cashflow.netProfit >= 0 && (
-                <div className="p-4 rounded-xl border" style={{ background: "color-mix(in oklch, var(--primary) 5%, transparent)", borderColor: "color-mix(in oklch, var(--primary) 20%, transparent)" }}>
-                  <p className="font-bold text-sm text-foreground mb-1">✅ El negocio está en buen estado</p>
-                  <p className="text-xs text-muted-foreground">
-                    Margen saludable, inventario con rotación y flujo positivo. Continúa monitoreando periódicamente.
-                  </p>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          {/* Tabla resumen ejecutivo */}
-          <Card className="card">
-            <CardHeader className="card-header">
-              <SectionTitle icon={ChevronRight} title="Resumen ejecutivo del período" subtitle={`Últimos ${periodDays} días`} />
-            </CardHeader>
-            <CardContent className="p-4 pt-0">
-              <div className="grid sm:grid-cols-2 gap-4 text-sm">
-                {[
-                  { label: "Ventas totales",            value: COP(totalRevenue),       note: `${filteredSales.length} transacciones` },
-                  { label: "Costo de mercancía vendida", value: COP(totalRevenue - totalProfit), note: `${PCT(totalRevenue ? ((totalRevenue - totalProfit)/totalRevenue)*100 : 0)} del ingreso` },
-                  { label: "Ganancia bruta",             value: COP(totalProfit),        note: `Margen: ${PCT(avgMargin)}` },
-                  { label: "Gastos operativos",          value: COP(totalExpenses),      note: `${PCT(totalRevenue ? (totalExpenses/totalRevenue)*100 : 0)} del ingreso` },
-                  { label: "Resultado neto",             value: COP(cashflow.netProfit), note: `ROI: ${PCT(cashflow.roi)}` },
-                  { label: "Unidades vendidas",          value: `${totalQty} uds`,       note: `Ticket promedio: ${COP(ticketAvg)}` },
-                ].map((row, i) => (
-                  <div key={i} className="flex justify-between items-start py-3 border-b border-border/30 last:border-0">
-                    <div>
-                      <p className="font-medium text-foreground">{row.label}</p>
-                      <p className="text-xs text-muted-foreground">{row.note}</p>
-                    </div>
-                    <p className="font-bold text-right" style={{ color: "var(--primary)" }}>{row.value}</p>
-                  </div>
-                ))}
               </div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
-    </div>
+            </div>
+          </div>
+        )}
+
+      </div>
+    </>
   )
 }

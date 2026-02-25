@@ -1,293 +1,209 @@
+// app/dashboard/profits/[id]/page.tsx
 import { createClient } from "@/lib/supabase/server"
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { notFound } from "next/navigation"
-import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { ArrowLeft, DollarSign, Package, Calendar, TrendingUp, ShoppingCart } from "lucide-react"
-import { format } from "date-fns"
-import { es } from "date-fns/locale"
 
-interface ProfitDetail {
-  id: string
-  product_id: string
-  nombre: string
-  cantidad: number
-  fecha_lote: string | null
-  precio_compra: number
-  precio_unitario: number
-  ganancia: number
-  ganancia_unitaria: number
-  ganancia_total: number
+const COP = (v: number | string | null | undefined): string => {
+  const n = typeof v === "string" ? parseFloat(v) : v
+  if (n === null || n === undefined || isNaN(n as number)) return "$0"
+  return (n as number).toLocaleString("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 })
 }
 
-// ✅ FUNCIÓN FORMATCURRENCY - Con manejo seguro de valores
-function formatCurrency(amount: number | string | null | undefined): string {
-  const numAmount = typeof amount === 'string' ? parseFloat(amount) : amount
-
-  if (numAmount === null || numAmount === undefined || isNaN(numAmount)) {
-    return "$0"
-  }
-
-  return numAmount.toLocaleString("es-CO", {
-    style: "currency",
-    currency: "COP",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  })
+const FMT = (s: string) => {
+  try { return new Date(s).toLocaleDateString("es-CO", { day: "2-digit", month: "long", year: "numeric" }) }
+  catch { return s }
 }
 
-// ✅ COMPONENTE STATCARD CON ESTILO IRIDESCENT BEAUTY
-function StatCard({
-  title,
-  value,
-  icon,
-  variant = "default",
-  subtitle = null
-}: {
-  title: string
-  value: string | number
-  icon: React.ReactNode
-  variant?: "default" | "primary" | "accent"
-  subtitle?: string | null
-}) {
-  const variantStyles = {
-    default: {
-      icon: "text-muted-foreground",
-      value: "text-foreground",
-    },
-    primary: {
-      icon: "text-primary",
-      value: "text-primary",
-    },
-    accent: {
-      icon: "text-chart-4",
-      value: "text-chart-4",
-    }
-  }
+const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500&display=swap');
+.pd {
+  font-family:'DM Sans',sans-serif;
+  --p:    var(--primary,#984ca8);
+  --p10:  rgba(var(--primary-rgb,152,76,168),.10);
+  --txt:  #1a1a18;
+  --muted:rgba(26,26,24,.45);
+  --border:rgba(26,26,24,.08);
+  --row:  rgba(26,26,24,.02);
+  --ok:   #16a34a;
+  --danger:#dc2626;
+}
+/* Header */
+.pd-hd { display:flex; flex-direction:column; gap:14px; padding-bottom:20px; border-bottom:1px solid var(--border); margin-bottom:22px; }
+@media(min-width:640px){ .pd-hd{ flex-direction:row; align-items:center; justify-content:space-between; } }
+.pd-hd-left { display:flex; align-items:center; gap:12px; }
+.pd-back { width:34px; height:34px; border:1px solid var(--border); background:#fff; display:flex; align-items:center; justify-content:center; text-decoration:none; color:rgba(26,26,24,.4); transition:border-color .14s,color .14s; flex-shrink:0; }
+.pd-back:hover { border-color:var(--p); color:var(--p); }
+.pd-back svg { width:14px; height:14px; }
+.pd-title { font-family:'Cormorant Garamond',Georgia,serif; font-size:22px; font-weight:400; color:var(--txt); margin:0; display:flex; align-items:center; gap:10px; }
+.pd-dot   { width:8px; height:8px; background:var(--p); flex-shrink:0; }
+.pd-sub   { font-size:12px; color:var(--muted); margin:3px 0 0; }
+.pd-sub strong { color:var(--p); }
+/* KPI grid */
+.pd-kpi-grid { display:grid; gap:10px; margin-bottom:20px; grid-template-columns:repeat(2,1fr); }
+@media(min-width:640px){ .pd-kpi-grid{ grid-template-columns:repeat(4,1fr); } }
+.pd-kpi { background:#fff; border:1px solid var(--border); padding:15px 14px; position:relative; overflow:hidden; transition:box-shadow .18s,transform .18s; }
+.pd-kpi:hover { box-shadow:0 4px 18px var(--p10); transform:translateY(-1px); }
+.pd-kpi::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:var(--p); opacity:0; transition:opacity .18s; }
+.pd-kpi:hover::before { opacity:1; }
+.pd-kpi-top { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; }
+.pd-kpi-lbl { font-size:8px; font-weight:700; letter-spacing:.2em; text-transform:uppercase; color:var(--muted); }
+.pd-kpi-ico { width:26px; height:26px; background:var(--p10); display:flex; align-items:center; justify-content:center; }
+.pd-kpi-ico svg { color:var(--p); width:12px; height:12px; }
+.pd-kpi-val { font-family:'Cormorant Garamond',Georgia,serif; font-size:20px; font-weight:500; color:var(--txt); margin:0; line-height:1; }
+.pd-kpi-sub { font-size:10px; color:var(--muted); margin:4px 0 0; }
+/* Card tabla */
+.pd-card { background:#fff; border:1px solid var(--border); overflow:hidden; }
+.pd-card-hd { padding:13px 16px; border-bottom:1px solid var(--border); display:flex; align-items:center; gap:8px; }
+.pd-card-ico { width:24px; height:24px; background:var(--p10); display:flex; align-items:center; justify-content:center; }
+.pd-card-ico svg { color:var(--p); width:12px; height:12px; }
+.pd-card-title { font-size:10px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; color:var(--txt); margin:0; }
+/* Tabla */
+.pd-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; max-height:420px; overflow-y:auto; }
+table.pd-tbl { width:100%; border-collapse:collapse; min-width:680px; }
+.pd-tbl thead tr { border-bottom:2px solid var(--border); background:var(--row); position:sticky; top:0; z-index:2; }
+.pd-tbl th { padding:9px 13px; font-size:8px; font-weight:700; letter-spacing:.2em; text-transform:uppercase; color:var(--muted); text-align:left; white-space:nowrap; background:#fff; }
+.pd-tbl th.r { text-align:right; }
+.pd-tbl th.c { text-align:center; }
+.pd-tbl tbody tr { border-bottom:1px solid var(--border); transition:background .1s; }
+.pd-tbl tbody tr:last-child { border-bottom:none; }
+.pd-tbl tbody tr:hover { background:var(--row); }
+.pd-tbl td { padding:11px 13px; font-size:12px; color:var(--txt); }
+.pd-tbl td.r { text-align:right; }
+.pd-tbl td.c { text-align:center; }
+.pd-money { font-family:'Cormorant Garamond',Georgia,serif; font-size:14px; font-weight:500; }
+.pd-money.p   { color:var(--p); }
+.pd-money.ok  { color:var(--ok); }
+.pd-money.neg { color:var(--danger); }
+.pd-badge { display:inline-flex; align-items:center; padding:2px 8px; font-family:monospace; font-size:11px; background:var(--p10); color:var(--p); }
+.pd-date-cell { display:flex; align-items:center; gap:4px; font-size:11px; color:var(--muted); }
+.pd-date-cell svg { width:11px; height:11px; }
+.pd-prod-cell { display:flex; align-items:center; gap:6px; font-weight:500; }
+.pd-prod-cell svg { width:12px; height:12px; color:var(--muted); flex-shrink:0; }
+`
 
+function KpiCard({ title, value, sub, icon: Icon }: { title:string; value:string|number; sub?:string; icon:any }) {
   return (
-    <Card className="card group">
-      <CardHeader className="card-header flex flex-row items-center justify-between pb-2">
-        <CardTitle className="card-title text-xs uppercase tracking-wide text-muted-foreground">
-          {title}
-        </CardTitle>
-        <div className={`${variantStyles[variant].icon} group-hover:scale-110 transition-transform duration-200`}>
-          {icon}
-        </div>
-      </CardHeader>
-      <CardContent className="p-4">
-        <div className={`text-xl md:text-2xl font-bold ${variantStyles[variant].value}`}>
-          {value}
-        </div>
-        {subtitle && (
-          <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>
-        )}
-      </CardContent>
-    </Card>
+    <div className="pd-kpi">
+      <div className="pd-kpi-top">
+        <span className="pd-kpi-lbl">{title}</span>
+        <div className="pd-kpi-ico" aria-hidden><Icon /></div>
+      </div>
+      <p className="pd-kpi-val">{value}</p>
+      {sub && <p className="pd-kpi-sub">{sub}</p>}
+    </div>
   )
 }
 
-export default async function ProfitsDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>
-}) {
+export default async function ProfitsDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
   const supabase = await createClient()
-  const { data: profitsDetail, error } = await supabase
-    .from("sales_profit_view")
-    .select("*")
-    .eq("id_venta", id)
+  const { data: detail, error } = await supabase
+    .from("sales_profit_view").select("*").eq("id_venta", id)
 
-  if (error || !profitsDetail || profitsDetail.length === 0) {
-    notFound()
+  if (error || !detail || detail.length === 0) notFound()
+
+  const safe = (v: any): number => {
+    const n = typeof v === "string" ? parseFloat(v) : v
+    return isNaN(n) || n == null ? 0 : n
   }
 
-  // 🔥 CÁLCULOS ROBUSTOS
-  const totalGanancia = profitsDetail.reduce((acc, item) => {
-    const ganancia = item.ganancia_total ?? 0
-    return acc + (typeof ganancia === 'string' ? parseFloat(ganancia) : ganancia)
-  }, 0)
-
-  const totalCosto = profitsDetail.reduce((acc, item) => {
-    const costo = item.precio_compra ?? 0
-    const cantidad = item.cantidad ?? 0
-    return acc + (typeof costo === 'string' ? parseFloat(costo) : costo) * cantidad
-  }, 0)
-
-  const totalVenta = profitsDetail.reduce((acc, item) => {
-    const venta = item.precio_unitario ?? 0
-    const cantidad = item.cantidad ?? 0
-    return acc + (typeof venta === 'string' ? parseFloat(venta) : venta) * cantidad
-  }, 0)
-
-  const margenPromedio = totalVenta > 0 ? (totalGanancia / totalVenta) * 100 : 0
-  const productosUnicos = new Set(profitsDetail.map(p => p.nombre)).size
+  const totalVenta    = detail.reduce((s, i) => s + safe(i.precio_unitario) * safe(i.cantidad), 0)
+  const totalCosto    = detail.reduce((s, i) => s + safe(i.precio_compra)   * safe(i.cantidad), 0)
+  const totalGanancia = detail.reduce((s, i) => s + safe(i.ganancia_total), 0)
+  const margen        = totalVenta > 0 ? (totalGanancia / totalVenta) * 100 : 0
+  const uniqueProds   = new Set(detail.map(i => i.nombre)).size
 
   return (
-    <div className="dashboard-page-container">
-      {/* Header */}
-      <div className="dashboard-toolbar">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild className="group">
-            <Link href="/dashboard/profits">
-              <ArrowLeft className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+    <>
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
+      <div className="pd">
+
+        <div className="pd-hd">
+          <div className="pd-hd-left">
+            <Link href="/dashboard/profits" className="pd-back" aria-label="Volver">
+              <ArrowLeft aria-hidden />
             </Link>
-          </Button>
-          <div>
-            <h1 className="dashboard-title">
-              <TrendingUp className="dashboard-title-icon" />
-              Detalle de Rentabilidad
-            </h1>
-            <p className="dashboard-subtitle">
-              Venta #{id.slice(0, 8)} • {productosUnicos} productos • {formatCurrency(totalGanancia)} netos
-            </p>
+            <div>
+              <h1 className="pd-title"><span className="pd-dot" aria-hidden />Detalle de Rentabilidad</h1>
+              <p className="pd-sub">
+                Venta <strong>#{id.slice(0, 8)}</strong> · {uniqueProds} productos · Ganancia <strong>{COP(totalGanancia)}</strong>
+              </p>
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Stats Cards */}
-      <div className="grid gap-4 md:gap-5 md:grid-cols-2 lg:grid-cols-4 mb-6">
-        <StatCard
-          title="Total Venta"
-          value={formatCurrency(totalVenta)}
-          icon={<ShoppingCart className="h-5 w-5" />}
-          variant="primary"
-          subtitle={`${profitsDetail.length} líneas`}
-        />
+        <div className="pd-kpi-grid">
+          <KpiCard title="Total venta"   value={COP(totalVenta)}    sub={`${detail.length} líneas`}     icon={ShoppingCart} />
+          <KpiCard title="Costo total"   value={COP(totalCosto)}    sub="Inversión"                      icon={DollarSign}  />
+          <KpiCard title="Ganancia neta" value={COP(totalGanancia)} sub={`Margen ${margen.toFixed(1)}%`} icon={TrendingUp}  />
+          <KpiCard title="Productos"     value={uniqueProds}        sub="Únicos vendidos"                icon={Package}     />
+        </div>
 
-        <StatCard
-          title="Costo Total"
-          value={formatCurrency(totalCosto)}
-          icon={<DollarSign className="h-5 w-5" />}
-          subtitle="Inversión"
-        />
-
-        <StatCard
-          title="Ganancia Neta"
-          value={formatCurrency(totalGanancia)}
-          icon={<TrendingUp className="h-5 w-5" />}
-          variant="accent"
-          subtitle={`Margen ${margenPromedio.toFixed(1)}%`}
-        />
-
-        <StatCard
-          title="Productos"
-          value={productosUnicos}
-          icon={<Package className="h-5 w-5" />}
-          subtitle="Únicos vendidos"
-        />
-      </div>
-
-      {/* Tabla con scroll limitado */}
-      <Card className="card animate-fadeIn">
-        <CardHeader className="card-header">
-          <CardTitle className="card-title flex items-center gap-2">
-            <Package className="h-5 w-5 text-primary" />
-            Rentabilidad por Producto
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-0">
-          <div className="table-container max-h-[400px] overflow-y-auto">
-            <Table>
-              <TableHeader className="table-header sticky top-0 bg-card z-10">
-                <TableRow>
-                  <TableHead className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                    Producto
-                  </TableHead>
-                  <TableHead className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider text-center">
-                    Cant.
-                  </TableHead>
-                  <TableHead className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider">
-                    Fecha Lote
-                  </TableHead>
-                  <TableHead className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider text-right">
-                    Precio Compra
-                  </TableHead>
-                  <TableHead className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider text-right">
-                    Precio Venta
-                  </TableHead>
-                  <TableHead className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider text-right">
-                    Ganancia Unitaria
-                  </TableHead>
-                  <TableHead className="px-4 py-3 text-xs font-bold text-muted-foreground uppercase tracking-wider text-right">
-                    Ganancia Total
-                  </TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {profitsDetail.map((item) => {
-                  const precioCompra = item.precio_compra ?? 0
-                  const precioVenta = item.precio_unitario ?? 0
-                  const cantidad = item.cantidad ?? 0
-                  const gananciaUnitaria = item.ganancia_unitaria ?? (precioVenta - precioCompra)
-                  const gananciaTotal = item.ganancia_total ?? (gananciaUnitaria * cantidad)
+        <div className="pd-card">
+          <div className="pd-card-hd">
+            <div className="pd-card-ico" aria-hidden><Package /></div>
+            <p className="pd-card-title">Rentabilidad por Producto</p>
+          </div>
+          <div className="pd-scroll">
+            <table className="pd-tbl">
+              <thead>
+                <tr>
+                  <th>Producto</th>
+                  <th className="c">Cant.</th>
+                  <th>Fecha lote</th>
+                  <th className="r">Precio compra</th>
+                  <th className="r">Precio venta</th>
+                  <th className="r">Ganancia unit.</th>
+                  <th className="r">Ganancia total</th>
+                </tr>
+              </thead>
+              <tbody>
+                {detail.map((item, i) => {
+                  const precioCompra    = safe(item.precio_compra)
+                  const precioVenta     = safe(item.precio_unitario)
+                  const cantidad        = safe(item.cantidad)
+                  const gananciaUnit    = safe(item.ganancia_unitaria ?? (precioVenta - precioCompra))
+                  const gananciaTotal   = safe(item.ganancia_total ?? gananciaUnit * cantidad)
+                  const pos = gananciaUnit >= 0
 
                   return (
-                    <TableRow
-                      key={item.id}
-                      className="border-b border-border/30 hover:bg-primary/5 transition-colors"
-                    >
-                      <TableCell className="px-4 py-3">
-                        <div className="flex items-center gap-2">
-                          <Package className="h-4 w-4 text-muted-foreground" />
-                          <span className="font-medium text-sm">{item.nombre || "N/A"}</span>
+                    <tr key={item.id ?? i}>
+                      <td>
+                        <div className="pd-prod-cell">
+                          <Package aria-hidden />{item.nombre || "—"}
                         </div>
-                      </TableCell>
-                      <TableCell className="px-4 py-3 text-center">
-                        <Badge variant="secondary" className="font-mono text-xs px-2 py-0.5">
-                          {cantidad}
-                        </Badge>
-                      </TableCell>
-                      <TableCell className="px-4 py-3 text-xs">
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-3 w-3 text-muted-foreground" />
-                          {item.fecha_lote
-                            ? format(new Date(item.fecha_lote), "dd MMM yyyy", { locale: es })
-                            : "N/A"}
+                      </td>
+                      <td className="c">
+                        <span className="pd-badge">{cantidad}</span>
+                      </td>
+                      <td>
+                        <div className="pd-date-cell">
+                          <Calendar aria-hidden />
+                          {item.fecha_lote ? FMT(item.fecha_lote) : "—"}
                         </div>
-                      </TableCell>
-                      <TableCell className="px-4 py-3 text-right">
-                        <div className="flex justify-end items-center gap-1">
-                          <span className="font-mono text-sm text-muted-foreground">
-                            {formatCurrency(precioCompra)}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="px-4 py-3 text-right">
-                        <div className="flex justify-end items-center gap-1">
-                          <DollarSign className="h-3 w-3 text-chart-2" />
-                          <span className="font-bold text-sm text-chart-2">
-                            {formatCurrency(precioVenta)}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="px-4 py-3 text-right">
-                        <div className="flex justify-end items-center gap-1">
-                          <TrendingUp className={`h-3 w-3 ${gananciaUnitaria >= 0 ? "text-chart-4" : "text-destructive"}`} />
-                          <span className={`font-bold text-sm ${gananciaUnitaria >= 0 ? "text-chart-4" : "text-destructive"}`}>
-                            {formatCurrency(gananciaUnitaria)}
-                          </span>
-                        </div>
-                      </TableCell>
-                      <TableCell className="px-4 py-3 text-right">
-                        <div className="flex justify-end items-center gap-1">
-                          <TrendingUp className={`h-3 w-3 ${gananciaTotal >= 0 ? "text-chart-5" : "text-destructive"}`} />
-                          <span className={`font-bold text-base ${gananciaTotal >= 0 ? "text-chart-5" : "text-destructive"}`}>
-                            {formatCurrency(gananciaTotal)}
-                          </span>
-                        </div>
-                      </TableCell>
-                    </TableRow>
+                      </td>
+                      <td className="r">
+                        <span style={{ fontSize: 12, color: "rgba(26,26,24,.45)" }}>{COP(precioCompra)}</span>
+                      </td>
+                      <td className="r">
+                        <span className="pd-money p">{COP(precioVenta)}</span>
+                      </td>
+                      <td className="r">
+                        <span className={`pd-money ${pos ? "ok" : "neg"}`}>{COP(gananciaUnit)}</span>
+                      </td>
+                      <td className="r">
+                        <span className={`pd-money ${pos ? "ok" : "neg"}`} style={{ fontSize: 16 }}>{COP(gananciaTotal)}</span>
+                      </td>
+                    </tr>
                   )
                 })}
-              </TableBody>
-            </Table>
+              </tbody>
+            </table>
           </div>
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+
+      </div>
+    </>
   )
 }

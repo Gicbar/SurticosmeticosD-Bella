@@ -2,664 +2,770 @@
 import type React from "react"
 import { useState, useEffect, useRef } from "react"
 import { createClient } from "@/lib/supabase/client"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Separator } from "@/components/ui/separator"
-import { Barcode, Plus, Minus, Trash2, ShoppingCart, Search, CreditCard, Receipt, ChevronsUpDown, Check } from "lucide-react"
+import {
+  Barcode, Plus, Minus, Trash2, ShoppingCart, Search,
+  CreditCard, Receipt, ChevronsUpDown, Check, Package,
+  Clock,                          // ← nuevo: icono crédito
+} from "lucide-react"
 import { useRouter } from "next/navigation"
 import { showSuccess, showError, showWarning, showInput } from "@/lib/sweetalert"
-import {
-  Command,
-  CommandEmpty,
-  CommandGroup,
-  CommandInput,
-  CommandItem,
-  CommandList,
-} from "@/components/ui/command"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
 
-// ─── Tipos ────────────────────────────────────────────────────────────────────
+// ── CSS del POS ───────────────────────────────────────────────────────────────
+const POS_CSS = `
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap');
 
+  .pos-root {
+    font-family: 'DM Sans', sans-serif;
+    --pos-p:      var(--primary, #984ca8);
+    --pos-p10:    rgba(var(--primary-rgb, 152,76,168), 0.10);
+    --pos-p20:    rgba(var(--primary-rgb, 152,76,168), 0.20);
+    --pos-txt:    #1a1a18;
+    --pos-muted:  rgba(26,26,24,0.45);
+    --pos-border: rgba(26,26,24,0.08);
+    --pos-hover:  rgba(26,26,24,0.03);
+    /* Crédito — ámbar */
+    --pos-credit:    #b45309;
+    --pos-credit-bg: rgba(180,83,9,0.07);
+    --pos-credit-br: rgba(180,83,9,0.30);
+  }
+
+  .pos-grid { display: grid; gap: 16px; grid-template-columns: 1fr; }
+  @media (min-width: 1024px) {
+    .pos-grid { grid-template-columns: 1fr 340px; align-items: start; }
+  }
+
+  .pos-left  { display: flex; flex-direction: column; gap: 16px; }
+  .pos-right { display: flex; flex-direction: column; gap: 16px; }
+
+  /* ── Card ── */
+  .pos-card { background: #fff; border: 1px solid var(--pos-border); overflow: hidden; }
+  .pos-card-hd {
+    padding: 14px 18px 12px; border-bottom: 1px solid var(--pos-border);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .pos-card-hd-icon {
+    width: 26px; height: 26px; background: var(--pos-p10);
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+  }
+  .pos-card-hd-icon svg { color: var(--pos-p); width: 13px; height: 13px; }
+  .pos-card-title {
+    font-size: 11px; font-weight: 600; letter-spacing: 0.12em;
+    text-transform: uppercase; color: var(--pos-txt); margin: 0;
+  }
+  .pos-card-body { padding: 16px 18px; }
+
+  /* ── Inputs ── */
+  .pos-label {
+    display: block; font-size: 9px; font-weight: 600;
+    letter-spacing: 0.18em; text-transform: uppercase;
+    color: var(--pos-muted); margin-bottom: 6px;
+  }
+  .pos-input-wrap { position: relative; display: flex; align-items: center; }
+  .pos-input-icon {
+    position: absolute; left: 12px; z-index: 1;
+    color: var(--pos-muted); pointer-events: none; display: flex; align-items: center;
+  }
+  .pos-input {
+    width: 100%; height: 44px; padding: 0 14px 0 40px;
+    border: 1px solid var(--pos-border); background: #fff;
+    font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--pos-txt);
+    outline: none; transition: border-color 0.15s; -webkit-appearance: none;
+  }
+  .pos-input:focus { border-color: var(--pos-p); }
+  .pos-input.barcode { height: 54px; font-size: 15px; }
+
+  .pos-add-btn {
+    height: 54px; padding: 0 20px; background: var(--pos-p);
+    border: none; cursor: pointer; color: #fff;
+    font-family: 'DM Sans', sans-serif; font-size: 12px; font-weight: 600;
+    letter-spacing: 0.06em; text-transform: uppercase; white-space: nowrap;
+    display: flex; align-items: center; gap: 6px; flex-shrink: 0; transition: opacity 0.15s;
+  }
+  .pos-add-btn:hover  { opacity: 0.88; }
+  .pos-add-btn:active { opacity: 0.75; }
+  .pos-barcode-row { display: flex; gap: 8px; align-items: flex-end; }
+  .pos-barcode-row .pos-input-wrap { flex: 1; }
+
+  .pos-search-results {
+    border: 1px solid var(--pos-border); background: #fff;
+    max-height: 200px; overflow-y: auto;
+    box-shadow: 0 8px 24px rgba(26,26,24,0.08); -webkit-overflow-scrolling: touch;
+  }
+  .pos-search-item {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 11px 14px; border-bottom: 1px solid var(--pos-border);
+    background: none; border-left: none; border-right: none; border-top: none;
+    width: 100%; cursor: pointer; text-align: left; transition: background 0.12s; min-height: 44px;
+  }
+  .pos-search-item:hover { background: var(--pos-p10); }
+  .pos-search-item:last-child { border-bottom: none; }
+  .pos-search-name  { font-size: 13px; font-weight: 400; color: var(--pos-txt); }
+  .pos-search-price { font-size: 15px; font-weight: 600; color: var(--pos-p); font-family: 'Cormorant Garamond', Georgia, serif; }
+
+  /* ── Carrito ── */
+  .pos-cart-empty {
+    padding: 40px 20px; text-align: center;
+    display: flex; flex-direction: column; align-items: center; gap: 12px;
+  }
+  .pos-cart-empty-icon {
+    width: 52px; height: 52px; background: var(--pos-p10);
+    display: flex; align-items: center; justify-content: center; border-radius: 50%;
+  }
+  .pos-cart-empty-icon svg { color: var(--pos-p); opacity: 0.5; width: 22px; height: 22px; }
+  .pos-cart-empty-title { font-size: 13px; font-weight: 500; color: var(--pos-txt); margin: 0; }
+  .pos-cart-empty-sub   { font-size: 11px; color: var(--pos-muted); margin: 0; }
+
+  .pos-cart-list { display: flex; flex-direction: column; gap: 0; }
+  .pos-cart-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 12px 18px; border-bottom: 1px solid var(--pos-border);
+  }
+  .pos-cart-item:last-child { border-bottom: none; }
+  .pos-cart-info { flex: 1; min-width: 0; }
+  .pos-cart-name { font-size: 13px; font-weight: 500; color: var(--pos-txt); margin: 0 0 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .pos-cart-unit { font-size: 11px; color: var(--pos-muted); margin: 0; }
+
+  .pos-qty-row { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
+  .pos-qty-btn {
+    width: 28px; height: 28px; border: 1px solid var(--pos-border);
+    background: #fff; cursor: pointer; display: flex; align-items: center; justify-content: center;
+    color: var(--pos-muted); transition: border-color 0.12s, color 0.12s, background 0.12s;
+  }
+  .pos-qty-btn:hover       { border-color: var(--pos-p);  color: var(--pos-p);  background: var(--pos-p10); }
+  .pos-qty-btn.danger:hover{ border-color: #dc2626; color: #dc2626; background: rgba(220,38,38,0.05); }
+  .pos-qty-num { font-size: 13px; font-weight: 700; color: var(--pos-txt); width: 24px; text-align: center; }
+  .pos-cart-subtotal {
+    font-size: 14px; font-weight: 600; color: var(--pos-p);
+    font-family: 'Cormorant Garamond', Georgia, serif;
+    min-width: 72px; text-align: right; flex-shrink: 0;
+  }
+  .pos-cart-remove {
+    width: 28px; height: 28px; border: none; background: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    color: rgba(26,26,24,0.22); transition: color 0.12s; flex-shrink: 0;
+  }
+  .pos-cart-remove:hover { color: #dc2626; }
+
+  @media (max-width: 480px) {
+    .pos-cart-subtotal { min-width: 60px; font-size: 13px; }
+    .pos-cart-item { padding: 10px 14px; gap: 8px; }
+  }
+
+  /* ── Panel derecho ── */
+  .pos-select-trigger {
+    width: 100%; height: 44px; border: 1px solid var(--pos-border); background: #fff;
+    padding: 0 14px; font-family: 'DM Sans', sans-serif; font-size: 13px; color: var(--pos-txt);
+    display: flex; align-items: center; justify-content: space-between;
+    cursor: pointer; outline: none; transition: border-color 0.15s;
+  }
+  .pos-select-trigger:focus,
+  .pos-select-trigger[data-open="true"] { border-color: var(--pos-p); }
+  .pos-select-dropdown {
+    border: 1px solid var(--pos-border); background: #fff;
+    box-shadow: 0 8px 24px rgba(26,26,24,0.08);
+    max-height: 240px; overflow-y: auto; z-index: 10000; -webkit-overflow-scrolling: touch;
+  }
+  .pos-select-search {
+    width: 100%; padding: 10px 14px; border: none;
+    border-bottom: 1px solid var(--pos-border);
+    font-family: 'DM Sans', sans-serif; font-size: 12px; outline: none; background: #fff; color: var(--pos-txt);
+  }
+  .pos-select-option {
+    padding: 11px 14px; cursor: pointer; font-size: 13px; color: var(--pos-txt);
+    display: flex; align-items: center; justify-content: space-between;
+    min-height: 44px; transition: background 0.12s;
+  }
+  .pos-select-option:hover { background: var(--pos-p10); }
+  .pos-select-empty { padding: 16px 14px; font-size: 12px; color: var(--pos-muted); text-align: center; }
+
+  .pos-payment-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .pos-payment-btn {
+    padding: 10px 8px; border: 1.5px solid var(--pos-border); background: #fff; cursor: pointer;
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+    transition: border-color 0.15s, background 0.15s; min-height: 64px; justify-content: center;
+  }
+  .pos-payment-btn:hover    { border-color: var(--pos-p20); background: var(--pos-p10); }
+  .pos-payment-btn.selected { border-color: var(--pos-p);   background: var(--pos-p10); }
+  .pos-payment-btn svg { color: var(--pos-muted); width: 16px; height: 16px; }
+  .pos-payment-btn.selected svg { color: var(--pos-p); }
+  .pos-payment-label { font-size: 10px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--pos-muted); }
+  .pos-payment-btn.selected .pos-payment-label { color: var(--pos-p); }
+
+  /* ═══ TOGGLE CRÉDITO ═══════════════════════════════════════════════════════ */
+  .pos-credit-row {
+    display: flex; align-items: stretch; gap: 0;
+    border: 1.5px solid var(--pos-border);
+    overflow: hidden; cursor: pointer;
+    transition: border-color 0.18s;
+    user-select: none;
+  }
+  .pos-credit-row:hover { border-color: var(--pos-credit-br); }
+  .pos-credit-row.on    { border-color: var(--pos-credit); }
+
+  /* Franja izquierda de color */
+  .pos-credit-stripe {
+    width: 4px; flex-shrink: 0;
+    background: var(--pos-border);
+    transition: background 0.18s;
+  }
+  .pos-credit-row.on .pos-credit-stripe { background: var(--pos-credit); }
+
+  /* Cuerpo */
+  .pos-credit-body {
+    flex: 1; display: flex; align-items: center; gap: 12px;
+    padding: 12px 14px; background: #fff; transition: background 0.18s;
+  }
+  .pos-credit-row.on .pos-credit-body { background: var(--pos-credit-bg); }
+
+  /* Checkbox visual */
+  .pos-credit-check {
+    width: 18px; height: 18px; flex-shrink: 0;
+    border: 1.5px solid var(--pos-border);
+    display: flex; align-items: center; justify-content: center;
+    transition: border-color 0.18s, background 0.18s; background: #fff;
+  }
+  .pos-credit-row.on .pos-credit-check {
+    border-color: var(--pos-credit); background: var(--pos-credit);
+  }
+  .pos-credit-check svg { color: #fff; }
+
+  /* Texto */
+  .pos-credit-texts { flex: 1; min-width: 0; }
+  .pos-credit-lbl {
+    font-size: 12px; font-weight: 600; color: var(--pos-txt); margin: 0 0 1px;
+    transition: color 0.18s;
+  }
+  .pos-credit-row.on .pos-credit-lbl { color: var(--pos-credit); }
+  .pos-credit-hint { font-size: 10px; color: var(--pos-muted); margin: 0; }
+
+  /* Icono derecho */
+  .pos-credit-icon svg { color: var(--pos-muted); transition: color 0.18s; }
+  .pos-credit-row.on .pos-credit-icon svg { color: var(--pos-credit); }
+
+  /* ── Banner informativo cuando crédito está activo ── */
+  .pos-credit-banner {
+    display: flex; align-items: center; gap: 8px;
+    padding: 10px 14px; background: var(--pos-credit-bg);
+    border-left: 3px solid var(--pos-credit);
+  }
+  .pos-credit-banner-txt {
+    font-size: 11px; color: var(--pos-credit); font-weight: 500; margin: 0;
+    line-height: 1.4;
+  }
+
+  /* ── Separador / totales ── */
+  .pos-sep { height: 1px; background: var(--pos-border); margin: 4px 0; }
+
+  .pos-totals { display: flex; flex-direction: column; gap: 8px; padding: 14px 0 4px; }
+  .pos-total-row { display: flex; justify-content: space-between; align-items: baseline; }
+  .pos-total-label { font-size: 11px; color: var(--pos-muted); text-transform: uppercase; letter-spacing: 0.1em; }
+  .pos-total-val   { font-size: 13px; font-weight: 500; color: var(--pos-txt); }
+  .pos-total-row.main .pos-total-label { font-size: 12px; font-weight: 600; color: var(--pos-txt); }
+  .pos-total-row.main .pos-total-val {
+    font-size: 22px; font-weight: 500; color: var(--pos-p);
+    font-family: 'Cormorant Garamond', Georgia, serif;
+  }
+  .pos-total-row.main.credit .pos-total-val { color: var(--pos-credit); }
+
+  /* ── Botón checkout ── */
+  .pos-checkout-btn {
+    width: 100%; height: 52px; background: var(--pos-p);
+    border: none; cursor: pointer; color: #fff;
+    font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    transition: opacity 0.15s, background 0.18s; margin-top: 8px;
+  }
+  .pos-checkout-btn.credit { background: var(--pos-credit); }
+  .pos-checkout-btn:hover:not(:disabled) { opacity: 0.88; }
+  .pos-checkout-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+
+  .pos-spinner {
+    width: 16px; height: 16px;
+    border: 2px solid rgba(255,255,255,0.3); border-top-color: white;
+    border-radius: 50%; animation: pos-spin 0.7s linear infinite;
+  }
+  @keyframes pos-spin { to { transform: rotate(360deg); } }
+
+  /* Badge en header carrito */
+  .pos-hd-badge {
+    font-size: 10px; font-weight: 700; padding: 2px 8px; letter-spacing: 0.06em;
+  }
+`
+
+// ── Tipos ─────────────────────────────────────────────────────────────────────
 type CartItem = {
-  product_id: string
-  name: string
-  barcode: string | null
-  quantity: number
-  unit_price: number
-  subtotal: number
+  product_id: string; name: string; barcode: string | null
+  quantity: number; unit_price: number; subtotal: number
 }
+type Product = { id: string; name: string; barcode: string | null; sale_price: number }
+type Client  = { id: string; name: string }
 
-type Product = {
-  id: string
-  name: string
-  barcode: string | null
-  sale_price: number
-}
-
-type Client = {
-  id: string
-  name: string
-}
-
-// ─── ClientCombobox ───────────────────────────────────────────────────────────
-
-function ClientCombobox({ clients, value, onChange, placeholder = "Selecciona un cliente" }: {
-  clients: Client[]
-  value: string
-  onChange: (value: string) => void
-  placeholder?: string
+// ── ClientCombobox ────────────────────────────────────────────────────────────
+function ClientCombobox({ clients, value, onChange }: {
+  clients: Client[]; value: string; onChange: (v: string) => void
 }) {
-  const [open, setOpen] = useState(false)
-  const [searchValue, setSearchValue] = useState("")
+  const [open, setOpen]   = useState(false)
+  const [search, setSearch] = useState("")
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const fn = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    document.addEventListener("mousedown", fn)
+    return () => document.removeEventListener("mousedown", fn)
+  }, [])
+
+  const filtered = clients.filter(c => c.name.toLowerCase().includes(search.toLowerCase()))
+  const selected = clients.find(c => c.id === value)
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          role="combobox"
-          aria-expanded={open}
-          className="w-full justify-between h-11 border border-border bg-background rounded-lg"
-        >
-          {value ? clients.find((client) => client.id === value)?.name : placeholder}
-          <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent
-        className="w-[var(--radix-popover-trigger-width)] p-0 bg-white dark:bg-[#1e1e1e] border-border rounded-lg shadow-lg"
-        style={{ zIndex: 10000 }}
-      >
-        <Command>
-          <CommandInput
-            placeholder="Buscar cliente..."
-            value={searchValue}
-            onValueChange={setSearchValue}
-            className="h-9"
-          />
-          <CommandList>
-            <CommandEmpty>No se encontró el cliente</CommandEmpty>
-            <CommandGroup>
-              {clients
-                .filter((client) => client.name.toLowerCase().includes(searchValue.toLowerCase()))
-                .map((client) => (
-                  <CommandItem
-                    key={client.id}
-                    value={client.name}
-                    onSelect={() => {
-                      onChange(client.id)
-                      setOpen(false)
-                      setSearchValue("")
-                    }}
-                    className="cursor-pointer hover:bg-secondary/20"
-                  >
-                    {client.name}
-                    <Check
-                      className={value === client.id ? "ml-auto h-4 w-4 opacity-100" : "ml-auto h-4 w-4 opacity-0"}
-                    />
-                  </CommandItem>
-                ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </PopoverContent>
-    </Popover>
-  )
-}
-
-// ─── POSInputWithIcon ─────────────────────────────────────────────────────────
-
-function POSInputWithIcon({
-  icon,
-  className = "",
-  ...props
-}: React.ComponentProps<typeof Input> & { icon: React.ReactNode }) {
-  return (
-    <div className="relative flex items-center w-full">
-      <div className="absolute left-4 z-10 text-muted-foreground">{icon}</div>
-      <Input className={`pl-12 ${className}`} {...props} />
+    <div ref={ref} style={{ position: "relative" }}>
+      <button type="button" className="pos-select-trigger"
+        onClick={() => setOpen(o => !o)} data-open={open} aria-expanded={open}>
+        <span style={{ color: selected ? "var(--pos-txt)" : "var(--pos-muted)" }}>
+          {selected?.name ?? "Selecciona un cliente"}
+        </span>
+        <ChevronsUpDown size={13} style={{ color: "rgba(26,26,24,0.3)", flexShrink: 0 }} />
+      </button>
+      {open && (
+        <div className="pos-select-dropdown" style={{ position: "absolute", top: "100%", left: 0, right: 0 }}>
+          <input autoFocus className="pos-select-search" placeholder="Buscar cliente..."
+            value={search} onChange={e => setSearch(e.target.value)} />
+          {filtered.length === 0
+            ? <div className="pos-select-empty">No se encontró el cliente</div>
+            : filtered.map(c => (
+              <div key={c.id} className="pos-select-option"
+                onClick={() => { onChange(c.id); setOpen(false); setSearch("") }}>
+                {c.name}
+                {value === c.id && <Check size={12} style={{ color: "var(--pos-p)" }} />}
+              </div>
+            ))
+          }
+        </div>
+      )}
     </div>
   )
 }
 
-// ─── POSInterface ─────────────────────────────────────────────────────────────
-
-interface POSInterfaceProps {
-  companyId: string   // ← recibido desde page.tsx (server component)
-}
+// ── POSInterface ──────────────────────────────────────────────────────────────
+interface POSInterfaceProps { companyId: string }
 
 export function POSInterface({ companyId }: POSInterfaceProps) {
   const router = useRouter()
-  const barcodeInputRef = useRef<HTMLInputElement>(null)
+  const barcodeRef = useRef<HTMLInputElement>(null)
 
-  const [cart, setCart]                       = useState<CartItem[]>([])
-  const [barcodeInput, setBarcodeInput]       = useState("")
-  const [nameSearch, setNameSearch]           = useState("")
-  const [selectedClient, setSelectedClient]   = useState<string>("")
-  const [paymentMethod, setPaymentMethod]     = useState<string>("efectivo")
-  const [isProcessing, setIsProcessing]       = useState(false)
-  const [products, setProducts]               = useState<Product[]>([])
-  const [clients, setClients]                 = useState<Client[]>([])
+  const [cart, setCart]                         = useState<CartItem[]>([])
+  const [barcodeInput, setBarcodeInput]         = useState("")
+  const [nameSearch, setNameSearch]             = useState("")
+  const [selectedClient, setSelectedClient]     = useState("")
+  const [paymentMethod, setPaymentMethod]       = useState("efectivo")
+  const [isCredit, setIsCredit]                 = useState(false)    // ← NUEVO
+  const [isProcessing, setIsProcessing]         = useState(false)
+  const [products, setProducts]                 = useState<Product[]>([])
+  const [clients, setClients]                   = useState<Client[]>([])
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([])
 
-  // ── Cargar productos y clientes filtrados por empresa ─────────────────────
   useEffect(() => {
-    const fetchData = async () => {
+    ;(async () => {
       const supabase = createClient()
-
-      const [{ data: productsData }, { data: clientsData }] = await Promise.all([
-        supabase
-          .from("products")
-          .select("id, name, barcode, sale_price")
-          .eq("company_id", companyId),          // ← FILTRO MULTIEMPRESA
-
-        supabase
-          .from("clients")
-          .select("id, name")
-          .eq("company_id", companyId),          // ← FILTRO MULTIEMPRESA
+      const [{ data: prod }, { data: cli }] = await Promise.all([
+        supabase.from("products").select("id, name, barcode, sale_price").eq("company_id", companyId),
+        supabase.from("clients").select("id, name").eq("company_id", companyId),
       ])
-
-      setProducts(productsData || [])
-      setClients(clientsData || [])
-    }
-    fetchData()
+      setProducts(prod || [])
+      setClients(cli || [])
+    })()
   }, [companyId])
 
-  // ── Filtro de búsqueda por nombre ─────────────────────────────────────────
   useEffect(() => {
-    if (nameSearch.trim()) {
-      const filtered = products.filter((p) => p.name.toLowerCase().includes(nameSearch.toLowerCase()))
-      setFilteredProducts(filtered.slice(0, 10))
-    } else {
-      setFilteredProducts([])
-    }
+    if (nameSearch.trim())
+      setFilteredProducts(products.filter(p => p.name.toLowerCase().includes(nameSearch.toLowerCase())).slice(0, 10))
+    else setFilteredProducts([])
   }, [nameSearch, products])
 
-  // ── Focus en input de código de barras tras cada cambio de carrito ────────
-  useEffect(() => {
-    barcodeInputRef.current?.focus()
-  }, [cart])
+  useEffect(() => { barcodeRef.current?.focus() }, [cart])
 
-  // ── Verificar stock disponible (filtrado por empresa vía product_id) ──────
-  // purchase_batches no tiene company_id directamente accesible en la query,
-  // pero el product_id ya pertenece a esta empresa gracias al fetch previo.
-  // Añadimos el filtro de company_id para máxima seguridad.
-  const checkStockAvailability = async (cartItems: CartItem[]) => {
+  const fmt = (v: number) =>
+    v.toLocaleString("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 })
+
+  const checkStock = async (items: CartItem[]) => {
     const supabase = createClient()
-    for (const item of cartItems) {
-      const { data: batches, error } = await supabase
-        .from("purchase_batches")
-        .select("remaining_quantity")
-        .eq("product_id", item.product_id)
-        .eq("company_id", companyId)             // ← FILTRO MULTIEMPRESA
-        .gt("remaining_quantity", 0)
-
-      if (error) {
-        console.error("Error al consultar stock:", error)
-        return `Error al verificar el stock de ${item.name}`
-      }
-
-      const totalAvailable = batches?.reduce((sum, b) => sum + (b.remaining_quantity || 0), 0) || 0
-      if (totalAvailable < item.quantity) {
-        return `Stock insuficiente para ${item.name}, solo hay ${totalAvailable} unidades disponibles.`
-      }
+    for (const item of items) {
+      const { data: batches } = await supabase.from("purchase_batches")
+        .select("remaining_quantity").eq("product_id", item.product_id)
+        .eq("company_id", companyId).gt("remaining_quantity", 0)
+      const avail = batches?.reduce((s, b) => s + (b.remaining_quantity || 0), 0) || 0
+      if (avail < item.quantity) return `Stock insuficiente para ${item.name} (disponible: ${avail})`
     }
     return null
   }
 
-  // ── Barcode submit ────────────────────────────────────────────────────────
-  const handleBarcodeSubmit = (e: React.FormEvent) => {
+  const handleBarcode = (e: React.FormEvent) => {
     e.preventDefault()
-    if (!barcodeInput.trim()) return
-
-    const product = products.find((p) => p.barcode === barcodeInput.trim())
-    if (product) {
-      addToCart(product)
-      setBarcodeInput("")
-    } else {
-      showWarning("Producto no encontrado", "Código de barras no existe")
-      setBarcodeInput("")
-    }
+    const product = products.find(p => p.barcode === barcodeInput.trim())
+    if (product) { addToCart(product); setBarcodeInput("") }
+    else { showWarning("Producto no encontrado", "Código de barras no existe"); setBarcodeInput("") }
   }
 
-  // ── Carrito ───────────────────────────────────────────────────────────────
   const addToCart = (product: Product) => {
-    const existingItem = cart.find((item) => item.product_id === product.id)
-    if (existingItem) {
-      setCart(
-        cart.map((item) =>
-          item.product_id === product.id
-            ? { ...item, quantity: item.quantity + 1, subtotal: (item.quantity + 1) * item.unit_price }
-            : item
-        )
-      )
-    } else {
-      setCart([
-        ...cart,
-        {
-          product_id: product.id,
-          name: product.name,
-          barcode: product.barcode,
-          quantity: 1,
-          unit_price: Number(product.sale_price),
-          subtotal: Number(product.sale_price),
-        },
-      ])
-    }
+    setCart(prev => {
+      const ex = prev.find(i => i.product_id === product.id)
+      if (ex) return prev.map(i => i.product_id === product.id
+        ? { ...i, quantity: i.quantity + 1, subtotal: (i.quantity + 1) * i.unit_price } : i)
+      return [...prev, {
+        product_id: product.id, name: product.name, barcode: product.barcode,
+        quantity: 1, unit_price: Number(product.sale_price), subtotal: Number(product.sale_price),
+      }]
+    })
     setNameSearch("")
   }
 
-  const updateQuantity = (product_id: string, delta: number) => {
-    setCart(
-      cart
-        .map((item) => {
-          if (item.product_id === product_id) {
-            const newQuantity = item.quantity + delta
-            if (newQuantity <= 0) return null
-            return { ...item, quantity: newQuantity, subtotal: newQuantity * item.unit_price }
-          }
-          return item
-        })
-        .filter((item): item is CartItem => item !== null)
-    )
-  }
+  const updateQty = (id: string, delta: number) =>
+    setCart(prev => prev
+      .map(i => i.product_id === id
+        ? { ...i, quantity: i.quantity + delta, subtotal: (i.quantity + delta) * i.unit_price }
+        : i)
+      .filter(i => i.quantity > 0))
 
-  const removeFromCart = (product_id: string) =>
-    setCart(cart.filter((item) => item.product_id !== product_id))
+  const removeFromCart = (id: string) => setCart(prev => prev.filter(i => i.product_id !== id))
+  const total = cart.reduce((s, i) => s + i.subtotal, 0)
 
-  const calculateTotal = () => cart.reduce((sum, item) => sum + item.subtotal, 0)
+  // Toggle crédito — si activa crédito, el método de pago no aplica
+  const toggleCredit = () => setIsCredit(v => !v)
 
-  // ── Checkout ──────────────────────────────────────────────────────────────
   const handleCheckout = async () => {
-    if (cart.length === 0) return showWarning("El carrito está vacío", "No hay productos")
-    if (!selectedClient) return showWarning("Selecciona un cliente", "Cliente requerido")
+    if (!cart.length)      return showWarning("El carrito está vacío", "")
+    if (!selectedClient)   return showWarning("Selecciona un cliente", "")
 
-    let amountGiven = 0
-    let change = 0
-    const total = calculateTotal()
-
-    if (paymentMethod === "efectivo") {
-      const input = await showInput(
-        "Pago en Efectivo",
-        `Total: $${total.toFixed(2)} - Ingresa el monto recibido`,
-        "number"
-      )
+    let amountGiven = 0, change = 0
+    // Si no es crédito y pagan en efectivo → pedir monto
+    if (!isCredit && paymentMethod === "efectivo") {
+      const input = await showInput("Pago en Efectivo", `Total: ${fmt(total)} — Ingresa el monto recibido`, "number")
       if (input === null) return
-      amountGiven = Number.parseFloat(input)
-      if (isNaN(amountGiven) || amountGiven < total)
-        return showError("El monto recibido debe ser mayor o igual al total", "Monto insuficiente")
+      amountGiven = parseFloat(input)
+      if (isNaN(amountGiven) || amountGiven < total) return showError("Monto insuficiente", "")
       change = amountGiven - total
     }
 
-    const stockError = await checkStockAvailability(cart)
+    const stockError = await checkStock(cart)
     if (stockError) return showWarning("Stock insuficiente", stockError)
 
     setIsProcessing(true)
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error("Usuario no autenticado")
+      if (!user) throw new Error("No autenticado")
 
-      // ── 1. Crear venta con company_id ─────────────────────────────────────
-      const { data: sale, error: saleError } = await supabase
-        .from("sales")
+      // ── Insertar venta (con is_credit) ────────────────────────────────────
+      const { data: sale, error: saleErr } = await supabase.from("sales")
         .insert({
-          client_id: selectedClient,
+          client_id:      selectedClient,
           total,
-          payment_method: paymentMethod,
-          created_by: user.id,
-          company_id: companyId,                // ← FILTRO MULTIEMPRESA
+          payment_method: isCredit ? "credito" : paymentMethod,
+          is_credit:      isCredit,
+          created_by:     user.id,
+          company_id:     companyId,
         })
-        .select()
-        .single()
+        .select().single()
+      if (saleErr) throw saleErr
 
-      if (saleError) throw saleError
-
+      // ── Descontar stock y registrar movimientos ───────────────────────────
       let totalCost = 0
-
       for (const item of cart) {
-        // ── 2. Obtener lotes filtrados por empresa ────────────────────────
-        const { data: batches } = await supabase
-          .from("purchase_batches")
-          .select("*")
-          .eq("product_id", item.product_id)
-          .eq("company_id", companyId)          // ← FILTRO MULTIEMPRESA
-          .gt("remaining_quantity", 0)
-          .order("purchase_date", { ascending: true })
+        const { data: batches } = await supabase.from("purchase_batches")
+          .select("*").eq("product_id", item.product_id).eq("company_id", companyId)
+          .gt("remaining_quantity", 0).order("purchase_date", { ascending: true })
+        if (!batches?.length) throw new Error(`Sin stock: ${item.name}`)
 
-        if (!batches || batches.length === 0)
-          throw new Error(`No hay stock disponible para ${item.name}`)
-
-        let remainingQty = item.quantity
-
+        let remaining = item.quantity
         for (const batch of batches) {
-          if (remainingQty <= 0) break
-          const qtyToDeduct = Math.min(batch.remaining_quantity, remainingQty)
-
-          // ── 3. Descontar stock ──────────────────────────────────────────
-          await supabase
-            .from("purchase_batches")
-            .update({ remaining_quantity: batch.remaining_quantity - qtyToDeduct })
-            .eq("id", batch.id)
-            .eq("company_id", companyId)        // ← doble filtro en update
-
-          // ── 4. Insertar sale_item con company_id ────────────────────────
+          if (remaining <= 0) break
+          const qty = Math.min(batch.remaining_quantity, remaining)
+          await supabase.from("purchase_batches")
+            .update({ remaining_quantity: batch.remaining_quantity - qty })
+            .eq("id", batch.id).eq("company_id", companyId)
           await supabase.from("sale_items").insert({
-            sale_id: sale.id,
-            product_id: item.product_id,
-            batch_id: batch.id,
-            quantity: qtyToDeduct,
-            unit_price: item.unit_price,
-            subtotal: qtyToDeduct * item.unit_price,
-            company_id: companyId,              // ← FILTRO MULTIEMPRESA
+            sale_id: sale.id, product_id: item.product_id, batch_id: batch.id,
+            quantity: qty, unit_price: item.unit_price, subtotal: qty * item.unit_price,
+            company_id: companyId,
           })
-
-          totalCost += qtyToDeduct * Number(batch.purchase_price)
-          remainingQty -= qtyToDeduct
+          totalCost += qty * Number(batch.purchase_price)
+          remaining -= qty
         }
-
-        if (remainingQty > 0) throw new Error(`Stock insuficiente para ${item.name}`)
-
-        // ── 5. Movimiento de inventario con company_id ──────────────────
+        if (remaining > 0) throw new Error(`Stock insuficiente: ${item.name}`)
         await supabase.from("inventory_movements").insert({
-          product_id: item.product_id,
-          movement_type: "salida",
-          quantity: item.quantity,
-          reason: `Venta #${sale.id}`,
-          created_by: user.id,
-          company_id: companyId,                // ← FILTRO MULTIEMPRESA
+          product_id: item.product_id, movement_type: "salida",
+          quantity: item.quantity, reason: `Venta #${sale.id}`,
+          created_by: user.id, company_id: companyId,
         })
       }
 
-      // ── 6. Registrar rentabilidad con company_id ──────────────────────────
+      // ── Rentabilidad ──────────────────────────────────────────────────────
       const profit = total - totalCost
-      const profitMargin = total > 0 ? (profit / total) * 100 : 0
-
       await supabase.from("sales_profit").insert({
-        sale_id: sale.id,
-        total_cost: totalCost,
-        total_sale: total,
-        profit,
-        profit_margin: profitMargin,
-        company_id: companyId,                  // ← FILTRO MULTIEMPRESA
+        sale_id: sale.id, total_cost: totalCost, total_sale: total, profit,
+        profit_margin: total > 0 ? (profit / total) * 100 : 0, company_id: companyId,
       })
 
-      // ── 7. Reset y confirmación ───────────────────────────────────────────
+      // ── Si es crédito → crear deuda ───────────────────────────────────────
+      if (isCredit) {
+        const { error: debtErr } = await supabase.from("customer_debts").insert({
+          company_id:      companyId,
+          sale_id:         sale.id,
+          client_id:       selectedClient,
+          original_amount: total,
+          status:          "pending",
+          created_by:      user.id,
+        })
+        if (debtErr) throw debtErr
+      }
+
+      // ── Reset y feedback ──────────────────────────────────────────────────
       setCart([])
       setSelectedClient("")
       setPaymentMethod("efectivo")
+      setIsCredit(false)
 
-      if (paymentMethod === "efectivo" && change > 0) {
-        await showSuccess(
-          `Total: $${total.toFixed(2)}\nRecibido: $${amountGiven.toFixed(2)}\nCambio: $${change.toFixed(2)}`,
-          "¡Venta Completada!"
-        )
-      } else {
-        await showSuccess(`Total: $${total.toFixed(2)}`, "¡Venta Completada!")
-      }
+      const msg = isCredit
+        ? `Deuda de ${fmt(total)} registrada para el cliente`
+        : change > 0
+          ? `Total: ${fmt(total)} | Cambio: ${fmt(change)}`
+          : `Total: ${fmt(total)}`
+      const title = isCredit ? "Venta a crédito registrada" : "¡Venta completada!"
 
+      await showSuccess(msg, title)
       router.refresh()
-    } catch (error) {
-      console.error("Error en venta:", error)
-      showError(error instanceof Error ? error.message : "Error al procesar la venta", "Error")
-    } finally {
-      setIsProcessing(false)
-    }
+    } catch (err) {
+      showError(err instanceof Error ? err.message : "Error al procesar", "Error")
+    } finally { setIsProcessing(false) }
   }
 
-  // ── Render ────────────────────────────────────────────────────────────────
+  const payMethods = [
+    { key: "efectivo",      label: "Efectivo",      icon: <Receipt size={16} /> },
+    { key: "tarjeta",       label: "Tarjeta",        icon: <CreditCard size={16} /> },
+    { key: "transferencia", label: "Transferencia",  icon: <Receipt size={16} /> },
+  ]
+
   return (
-    <div className="dashboard-page-container">
-      <div className="grid gap-5 lg:grid-cols-3">
-        {/* Columna Izquierda */}
-        <div className="lg:col-span-2 space-y-5">
+    <>
+      <style dangerouslySetInnerHTML={{ __html: POS_CSS }} />
+      <div className="pos-root">
+        <div className="pos-grid">
 
-          {/* Escáner de Productos */}
-          <Card className="card">
-            <CardHeader className="card-header">
-              <CardTitle className="dashboard-title flex items-center gap-2">
-                <Barcode className="h-5 w-5 text-primary" />
-                Escáner de Productos
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <form onSubmit={handleBarcodeSubmit} className="space-y-2">
-                <Label htmlFor="barcode" className="text-sm font-medium text-muted-foreground">
-                  Código de barras
-                </Label>
-                <div className="flex gap-2">
-                  <POSInputWithIcon
-                    ref={barcodeInputRef}
-                    id="barcode"
-                    icon={<Barcode className="h-5 w-5" />}
-                    placeholder="Escanea o ingresa código de barras..."
-                    value={barcodeInput}
-                    onChange={(e) => setBarcodeInput(e.target.value)}
-                    className="pos-barcode-input h-16 text-lg"
-                  />
-                  <Button type="submit" className="btn-action-new whitespace-nowrap h-16">
-                    <Plus className="icon-plus h-5 w-5" />
-                    Agregar
-                  </Button>
-                </div>
-              </form>
+          {/* ── Columna izquierda ─────────────────────────────────────────── */}
+          <div className="pos-left">
 
-              {/* Buscador por nombre */}
-              <div className="space-y-2">
-                <Label htmlFor="search-product" className="text-sm font-medium text-muted-foreground">
-                  Buscar por nombre
-                </Label>
-                <POSInputWithIcon
-                  id="search-product"
-                  icon={<Search className="h-4 w-4" />}
-                  placeholder="Escribe para buscar productos..."
-                  value={nameSearch}
-                  onChange={(e) => setNameSearch(e.target.value)}
-                  className="input-modern h-10"
-                />
-                {filteredProducts.length > 0 && (
-                  <div className="border rounded-lg bg-card max-h-60 overflow-y-auto shadow-lg relative">
-                    {filteredProducts.map((product) => (
-                      <button
-                        key={product.id}
-                        type="button"
-                        className="w-full flex items-center justify-between px-4 py-3 hover:bg-accent/10 transition-colors text-left border-b last:border-0"
-                        onClick={() => addToCart(product)}
-                      >
-                        <span className="font-medium text-sm">{product.name}</span>
-                        <span className="text-sm font-bold text-chart-3">
-                          {Number(product.sale_price).toLocaleString("es-CO", {
-                            style: "currency",
-                            currency: "COP",
-                            minimumFractionDigits: 0,
-                            maximumFractionDigits: 0,
-                          })}
-                        </span>
+            {/* Escáner */}
+            <div className="pos-card">
+              <div className="pos-card-hd">
+                <div className="pos-card-hd-icon"><Barcode /></div>
+                <p className="pos-card-title">Escáner de productos</p>
+              </div>
+              <div className="pos-card-body" style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+                <div>
+                  <label className="pos-label">Código de barras</label>
+                  <form onSubmit={handleBarcode}>
+                    <div className="pos-barcode-row">
+                      <div className="pos-input-wrap">
+                        <span className="pos-input-icon"><Barcode size={15} /></span>
+                        <input ref={barcodeRef} className="pos-input barcode"
+                          placeholder="Escanea o ingresa código..."
+                          value={barcodeInput} onChange={e => setBarcodeInput(e.target.value)}
+                          autoComplete="off" />
+                      </div>
+                      <button type="submit" className="pos-add-btn">
+                        <Plus size={14} />Agregar
                       </button>
-                    ))}
+                    </div>
+                  </form>
+                </div>
+
+                <div>
+                  <label className="pos-label">Buscar por nombre</label>
+                  <div className="pos-input-wrap">
+                    <span className="pos-input-icon"><Search size={14} /></span>
+                    <input className="pos-input" placeholder="Escribe para buscar productos..."
+                      value={nameSearch} onChange={e => setNameSearch(e.target.value)}
+                      autoComplete="off" />
                   </div>
+                  {filteredProducts.length > 0 && (
+                    <div className="pos-search-results" style={{ marginTop: 4 }}>
+                      {filteredProducts.map(p => (
+                        <button key={p.id} type="button" className="pos-search-item" onClick={() => addToCart(p)}>
+                          <span className="pos-search-name">{p.name}</span>
+                          <span className="pos-search-price">{fmt(Number(p.sale_price))}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Carrito */}
+            <div className="pos-card">
+              <div className="pos-card-hd">
+                <div className="pos-card-hd-icon"><ShoppingCart /></div>
+                <p className="pos-card-title">Carrito</p>
+                {cart.length > 0 && (
+                  <span className="pos-hd-badge" style={{ marginLeft: "auto", background: "var(--pos-p)", color: "white" }}>
+                    {cart.length} {cart.length === 1 ? "ítem" : "ítems"}
+                  </span>
+                )}
+                {/* Badge crédito activo */}
+                {isCredit && (
+                  <span className="pos-hd-badge" style={{
+                    background: "var(--pos-credit-bg)", color: "var(--pos-credit)",
+                    border: "1px solid var(--pos-credit-br)",
+                    marginLeft: cart.length > 0 ? 6 : "auto",
+                  }}>
+                    A crédito
+                  </span>
                 )}
               </div>
-            </CardContent>
-          </Card>
 
-          {/* Carrito de Compras */}
-          <Card className="card">
-            <CardHeader className="card-header">
-              <CardTitle className="card-title flex items-center gap-2">
-                <ShoppingCart className="h-5 w-5 text-primary" />
-                Carrito de Compras
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
               {cart.length === 0 ? (
-                <div className="py-10 flex items-center justify-center">
-                  <div className="text-center max-w-xs space-y-3">
-                    <div className="w-20 h-20 mx-auto flex items-center justify-center rounded-full bg-gradient-to-br from-secondary to-primary/20">
-                      <ShoppingCart className="h-10 w-10 text-primary/50" />
-                    </div>
-                    <p className="text-base font-medium text-muted-foreground">El carrito está vacío</p>
-                    <p className="text-sm text-muted-foreground/70">Escanea un producto para comenzar</p>
-                  </div>
+                <div className="pos-cart-empty">
+                  <div className="pos-cart-empty-icon"><ShoppingCart /></div>
+                  <p className="pos-cart-empty-title">El carrito está vacío</p>
+                  <p className="pos-cart-empty-sub">Escanea o busca un producto para comenzar</p>
                 </div>
               ) : (
-                <div className="space-y-2">
-                  {cart.map((item) => (
-                    <div
-                      key={item.product_id}
-                      className="group flex items-center justify-between py-3 px-2 rounded-lg hover:bg-primary/5 transition-all duration-200 border border-border/30"
-                    >
-                      <div className="flex-1">
-                        <p className="font-medium text-sm text-foreground tracking-tight group-hover:pl-1 transition-all">
-                          {item.name}
-                        </p>
-                        <p className="text-xs text-muted-foreground mt-0.5 group-hover:pl-1 transition-all">
-                          {item.unit_price.toLocaleString("es-CO", {
-                            style: "currency",
-                            currency: "COP",
-                            minimumFractionDigits: 0,
-                            maximumFractionDigits: 0,
-                          })}{" "}
-                          c/u
-                        </p>
+                <div className="pos-cart-list">
+                  {cart.map(item => (
+                    <div key={item.product_id} className="pos-cart-item">
+                      <div className="pos-cart-info">
+                        <p className="pos-cart-name">{item.name}</p>
+                        <p className="pos-cart-unit">{fmt(item.unit_price)} c/u</p>
                       </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8 group hover:bg-destructive/10 hover:border-destructive transition-all"
-                          onClick={() => updateQuantity(item.product_id, -1)}
-                        >
-                          <Minus className="h-3.5 w-3.5 group-hover:text-destructive" />
-                        </Button>
-                        <span className="w-8 text-center font-bold text-foreground text-sm">
-                          {item.quantity}
-                        </span>
-                        <Button
-                          variant="outline"
-                          size="icon"
-                          className="h-8 w-8 group hover:bg-success/10 hover:border-success transition-all"
-                          onClick={() => updateQuantity(item.product_id, 1)}
-                        >
-                          <Plus className="h-3.5 w-3.5 group-hover:text-success" />
-                        </Button>
-                        <span className="w-20 text-right font-bold text-chart-3 text-sm">
-                          {item.subtotal.toLocaleString("es-CO", {
-                            style: "currency",
-                            currency: "COP",
-                            minimumFractionDigits: 0,
-                            maximumFractionDigits: 0,
-                          })}
-                        </span>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 group hover:bg-destructive/10 hover:text-destructive transition-colors"
-                          onClick={() => removeFromCart(item.product_id)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
+                      <div className="pos-qty-row">
+                        <button className="pos-qty-btn danger" onClick={() => updateQty(item.product_id, -1)} aria-label="Reducir">
+                          <Minus size={11} />
+                        </button>
+                        <span className="pos-qty-num">{item.quantity}</span>
+                        <button className="pos-qty-btn" onClick={() => updateQty(item.product_id, 1)} aria-label="Aumentar">
+                          <Plus size={11} />
+                        </button>
                       </div>
+                      <span className="pos-cart-subtotal">{fmt(item.subtotal)}</span>
+                      <button className="pos-cart-remove" onClick={() => removeFromCart(item.product_id)} aria-label="Eliminar">
+                        <Trash2 size={13} />
+                      </button>
                     </div>
                   ))}
                 </div>
               )}
-            </CardContent>
-          </Card>
-        </div>
+            </div>
+          </div>
 
-        {/* Columna Derecha - Resumen */}
-        <div className="space-y-5">
-          <Card className="card border-none shadow-lg">
-            <CardHeader className="card-header border-none pb-4">
-              <CardTitle className="card-title text-xl font-bold">Detalles de Venta</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4 p-4 pt-2">
-              {/* Cliente */}
-              <div className="space-y-2">
-                <Label className="text-sm font-medium text-muted-foreground">Cliente *</Label>
-                <ClientCombobox
-                  clients={clients}
-                  value={selectedClient}
-                  onChange={setSelectedClient}
-                />
+          {/* ── Columna derecha ───────────────────────────────────────────── */}
+          <div className="pos-right">
+            <div className="pos-card">
+              <div className="pos-card-hd">
+                <div className="pos-card-hd-icon"><Package /></div>
+                <p className="pos-card-title">Detalles de venta</p>
               </div>
+              <div className="pos-card-body" style={{ display: "flex", flexDirection: "column", gap: 16 }}>
 
-              {/* Método de Pago */}
-              <div className="space-y-2">
-                <Label htmlFor="payment" className="text-sm font-medium text-muted-foreground">
-                  Método de Pago *
-                </Label>
-                <Select value={paymentMethod} onValueChange={setPaymentMethod}>
-                  <SelectTrigger id="payment" className="h-11 border border-border bg-background rounded-lg">
-                    <SelectValue placeholder="Selecciona método" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-white dark:bg-[#1e1e1e] border-border rounded-lg shadow-lg">
-                    <SelectItem value="efectivo" className="hover:bg-secondary/20 cursor-pointer flex items-center gap-2 py-2">
-                      <CreditCard className="h-4 w-4" /> Efectivo
-                    </SelectItem>
-                    <SelectItem value="tarjeta" className="hover:bg-secondary/20 cursor-pointer flex items-center gap-2 py-2">
-                      <CreditCard className="h-4 w-4" /> Tarjeta
-                    </SelectItem>
-                    <SelectItem value="transferencia" className="hover:bg-secondary/20 cursor-pointer flex items-center gap-2 py-2">
-                      <Receipt className="h-4 w-4" /> Transferencia
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <Separator className="my-4" />
-
-              {/* Resumen de Pagos */}
-              <div className="space-y-3">
-                <div className="flex justify-between">
-                  <span className="text-sm text-muted-foreground">Subtotal:</span>
-                  <span className="font-medium text-foreground text-sm">
-                    {calculateTotal().toLocaleString("es-CO", {
-                      style: "currency",
-                      currency: "COP",
-                      minimumFractionDigits: 0,
-                      maximumFractionDigits: 0,
-                    })}
-                  </span>
+                {/* Cliente */}
+                <div>
+                  <label className="pos-label">Cliente *</label>
+                  <ClientCombobox clients={clients} value={selectedClient} onChange={setSelectedClient} />
                 </div>
-                <div className="flex justify-between pt-2">
-                  <span className="text-lg font-bold text-foreground">Total:</span>
-                  <span className="text-lg font-bold text-primary">
-                    {calculateTotal().toLocaleString("es-CO", {
-                      style: "currency",
-                      currency: "COP",
-                      minimumFractionDigits: 0,
-                      maximumFractionDigits: 0,
-                    })}
-                  </span>
-                </div>
-              </div>
 
-              <Button
-                className="w-full mt-4 h-12 bg-primary hover:bg-primary/90 text-primary-foreground font-semibold text-base rounded-lg transition-colors"
-                onClick={handleCheckout}
-                disabled={isProcessing || cart.length === 0}
-              >
-                {isProcessing ? (
-                  <>
-                    <div className="h-4 w-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2" />
-                    Procesando...
-                  </>
-                ) : (
-                  "Completar Venta"
+                {/* ═══ TOGGLE CRÉDITO ═══════════════════════════════════════ */}
+                <div>
+                  <label className="pos-label">Modalidad de pago</label>
+                  <div
+                    role="checkbox"
+                    aria-checked={isCredit}
+                    tabIndex={0}
+                    className={`pos-credit-row${isCredit ? " on" : ""}`}
+                    onClick={toggleCredit}
+                    onKeyDown={e => (e.key === " " || e.key === "Enter") && toggleCredit()}
+                  >
+                    <div className="pos-credit-stripe" />
+                    <div className="pos-credit-body">
+                      <div className="pos-credit-check">
+                        {isCredit && <Check size={11} strokeWidth={2.5} />}
+                      </div>
+                      <div className="pos-credit-texts">
+                        <p className="pos-credit-lbl">
+                          {isCredit ? "Venta a crédito" : "Pago al contado"}
+                        </p>
+                        <p className="pos-credit-hint">
+                          {isCredit
+                            ? "Se registra como deuda pendiente"
+                            : "Activar si el cliente paga después"}
+                        </p>
+                      </div>
+                      <div className="pos-credit-icon"><Clock size={14} /></div>
+                    </div>
+                  </div>
+
+                  {/* Banner informativo cuando crédito activo */}
+                  {isCredit && (
+                    <div className="pos-credit-banner" style={{ marginTop: 8 }}>
+                      <Clock size={13} style={{ color: "var(--pos-credit)", flexShrink: 0 }} />
+                      <p className="pos-credit-banner-txt">
+                        Esta venta se registrará como deuda pendiente de cobro.
+                        Podrás gestionarla en <strong>Deudas de clientes</strong>.
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Método de pago — se oculta si es crédito */}
+                {!isCredit && (
+                  <div>
+                    <label className="pos-label">Método de pago *</label>
+                    <div className="pos-payment-grid">
+                      {payMethods.map(m => (
+                        <button key={m.key} type="button"
+                          className={`pos-payment-btn${paymentMethod === m.key ? " selected" : ""}`}
+                          onClick={() => setPaymentMethod(m.key)}>
+                          {m.icon}
+                          <span className="pos-payment-label">{m.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
                 )}
-              </Button>
-            </CardContent>
-          </Card>
+
+                <div className="pos-sep" />
+
+                {/* Totales */}
+                <div className="pos-totals">
+                  <div className="pos-total-row">
+                    <span className="pos-total-label">Subtotal</span>
+                    <span className="pos-total-val">{fmt(total)}</span>
+                  </div>
+                  <div className={`pos-total-row main${isCredit ? " credit" : ""}`}>
+                    <span className="pos-total-label">{isCredit ? "Deuda a registrar" : "Total"}</span>
+                    <span className="pos-total-val">{fmt(total)}</span>
+                  </div>
+                </div>
+
+                {/* Checkout */}
+                <button
+                  className={`pos-checkout-btn${isCredit ? " credit" : ""}`}
+                  onClick={handleCheckout}
+                  disabled={isProcessing || cart.length === 0}
+                >
+                  {isProcessing
+                    ? <><div className="pos-spinner" />Procesando...</>
+                    : isCredit
+                      ? <><Clock size={15} />Registrar deuda</>
+                      : <>Completar venta</>
+                  }
+                </button>
+
+              </div>
+            </div>
+          </div>
+
         </div>
       </div>
-    </div>
+    </>
   )
 }

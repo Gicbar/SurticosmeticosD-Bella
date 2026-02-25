@@ -1,158 +1,113 @@
+// ════════════════════════════════════════════════════════════════════════════
+// app/dashboard/profits/page.tsx
+// ════════════════════════════════════════════════════════════════════════════
 import { getUserPermissions } from "@/lib/auth"
 import { createClient } from "@/lib/supabase/server"
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
-import { PiggyBank, TrendingUp, ShoppingCart, DollarSign, Percent } from "lucide-react"
 import { ProfitsTable } from "@/components/profits-table"
 import { ExportProfitsButton } from "@/components/export-profits-button"
+import { PiggyBank, TrendingUp, ShoppingCart, DollarSign, Percent } from "lucide-react"
 import { redirect } from "next/navigation"
 
-// ─── formatCurrency ───────────────────────────────────────────────────────────
-function formatCurrency(amount: number): string {
-  return amount.toLocaleString("es-CO", {
-    style: "currency",
-    currency: "COP",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  })
+const COP = (n: number) =>
+  n.toLocaleString("es-CO", { style: "currency", currency: "COP", minimumFractionDigits: 0 })
+
+const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap');
+.prf-page {
+  font-family:'DM Sans',sans-serif;
+  --p:    var(--primary,#984ca8);
+  --p10:  rgba(var(--primary-rgb,152,76,168),.10);
+  --txt:  #1a1a18;
+  --muted:rgba(26,26,24,.45);
+  --border:rgba(26,26,24,.08);
 }
+.prf-hd { display:flex; flex-direction:column; gap:14px; padding-bottom:20px; border-bottom:1px solid var(--border); margin-bottom:22px; }
+@media(min-width:640px){ .prf-hd{ flex-direction:row; align-items:center; justify-content:space-between; } }
+.prf-title { font-family:'Cormorant Garamond',Georgia,serif; font-size:22px; font-weight:400; color:var(--txt); margin:0; display:flex; align-items:center; gap:10px; }
+.prf-dot   { width:8px; height:8px; background:var(--p); flex-shrink:0; }
+.prf-sub   { font-size:12px; color:var(--muted); margin:3px 0 0; }
+.prf-sub strong { color:var(--p); }
+.prf-kpi-grid { display:grid; gap:10px; margin-bottom:20px; grid-template-columns:repeat(2,1fr); }
+@media(min-width:640px){ .prf-kpi-grid{ grid-template-columns:repeat(4,1fr); } }
+.prf-kpi { background:#fff; border:1px solid var(--border); padding:15px 14px; position:relative; overflow:hidden; transition:box-shadow .18s,transform .18s; }
+.prf-kpi:hover { box-shadow:0 4px 18px var(--p10); transform:translateY(-1px); }
+.prf-kpi::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:var(--p); opacity:0; transition:opacity .18s; }
+.prf-kpi:hover::before { opacity:1; }
+.prf-kpi-top { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; }
+.prf-kpi-lbl { font-size:8px; font-weight:700; letter-spacing:.2em; text-transform:uppercase; color:var(--muted); }
+.prf-kpi-ico { width:26px; height:26px; background:var(--p10); display:flex; align-items:center; justify-content:center; }
+.prf-kpi-ico svg { color:var(--p); width:12px; height:12px; }
+.prf-kpi-val { font-family:'Cormorant Garamond',Georgia,serif; font-size:20px; font-weight:500; color:var(--txt); margin:0; line-height:1; }
+.prf-kpi-sub { font-size:10px; color:var(--muted); margin:4px 0 0; }
+.prf-table-wrap { background:#fff; border:1px solid var(--border); overflow:hidden; }
+`
 
-// ─── StatCard ─────────────────────────────────────────────────────────────────
-function StatCard({
-  title,
-  value,
-  icon,
-  variant = "default",
-  subtitle = null,
-}: {
-  title: string
-  value: string | number
-  icon: React.ReactNode
-  variant?: "default" | "primary" | "accent"
-  subtitle?: string | null
-}) {
-  const variants = {
-    default: "text-muted-foreground",
-    primary: "text-primary",
-    accent: "text-chart-4",
-  }
-
+function KpiCard({ title, value, sub, icon: Icon }: { title:string; value:string|number; sub?:string; icon:any }) {
   return (
-    <Card className="card group hover:shadow-md transition-shadow">
-      <CardHeader className="card-header flex flex-row items-center justify-between pb-2">
-        <CardTitle className="card-title text-xs uppercase tracking-wide text-muted-foreground">
-          {title}
-        </CardTitle>
-        <div className={`h-5 w-5 ${variants[variant]} group-hover:scale-110 transition-transform duration-200`}>
-          {icon}
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="text-xl md:text-2xl font-bold text-foreground">{value}</div>
-        {subtitle && <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>}
-      </CardContent>
-    </Card>
+    <div className="prf-kpi">
+      <div className="prf-kpi-top">
+        <span className="prf-kpi-lbl">{title}</span>
+        <div className="prf-kpi-ico" aria-hidden><Icon /></div>
+      </div>
+      <p className="prf-kpi-val">{value}</p>
+      {sub && <p className="prf-kpi-sub">{sub}</p>}
+    </div>
   )
 }
 
-// ─── ProfitsPage ──────────────────────────────────────────────────────────────
 export default async function ProfitsPage() {
-  // ── 1. Permisos + company_id en una sola llamada ──────────────────────────
   const permissions = await getUserPermissions()
-
-  if (!permissions?.permissions?.rentabilidad) {
-    redirect("/dashboard")
-  }
-
+  if (!permissions?.permissions?.rentabilidad) redirect("/dashboard")
   const companyId = permissions.company_id
   if (!companyId) redirect("/auth/sin-empresa")
 
-  // ── 2. Rango del mes actual ───────────────────────────────────────────────
   const now = new Date()
-  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1)
+  const firstDay  = new Date(now.getFullYear(), now.getMonth(), 1)
   const nextMonth = new Date(now.getFullYear(), now.getMonth() + 1, 1)
+  const monthLabel = now.toLocaleDateString("es-CO", { month: "long", year: "numeric" })
 
   const supabase = await createClient()
-
-  // ── 3. Query filtrada por empresa ─────────────────────────────────────────
-  const { data: profits, error } = await supabase
+  const { data: profits } = await supabase
     .from("sales_profit")
-    .select(`
-      *,
-      sales!inner (
-        id,
-        sale_date,
-        payment_method,
-        clients (name)
-      )
-    `)
-    .eq("company_id", companyId)                    // ← FILTRO MULTIEMPRESA
+    .select("*, sales!inner(id, sale_date, payment_method, clients(name))")
+    .eq("company_id", companyId)
     .gte("sales.sale_date", firstDay.toISOString())
     .lt("sales.sale_date", nextMonth.toISOString())
     .order("created_at", { ascending: false })
 
-  if (error) {
-    console.error("Error fetching profits:", error)
-  }
-
-  // ── 4. Métricas ───────────────────────────────────────────────────────────
-  const totalSales  = profits?.reduce((sum, p) => sum + Number(p.total_sale  || 0), 0) || 0
-  const totalCost   = profits?.reduce((sum, p) => sum + Number(p.total_cost  || 0), 0) || 0
-  const totalProfit = profits?.reduce((sum, p) => sum + Number(p.profit      || 0), 0) || 0
+  const totalSales  = profits?.reduce((s, p) => s + Number(p.total_sale  || 0), 0) || 0
+  const totalCost   = profits?.reduce((s, p) => s + Number(p.total_cost  || 0), 0) || 0
+  const totalProfit = profits?.reduce((s, p) => s + Number(p.profit      || 0), 0) || 0
   const avgMargin   = profits?.length
-    ? profits.reduce((sum, p) => sum + Number(p.profit_margin || 0), 0) / profits.length
+    ? profits.reduce((s, p) => s + Number(p.profit_margin || 0), 0) / profits.length
     : 0
 
   return (
-    <div className="dashboard-page-container">
-      {/* Header */}
-      <div className="dashboard-toolbar">
-        <div className="dashboard-header">
-          <h1 className="dashboard-title">
-            <PiggyBank className="dashboard-title-icon" />
-            Análisis de Rentabilidad Mes Actual
-          </h1>
-          <p className="dashboard-subtitle">
-            {profits?.length || 0} ventas • Margen promedio{" "}
-            <span className="font-bold text-primary">{avgMargin.toFixed(1)}%</span>
-          </p>
+    <>
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
+      <div className="prf-page">
+        <div className="prf-hd">
+          <div>
+            <h1 className="prf-title"><span className="prf-dot" aria-hidden />Rentabilidad</h1>
+            <p className="prf-sub">
+              {profits?.length || 0} ventas · {monthLabel} · Margen promedio{" "}
+              <strong>{avgMargin.toFixed(1)}%</strong>
+            </p>
+          </div>
+          <ExportProfitsButton profits={profits || []} />
         </div>
-        <ExportProfitsButton profits={profits || []} />
-      </div>
 
-      {/* Stats */}
-      <div className="grid gap-4 md:gap-5 md:grid-cols-2 lg:grid-cols-4 mb-6 animate-fadeIn">
-        <StatCard
-          title="Ventas Totales"
-          value={formatCurrency(totalSales)}
-          icon={<ShoppingCart className="h-5 w-5" />}
-          variant="primary"
-          subtitle={`${profits?.length || 0} transacciones`}
-        />
-        <StatCard
-          title="Costo Total"
-          value={formatCurrency(totalCost)}
-          icon={<DollarSign className="h-5 w-5" />}
-          subtitle="Inversión en productos"
-        />
-        <StatCard
-          title="Ganancia Neta"
-          value={formatCurrency(totalProfit)}
-          icon={<TrendingUp className="h-5 w-5" />}
-          variant="accent"
-          subtitle="Utilidad después de costos"
-        />
-        <StatCard
-          title="Margen Promedio"
-          value={`${avgMargin.toFixed(1)}%`}
-          icon={<Percent className="h-5 w-5" />}
-          subtitle="Rentabilidad media"
-        />
-      </div>
+        <div className="prf-kpi-grid">
+          <KpiCard title="Ventas totales" value={COP(totalSales)}  sub={`${profits?.length||0} transacciones`} icon={ShoppingCart} />
+          <KpiCard title="Costo total"    value={COP(totalCost)}   sub="Inversión en productos"                icon={DollarSign}  />
+          <KpiCard title="Ganancia neta"  value={COP(totalProfit)} sub="Utilidad después de costos"            icon={TrendingUp}  />
+          <KpiCard title="Margen prom."   value={`${avgMargin.toFixed(1)}%`} sub="Rentabilidad media"         icon={Percent}     />
+        </div>
 
-      {/* Tabla */}
-      <div className="card p-0 overflow-hidden animate-fadeIn">
-        <ProfitsTable profits={profits || []} />
+        <div className="prf-table-wrap">
+          <ProfitsTable profits={profits || []} />
+        </div>
       </div>
-    </div>
+    </>
   )
 }

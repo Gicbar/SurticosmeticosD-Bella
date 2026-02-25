@@ -1,204 +1,181 @@
-// components/expenses-table.tsx
 "use client"
 
 import { useState, useEffect } from "react"
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import { Button } from "@/components/ui/button"
-import { Badge } from "@/components/ui/badge"
-import { Edit, Trash2, Calendar, DollarSign, Tag, Receipt } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
 import { ExpenseDialog } from "@/components/expense-dialog"
 import { showError, showConfirm, showSuccess } from "@/lib/sweetalert"
-import { format } from "date-fns"
-import { es } from "date-fns/locale"
+import { Edit, Trash2, Calendar, DollarSign, Tag, Receipt } from "lucide-react"
 
-type Expense = {
-  id: string
-  description: string
-  amount: number
-  category: string | null
-  date: string
+const CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500&display=swap');
+.et {
+  font-family:'DM Sans',sans-serif;
+  --p:    var(--primary,#984ca8);
+  --p10:  rgba(var(--primary-rgb,152,76,168),.10);
+  --txt:  #1a1a18;
+  --muted:rgba(26,26,24,.45);
+  --border:rgba(26,26,24,.08);
+  --row:  rgba(26,26,24,.02);
+  --danger:#dc2626;
+}
+.et-scroll { overflow-x:auto; -webkit-overflow-scrolling:touch; }
+table.et-tbl { width:100%; border-collapse:collapse; min-width:640px; }
+.et-tbl thead tr { border-bottom:2px solid var(--border); background:var(--row); }
+.et-tbl th {
+  padding:9px 13px; font-size:8px; font-weight:700;
+  letter-spacing:.2em; text-transform:uppercase; color:var(--muted); text-align:left; white-space:nowrap;
+}
+.et-tbl th.r { text-align:right; }
+.et-tbl tbody tr { border-bottom:1px solid var(--border); transition:background .1s; }
+.et-tbl tbody tr:last-child { border-bottom:none; }
+.et-tbl tbody tr:hover { background:var(--row); }
+.et-tbl td { padding:12px 13px; font-size:12px; color:var(--txt); vertical-align:middle; }
+.et-tbl td.r { text-align:right; }
+
+/* Fecha */
+.et-date { display:flex; align-items:center; gap:5px; font-size:11px; color:var(--muted); }
+.et-date svg { width:11px; height:11px; }
+
+/* Descripción */
+.et-desc { display:flex; align-items:center; gap:7px; font-weight:500; }
+.et-desc svg { width:13px; height:13px; color:var(--muted); flex-shrink:0; }
+
+/* Badge categoría */
+.et-cat { display:inline-flex; align-items:center; gap:4px; padding:2px 9px; font-size:9px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; }
+.et-cat svg { width:9px; height:9px; }
+.et-cat.operativos { background:var(--p10); color:var(--p); }
+.et-cat.generales  { background:rgba(26,26,24,.06); color:var(--muted); }
+.et-cat.default    { background:rgba(26,26,24,.04); color:var(--muted); border:1px solid var(--border); }
+
+/* Monto */
+.et-amount { display:flex; align-items:center; justify-content:flex-end; gap:4px; }
+.et-amount svg { width:11px; height:11px; color:var(--danger); }
+.et-money { font-family:'Cormorant Garamond',Georgia,serif; font-size:15px; font-weight:500; color:var(--danger); }
+
+/* Acciones */
+.et-actions { display:flex; justify-content:flex-end; gap:5px; }
+.et-btn { width:30px; height:30px; border:1px solid var(--border); background:#fff; display:flex; align-items:center; justify-content:center; color:var(--muted); cursor:pointer; text-decoration:none; transition:border-color .14s, color .14s, background .14s; }
+.et-btn:hover     { border-color:var(--p); color:var(--p); background:var(--p10); }
+.et-btn.del:hover { border-color:var(--danger); color:var(--danger); background:rgba(220,38,38,.05); }
+.et-btn svg { width:12px; height:12px; }
+
+/* Vacío */
+.et-empty { display:flex; flex-direction:column; align-items:center; gap:10px; padding:52px 20px; text-align:center; }
+.et-empty-ico { width:44px; height:44px; background:rgba(220,38,38,.07); display:flex; align-items:center; justify-content:center; border-radius:50%; }
+.et-empty-ico svg { color:var(--danger); opacity:.3; width:18px; height:18px; }
+.et-empty-t { font-size:13px; font-weight:500; color:var(--txt); margin:0; }
+`
+
+type Expense = { id:string; description:string; amount:number; category:string|null; date:string }
+
+const FMT = (s: string) => {
+  try { return new Date(s).toLocaleDateString("es-CO", { day:"2-digit", month:"short", year:"numeric" }) }
+  catch { return s }
 }
 
-interface ExpensesTableProps {
-  expenses: Expense[]
-  companyId: string   // ← recibido desde page.tsx
+const COP = (n: number|string|null|undefined): string => {
+  const v = typeof n === "string" ? parseFloat(n) : n
+  if (v == null || isNaN(v as number)) return "$0"
+  return (v as number).toLocaleString("es-CO", { style:"currency", currency:"COP", minimumFractionDigits:0 })
 }
 
-// ─── CategoryBadge ────────────────────────────────────────────────────────────
-
-function CategoryBadge({ category, categoryName }: { category: string | null; categoryName?: string }) {
-  const label = categoryName || category || "Sin categoría"
-
-  const variants: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
-    operativos: "default",
-    generales: "secondary",
-  }
-
-  const variant = category && variants[category] ? variants[category] : "outline"
-
-  return (
-    <Badge variant={variant} className="gap-1 text-xs font-medium">
-      <Tag className="h-3 w-3" />
-      {label}
-    </Badge>
-  )
-}
-
-// ─── formatCurrency ───────────────────────────────────────────────────────────
-
-function formatCurrency(amount: number | string | null | undefined): string {
-  const num = typeof amount === "string" ? parseFloat(amount) : amount
-  if (num === null || num === undefined || isNaN(num)) return "$0"
-  return num.toLocaleString("es-CO", {
-    style: "currency",
-    currency: "COP",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
-  })
-}
-
-// ─── ExpensesTable ────────────────────────────────────────────────────────────
-
-export function ExpensesTable({ expenses, companyId }: ExpensesTableProps) {
+export function ExpensesTable({ expenses, companyId }: { expenses: Expense[]; companyId: string }) {
   const router = useRouter()
-
-  // Mapa id → nombre de categoría para mostrar el nombre real en el badge
-  const [categoryMap, setCategoryMap] = useState<Record<number, string>>({})
+  const [catMap, setCatMap] = useState<Record<number, string>>({})
 
   useEffect(() => {
-    const fetchCategories = async () => {
-      const supabase = createClient()
-      const { data } = await supabase.from("categories_expense").select("id, name")
-      if (data) {
-        const map: Record<number, string> = {}
-        data.forEach((c) => { map[c.id] = c.name })
-        setCategoryMap(map)
-      }
-    }
-    fetchCategories()
+    createClient().from("categories_expense").select("id, name")
+      .then(({ data }) => {
+        if (data) {
+          const m: Record<number, string> = {}
+          data.forEach(c => { m[c.id] = c.name })
+          setCatMap(m)
+        }
+      })
   }, [])
 
   const handleDelete = async (id: string) => {
-    const confirmed = await showConfirm(
-      "Esta acción eliminará el gasto permanentemente del registro",
-      "¿Eliminar gasto?"
-    )
-    if (!confirmed) return
+    const ok = await showConfirm("¿Eliminar este gasto?", "Esta acción es irreversible")
+    if (!ok) return
+    const { error } = await createClient().from("expenses")
+      .delete().eq("id", id).eq("company_id", companyId)
+    if (error) showError(error.message, "Error al eliminar")
+    else { await showSuccess("Gasto eliminado"); router.refresh() }
+  }
 
-    const supabase = createClient()
-
-    // Doble filtro: id + company_id → nadie puede borrar gastos de otra empresa
-    const { error } = await supabase
-      .from("expenses")
-      .delete()
-      .eq("id", id)
-      .eq("company_id", companyId)   // ← SEGURIDAD MULTIEMPRESA
-
-    if (error) {
-      showError(error.message, "Error al eliminar")
-    } else {
-      await showSuccess("Gasto eliminado correctamente", "Registro actualizado")
-      router.refresh()
-    }
+  const getCatClass = (cat: string|null) => {
+    if (!cat) return "default"
+    if (cat === "operativos" || catMap[Number(cat)]?.toLowerCase().includes("operat")) return "operativos"
+    if (cat === "generales"  || catMap[Number(cat)]?.toLowerCase().includes("general")) return "generales"
+    return "default"
   }
 
   return (
-    <div className="table-container">
-      <Table className="table-base min-w-[900px]">
-        <TableHeader className="table-header sticky top-0 z-10 bg-card/95 backdrop-blur-md">
-          <TableRow className="table-row">
-            <TableHead className="table-cell">Fecha</TableHead>
-            <TableHead className="table-cell">Descripción</TableHead>
-            <TableHead className="table-cell">Categoría</TableHead>
-            <TableHead className="table-cell text-right">Monto</TableHead>
-            <TableHead className="table-cell text-right">Acciones</TableHead>
-          </TableRow>
-        </TableHeader>
-        <TableBody>
-          {expenses.length === 0 ? (
-            <TableRow className="table-row">
-              <TableCell colSpan={5} className="table-cell">
-                <div className="py-12 flex items-center justify-center">
-                  <div className="text-center max-w-sm group">
-                    <Receipt className="h-16 w-16 text-muted-foreground/30 mx-auto mb-4 transition-all duration-300 group-hover:scale-110" />
-                    <p className="text-lg font-medium text-muted-foreground mb-1">
-                      No hay gastos registrados
-                    </p>
-                    <p className="text-sm text-muted-foreground/70">
-                      Registra tus primeros gastos para controlar tu flujo de caja
-                    </p>
-                  </div>
-                </div>
-              </TableCell>
-            </TableRow>
-          ) : (
-            expenses.map((expense) => (
-              <TableRow
-                key={expense.id}
-                className="table-row transition-all duration-200 hover:bg-primary/5 hover:translate-x-1"
-              >
-                {/* Fecha */}
-                <TableCell className="table-cell">
-                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                    <Calendar className="h-3 w-3" />
-                    {format(new Date(expense.date), "dd MMM yyyy", { locale: es })}
-                  </div>
-                </TableCell>
-
-                {/* Descripción */}
-                <TableCell className="table-cell">
-                  <div className="flex items-center gap-2">
-                    <Receipt className="h-4 w-4 text-muted-foreground" />
-                    <span className="font-medium text-sm text-foreground">{expense.description}</span>
-                  </div>
-                </TableCell>
-
-                {/* Categoría — muestra el nombre real desde el mapa */}
-                <TableCell className="table-cell">
-                  <CategoryBadge
-                    category={expense.category}
-                    categoryName={expense.category ? categoryMap[Number(expense.category)] : undefined}
-                  />
-                </TableCell>
-
-                {/* Monto */}
-                <TableCell className="table-cell text-right">
-                  <div className="flex justify-end items-center gap-1 group">
-                    <DollarSign className="h-3 w-3 text-destructive group-hover:scale-110 transition-transform" />
-                    <span className="font-bold text-sm text-destructive">
-                      {formatCurrency(expense.amount)}
-                    </span>
-                  </div>
-                </TableCell>
-
-                {/* Acciones */}
-                <TableCell className="table-cell">
-                  <div className="flex justify-end gap-1">
-                    {/* ExpenseDialog recibe companyId para el update */}
-                    <ExpenseDialog expense={expense} companyId={companyId}>
-                      <Button variant="ghost" size="icon" className="group" title="Editar">
-                        <Edit className="h-4 w-4 text-muted-foreground group-hover:text-chart-2 transition-all group-hover:scale-110" />
-                      </Button>
-                    </ExpenseDialog>
-
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      onClick={() => handleDelete(expense.id)}
-                      className="group"
-                      title="Eliminar"
-                    >
-                      <Trash2 className="h-4 w-4 text-muted-foreground group-hover:text-destructive transition-all group-hover:scale-110" />
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))
-          )}
-        </TableBody>
-      </Table>
-    </div>
+    <>
+      <style dangerouslySetInnerHTML={{ __html: CSS }} />
+      <div className="et">
+        {expenses.length === 0 ? (
+          <div className="et-empty">
+            <div className="et-empty-ico"><Receipt /></div>
+            <p className="et-empty-t">No hay gastos registrados</p>
+          </div>
+        ) : (
+          <div className="et-scroll">
+            <table className="et-tbl">
+              <thead>
+                <tr>
+                  <th>Fecha</th>
+                  <th>Descripción</th>
+                  <th>Categoría</th>
+                  <th className="r">Monto</th>
+                  <th className="r">Acciones</th>
+                </tr>
+              </thead>
+              <tbody>
+                {expenses.map(e => (
+                  <tr key={e.id}>
+                    <td>
+                      <div className="et-date">
+                        <Calendar aria-hidden />{FMT(e.date)}
+                      </div>
+                    </td>
+                    <td>
+                      <div className="et-desc">
+                        <Receipt aria-hidden />{e.description}
+                      </div>
+                    </td>
+                    <td>
+                      <span className={`et-cat ${getCatClass(e.category)}`}>
+                        <Tag aria-hidden />
+                        {e.category ? (catMap[Number(e.category)] || e.category) : "Sin categoría"}
+                      </span>
+                    </td>
+                    <td className="r">
+                      <div className="et-amount">
+                        <DollarSign aria-hidden />
+                        <span className="et-money">{COP(e.amount)}</span>
+                      </div>
+                    </td>
+                    <td className="r">
+                      <div className="et-actions">
+                        <ExpenseDialog expense={e} companyId={companyId}>
+                          <button className="et-btn" aria-label="Editar gasto">
+                            <Edit aria-hidden />
+                          </button>
+                        </ExpenseDialog>
+                        <button className="et-btn del" onClick={() => handleDelete(e.id)} aria-label="Eliminar gasto">
+                          <Trash2 aria-hidden />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+    </>
   )
 }

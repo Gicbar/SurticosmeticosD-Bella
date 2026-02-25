@@ -1,16 +1,14 @@
-// ════════════════════════════════════════════════════════════════
-// app/dashboard/pos/page.tsx
-// ════════════════════════════════════════════════════════════════
 import { getUserPermissions } from "@/lib/auth"
-import { POSInterface } from "@/components/pos-interface"
-import { Barcode } from "lucide-react"
+import { DebtsInterface } from "@/components/debts-interface"
+import { TrendingDown } from "lucide-react"
 import { redirect } from "next/navigation"
 
+// Mismo sistema de CSS del page.tsx del POS
 const PAGE_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;1,400&family=DM+Sans:opsz,wght@9..40,400;9..40,500&display=swap');
   .dph {
     font-family: 'DM Sans', sans-serif;
-    --dph-p: var(--primary, #984ca8);
+    --dph-p:      var(--primary, #984ca8);
     --dph-border: rgba(26,26,24,0.08);
   }
   .dph-header {
@@ -28,8 +26,9 @@ const PAGE_CSS = `
   .dph-sub { font-size: 12px; color: rgba(26,26,24,0.45); margin: 2px 0 0; }
 `
 
-export default async function POSPage() {
+export default async function DebtsPage() {
   const permissions = await getUserPermissions()
+  // Proteger: requiere permiso de ventas (ajusta al permiso que corresponda)
   if (!permissions?.permissions?.ventas) redirect("/dashboard")
   const companyId = permissions.company_id
   if (!companyId) redirect("/auth/sin-empresa")
@@ -41,11 +40,13 @@ export default async function POSPage() {
         <div className="dph-header">
           <h1 className="dph-title">
             <span className="dph-title-dot" aria-hidden />
-            Punto de Venta
+            Deudas de clientes
           </h1>
-          <p className="dph-sub">Sistema de ventas con escaneo de código de barras</p>
+          <p className="dph-sub">
+            Gestión de ventas a crédito · Abonos · Recordatorios de pago
+          </p>
         </div>
-        <POSInterface companyId={companyId} />
+        <DebtsInterface companyId={companyId} key="deb_01" />
       </div>
     </>
   )

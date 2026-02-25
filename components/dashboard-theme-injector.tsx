@@ -1,6 +1,6 @@
 // components/dashboard-theme-injector.tsx
-// Server Component — no necesita 'use client'
-// Se coloca en app/dashboard/layout.tsx para inyectar el theme del usuario autenticado
+// Server Component — inyecta el theme CSS de la empresa del usuario autenticado.
+// Se coloca en app/dashboard/layout.tsx
 
 import { createClient } from "@/lib/supabase/server"
 import { buildThemeCSS } from "@/lib/theme"
@@ -8,11 +8,9 @@ import { buildThemeCSS } from "@/lib/theme"
 export async function DashboardThemeInjector() {
   try {
     const supabase = await createClient()
-
     const { data: { user } } = await supabase.auth.getUser()
     if (!user) return null
 
-    // Una sola query: user_companies JOIN companies para traer logo + theme
     const { data } = await supabase
       .from("user_companies")
       .select("companies(logo_url, theme, name, slug)")

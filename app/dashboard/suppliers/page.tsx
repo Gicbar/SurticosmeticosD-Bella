@@ -1,155 +1,119 @@
+// ════════════════════════════════════════════════════════════════════════════
+// app/dashboard/suppliers/page.tsx
+// ════════════════════════════════════════════════════════════════════════════
 import { getUserPermissions } from "@/lib/auth"
 import { createClient } from "@/lib/supabase/server"
-import { Button } from "@/components/ui/button"
-import { Plus, Truck, Package, Phone, Mail } from "lucide-react"
 import { SuppliersTable } from "@/components/suppliers-table"
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
+import { Plus, Truck, Package, Phone, Mail } from "lucide-react"
 import Link from "next/link"
 import { redirect } from "next/navigation"
 
-// ─── StatCard ─────────────────────────────────────────────────────────────────
-// Definido fuera de la página (buena práctica)
-function StatCard({
-  title,
-  value,
-  icon,
-  variant = "default",
-  subtitle = null,
-}: {
-  title: string
-  value: string | number
-  icon: React.ReactNode
-  variant?: "default" | "primary" | "accent"
-  subtitle?: string | null
-}) {
-  const variants = {
-    default: "text-muted-foreground",
-    primary:  "text-primary",
-    accent:   "text-chart-4",
-  }
+const SUP_PAGE_CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500&family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap');
+.sp {
+  font-family:'DM Sans',sans-serif;
+  --p:    var(--primary,#984ca8);
+  --p10:  rgba(var(--primary-rgb,152,76,168),.10);
+  --txt:  #1a1a18;
+  --muted:rgba(26,26,24,.45);
+  --border:rgba(26,26,24,.08);
+}
+.sp-hd { display:flex; flex-direction:column; gap:14px; padding-bottom:20px; border-bottom:1px solid var(--border); margin-bottom:22px; }
+@media(min-width:640px){ .sp-hd{ flex-direction:row; align-items:center; justify-content:space-between; } }
+.sp-title { font-family:'Cormorant Garamond',Georgia,serif; font-size:22px; font-weight:400; color:var(--txt); margin:0; display:flex; align-items:center; gap:10px; }
+.sp-dot   { width:8px; height:8px; background:var(--p); flex-shrink:0; }
+.sp-sub   { font-size:12px; color:var(--muted); margin:3px 0 0; }
+.sp-btn-new {
+  display:inline-flex; align-items:center; gap:7px;
+  height:38px; padding:0 18px; background:var(--p); border:none; cursor:pointer;
+  font-family:'DM Sans',sans-serif; font-size:12px; font-weight:600;
+  letter-spacing:.06em; text-transform:uppercase; color:#fff;
+  text-decoration:none; transition:opacity .15s; white-space:nowrap; flex-shrink:0;
+}
+.sp-btn-new:hover { opacity:.88; }
+.sp-kpi-grid { display:grid; gap:10px; margin-bottom:20px; grid-template-columns:repeat(2,1fr); }
+@media(min-width:640px){ .sp-kpi-grid{ grid-template-columns:repeat(4,1fr); } }
+.sp-kpi { background:#fff; border:1px solid var(--border); padding:15px 14px; position:relative; overflow:hidden; transition:box-shadow .18s,transform .18s; }
+.sp-kpi:hover { box-shadow:0 4px 18px var(--p10); transform:translateY(-1px); }
+.sp-kpi::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:var(--p); opacity:0; transition:opacity .18s; }
+.sp-kpi:hover::before { opacity:1; }
+.sp-kpi-top { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; }
+.sp-kpi-lbl { font-size:8px; font-weight:700; letter-spacing:.2em; text-transform:uppercase; color:var(--muted); }
+.sp-kpi-ico { width:26px; height:26px; background:var(--p10); display:flex; align-items:center; justify-content:center; }
+.sp-kpi-ico svg { color:var(--p); width:12px; height:12px; }
+.sp-kpi-val { font-family:'Cormorant Garamond',Georgia,serif; font-size:20px; font-weight:500; color:var(--txt); margin:0; line-height:1; }
+.sp-kpi-sub { font-size:10px; color:var(--muted); margin:4px 0 0; }
+.sp-table-wrap { background:#fff; border:1px solid var(--border); overflow:hidden; }
+.sp-empty { display:flex; flex-direction:column; align-items:center; gap:14px; padding:64px 20px; text-align:center; }
+.sp-empty-ico { width:56px; height:56px; background:var(--p10); display:flex; align-items:center; justify-content:center; border-radius:50%; }
+.sp-empty-ico svg { color:var(--p); opacity:.3; width:24px; height:24px; }
+.sp-empty-t { font-size:14px; font-weight:500; color:var(--txt); margin:0; }
+.sp-empty-s { font-size:12px; color:var(--muted); margin:0; }
+`
 
+function KpiCard({ title, value, sub, icon: Icon }: { title:string; value:string|number; sub?:string; icon:any }) {
   return (
-    <Card className="card group hover:shadow-md transition-shadow">
-      <CardHeader className="card-header flex flex-row items-center justify-between pb-2">
-        <CardTitle className="card-title text-xs uppercase tracking-wide text-muted-foreground">
-          {title}
-        </CardTitle>
-        <div className={`h-5 w-5 ${variants[variant]} group-hover:scale-110 transition-transform duration-200`}>
-          {icon}
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="text-xl md:text-2xl font-bold text-foreground">{value}</div>
-        {subtitle && <p className="text-xs text-muted-foreground mt-1">{subtitle}</p>}
-      </CardContent>
-    </Card>
+    <div className="sp-kpi">
+      <div className="sp-kpi-top">
+        <span className="sp-kpi-lbl">{title}</span>
+        <div className="sp-kpi-ico" aria-hidden><Icon /></div>
+      </div>
+      <p className="sp-kpi-val">{value}</p>
+      {sub && <p className="sp-kpi-sub">{sub}</p>}
+    </div>
   )
 }
 
-// ─── SuppliersPage ────────────────────────────────────────────────────────────
 export default async function SuppliersPage() {
-  // ── 1. Permisos + company_id ──────────────────────────────────────────────
   const permissions = await getUserPermissions()
-
-  if (!permissions?.permissions?.proveedores) {
-    redirect("/dashboard")
-  }
-
+  if (!permissions?.permissions?.proveedores) redirect("/dashboard")
   const companyId = permissions.company_id
   if (!companyId) redirect("/auth/sin-empresa")
 
-  // ── 2. Query filtrada por empresa ─────────────────────────────────────────
   const supabase = await createClient()
-
   const { data: suppliers } = await supabase
-    .from("suppliers")
-    .select("*")
-    .eq("company_id", companyId)              // ← FILTRO MULTIEMPRESA
-    .order("name", { ascending: true })
+    .from("suppliers").select("*")
+    .eq("company_id", companyId).order("name", { ascending: true })
 
-  const totalProveedores        = suppliers?.length || 0
-  const proveedoresConContacto  = suppliers?.filter((s) => s.contact).length || 0
-  const proveedoresConTelefono  = suppliers?.filter((s) => s.phone).length || 0
-  const proveedoresConEmail     = suppliers?.filter((s) => s.email).length || 0
+  const total   = suppliers?.length || 0
+  const conCtc  = suppliers?.filter(s => s.contact).length || 0
+  const conTel  = suppliers?.filter(s => s.phone).length || 0
+  const conMail = suppliers?.filter(s => s.email).length || 0
 
   return (
-    <div className="dashboard-page-container">
-      {/* Header */}
-      <div className="dashboard-toolbar">
-        <div className="dashboard-header">
-          <h1 className="dashboard-title">
-            <Truck className="dashboard-title-icon" />
-            Proveedores
-          </h1>
-          <p className="dashboard-subtitle">
-            {totalProveedores} proveedores • {proveedoresConContacto} con contacto • {proveedoresConTelefono} con teléfono
-          </p>
-        </div>
-        <Button asChild className="btn-action-new">
-          <Link href="/dashboard/suppliers/new">
-            <Plus className="h-4 w-4 mr-2 group-hover:rotate-90 transition-transform" />
-            Nuevo Proveedor
-          </Link>
-        </Button>
-      </div>
-
-      {/* Stats */}
-      <div className="grid gap-4 md:gap-5 md:grid-cols-2 lg:grid-cols-4 mb-6">
-        <StatCard
-          title="Total Proveedores"
-          value={totalProveedores}
-          icon={<Truck className="h-5 w-5" />}
-          variant="primary"
-          subtitle="Registros activos"
-        />
-        <StatCard
-          title="Con Contacto"
-          value={proveedoresConContacto}
-          icon={<Package className="h-5 w-5" />}
-          subtitle="Persona de contacto"
-        />
-        <StatCard
-          title="Con Email"
-          value={proveedoresConEmail}
-          icon={<Mail className="h-5 w-5" />}
-          variant="accent"
-          subtitle="Correo electrónico"
-        />
-        <StatCard
-          title="Con Teléfono"
-          value={proveedoresConTelefono}
-          icon={<Phone className="h-5 w-5" />}
-          subtitle="Línea directa"
-        />
-      </div>
-
-      {/* Tabla o Estado Vacío */}
-      {suppliers && suppliers.length > 0 ? (
-        <div className="card-dashboard p-0 overflow-hidden">
-          <SuppliersTable suppliers={suppliers} companyId={companyId} />
-        </div>
-      ) : (
-        <div className="card-dashboard p-12 flex items-center justify-center">
-          <div className="text-center max-w-sm group">
-            <Truck className="h-16 w-16 text-muted-foreground/30 mx-auto mb-4 transition-all duration-300 group-hover:scale-110" />
-            <p className="text-lg font-medium text-muted-foreground mb-1">
-              No hay proveedores registrados
-            </p>
-            <p className="text-sm text-muted-foreground/70">
-              Crea tu primer proveedor para gestionar tus compras
-            </p>
-            <Button
-              asChild
-              className="mt-4 group bg-gradient-to-r from-primary to-accent hover:from-accent hover:to-primary"
-            >
-              <Link href="/dashboard/suppliers/new">
-                <Plus className="h-4 w-4 mr-2 group-hover:rotate-90 transition-transform" />
-                Agregar Proveedor
-              </Link>
-            </Button>
+    <>
+      <style dangerouslySetInnerHTML={{ __html: SUP_PAGE_CSS }} />
+      <div className="sp">
+        <div className="sp-hd">
+          <div>
+            <h1 className="sp-title"><span className="sp-dot" aria-hidden />Proveedores</h1>
+            <p className="sp-sub">{total} proveedores · {conCtc} con contacto · {conTel} con teléfono</p>
           </div>
+          <Link href="/dashboard/suppliers/new" className="sp-btn-new">
+            <Plus size={13} aria-hidden />Nuevo proveedor
+          </Link>
         </div>
-      )}
-    </div>
+
+        <div className="sp-kpi-grid">
+          <KpiCard title="Total"      value={total}   sub="Registros activos"   icon={Truck}   />
+          <KpiCard title="Contacto"   value={conCtc}  sub="Persona de contacto" icon={Package} />
+          <KpiCard title="Email"      value={conMail} sub="Correo electrónico"  icon={Mail}    />
+          <KpiCard title="Teléfono"   value={conTel}  sub="Línea directa"       icon={Phone}   />
+        </div>
+
+        <div className="sp-table-wrap">
+          {suppliers && suppliers.length > 0
+            ? <SuppliersTable suppliers={suppliers} companyId={companyId} />
+            : (
+              <div className="sp-empty">
+                <div className="sp-empty-ico"><Truck /></div>
+                <p className="sp-empty-t">No hay proveedores registrados</p>
+                <p className="sp-empty-s">Crea tu primer proveedor para gestionar las compras</p>
+              </div>
+            )
+          }
+        </div>
+      </div>
+    </>
   )
 }

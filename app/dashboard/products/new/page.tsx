@@ -1,53 +1,60 @@
 import { createClient } from "@/lib/supabase/server"
 import { ProductForm } from "@/components/product-form"
 import Link from "next/link"
-import { ArrowLeft, Package } from "lucide-react"
-import { Button } from "@/components/ui/button"
+import { ArrowLeft } from "lucide-react"
 import { redirect } from "next/navigation"
 
+const FORM_PAGE_CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;1,400&family=DM+Sans:opsz,wght@9..40,400;9..40,500&display=swap');
+.fp {
+  font-family:'DM Sans',sans-serif;
+  --p:var(--primary,#984ca8); --border:rgba(26,26,24,.08);
+}
+.fp-hd { display:flex; flex-direction:column; gap:14px; padding-bottom:20px; border-bottom:1px solid var(--border); margin-bottom:22px; }
+@media(min-width:640px){ .fp-hd{ flex-direction:row; align-items:center; justify-content:space-between; } }
+.fp-title { font-family:'Cormorant Garamond',Georgia,serif; font-size:22px; font-weight:400; color:#1a1a18; margin:0; display:flex; align-items:center; gap:10px; }
+.fp-dot   { width:8px; height:8px; background:var(--p); flex-shrink:0; }
+.fp-sub   { font-size:12px; color:rgba(26,26,24,.45); margin:3px 0 0; }
+.fp-back {
+  display:inline-flex; align-items:center; gap:6px;
+  height:36px; padding:0 14px;
+  border:1px solid rgba(26,26,24,.08); background:#fff;
+  font-family:'DM Sans',sans-serif; font-size:12px; color:rgba(26,26,24,.55);
+  text-decoration:none; transition:border-color .14s, color .14s; white-space:nowrap;
+}
+.fp-back:hover { border-color:var(--p); color:var(--p); }
+.fp-back svg { width:13px; height:13px; }
+.fp-card { background:#fff; border:1px solid rgba(26,26,24,.08); padding:24px; }
+@media(max-width:640px){ .fp-card{ padding:16px; } }
+`
+
 export default async function NewProductPage() {
-  // ── Obtener company_id para pasarlo al formulario ─────────────────────────
   const supabase = await createClient()
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
+  const { data: { user } } = await supabase.auth.getUser()
   if (!user) redirect("/auth/login")
 
   const { data: userCompany } = await supabase
-    .from("user_companies")
-    .select("company_id")
-    .eq("user_id", user.id)
-    .single()
-
+    .from("user_companies").select("company_id").eq("user_id", user.id).single()
   if (!userCompany?.company_id) redirect("/dashboard")
 
   return (
-    <div className="flex-1 flex flex-col bg-card/70 backdrop-blur-md p-4 md:p-6 rounded-2xl shadow-inner border border-border/20">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6 pb-4 border-b border-border">
-        <div>
-          <h1 className="dashboard-title flex items-center gap-3">
-            <Package className="h-7 w-7 icon-products" />
-            Nuevo Producto
-          </h1>
-          <p className="dashboard-subtitle mt-1">
-            Agrega un nuevo <span>producto al catálogo</span>
-          </p>
-        </div>
-        <Button asChild variant="outline" className="group w-full md:w-auto">
-          <Link href="/dashboard/products" className="flex items-center gap-2">
-            <ArrowLeft className="h-4 w-4 group-hover:translate-x-[-2px] transition-transform" />
-            Volver al catálogo
+    <>
+      <style dangerouslySetInnerHTML={{ __html: FORM_PAGE_CSS }} />
+      <div className="fp">
+        <div className="fp-hd">
+          <div>
+            <h1 className="fp-title"><span className="fp-dot" aria-hidden />Nuevo Producto</h1>
+            <p className="fp-sub">Agrega un nuevo producto al catálogo</p>
+          </div>
+          <Link href="/dashboard/products" className="fp-back">
+            <ArrowLeft aria-hidden /> Volver al catálogo
           </Link>
-        </Button>
+        </div>
+        <div className="fp-card">
+          <ProductForm companyId={userCompany.company_id} />
+        </div>
       </div>
-
-      {/* Form — recibe companyId para inyectarlo en el insert */}
-      <div className="card-dashboard">
-        <ProductForm companyId={userCompany.company_id} />
-      </div>
-    </div>
+    </>
   )
 }
+

@@ -1,54 +1,57 @@
 import { getUserPermissions } from "@/lib/auth"
 import { SupplierForm } from "@/components/supplier-form"
-import { Button } from "@/components/ui/button"
 import Link from "next/link"
 import { ArrowLeft, Truck } from "lucide-react"
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card"
 import { redirect } from "next/navigation"
 
+const FORM_CSS = `
+@import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400&family=DM+Sans:opsz,wght@9..40,400;9..40,500&display=swap');
+.sfp {
+  font-family:'DM Sans',sans-serif;
+  --p:var(--primary,#984ca8); --border:rgba(26,26,24,.08);
+}
+.sfp-hd { display:flex; flex-direction:column; gap:14px; padding-bottom:20px; border-bottom:1px solid var(--border); margin-bottom:22px; }
+@media(min-width:640px){ .sfp-hd{ flex-direction:row; align-items:center; justify-content:space-between; } }
+.sfp-left { display:flex; align-items:center; gap:12px; }
+.sfp-back {
+  width:34px; height:34px; border:1px solid var(--border); background:#fff;
+  display:flex; align-items:center; justify-content:center; text-decoration:none;
+  color:rgba(26,26,24,.4); flex-shrink:0; transition:border-color .14s, color .14s;
+}
+.sfp-back:hover { border-color:var(--p); color:var(--p); }
+.sfp-back svg { width:14px; height:14px; }
+.sfp-title { font-family:'Cormorant Garamond',Georgia,serif; font-size:22px; font-weight:400; color:#1a1a18; margin:0; display:flex; align-items:center; gap:10px; }
+.sfp-dot { width:8px; height:8px; background:var(--p); flex-shrink:0; }
+.sfp-sub { font-size:12px; color:rgba(26,26,24,.45); margin:3px 0 0; }
+.sfp-card { background:#fff; border:1px solid var(--border); padding:24px; max-width:680px; }
+@media(max-width:640px){ .sfp-card{ padding:16px; } }
+`
+
 export default async function NewSupplierPage() {
-  // ── Obtener companyId para pasarlo al form (client component) ─────────────
   const permissions = await getUserPermissions()
-
-  if (!permissions?.permissions?.proveedores) {
-    redirect("/dashboard")
-  }
-
+  if (!permissions?.permissions?.proveedores) redirect("/dashboard")
   const companyId = permissions.company_id
   if (!companyId) redirect("/auth/sin-empresa")
 
   return (
-    <div className="dashboard-page-container">
-      {/* Header */}
-      <div className="dashboard-toolbar">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" asChild className="group">
-            <Link href="/dashboard/suppliers">
-              <ArrowLeft className="h-4 w-4 text-muted-foreground group-hover:text-primary transition-colors" />
+    <>
+      <style dangerouslySetInnerHTML={{ __html: FORM_CSS }} />
+      <div className="sfp">
+        <div className="sfp-hd">
+          <div className="sfp-left">
+            <Link href="/dashboard/suppliers" className="sfp-back" aria-label="Volver a proveedores">
+              <ArrowLeft aria-hidden />
             </Link>
-          </Button>
-          <div>
-            <h1 className="dashboard-title">
-              <Truck className="dashboard-title-icon" />
-              Nuevo Proveedor
-            </h1>
-            <p className="dashboard-subtitle">Registra un nuevo proveedor para tus compras</p>
+            <div>
+              <h1 className="sfp-title"><span className="sfp-dot" aria-hidden />Nuevo Proveedor</h1>
+              <p className="sfp-sub">Registra un nuevo proveedor para tus compras</p>
+            </div>
           </div>
         </div>
-      </div>
-
-      {/* Formulario */}
-      <Card className="card max-w-3xl mx-auto w-full animate-fadeIn">
-        <CardHeader className="card-header">
-          <CardTitle className="card-title flex items-center gap-2">
-            <Truck className="h-5 w-5 text-primary" />
-            Información del Proveedor
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="p-6">
+        <div className="sfp-card">
           <SupplierForm companyId={companyId} />
-        </CardContent>
-      </Card>
-    </div>
+        </div>
+      </div>
+    </>
   )
 }

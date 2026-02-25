@@ -1,95 +1,183 @@
 import { getUserPermissions } from "@/lib/auth"
 import { createClient } from "@/lib/supabase/server"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
   Package, ShoppingCart, TrendingUp, AlertTriangle,
-  DollarSign, Users, LayoutDashboard, CalendarDays, ArrowUpRight
+  DollarSign, Users, CalendarDays, ArrowUpRight,
 } from "lucide-react"
 import { LowStockAlert } from "@/components/low-stock-alert"
 import { RecentSales } from "@/components/recent-sales"
 import { cn } from "@/lib/utils"
 import { redirect } from "next/navigation"
 
+// ⚠️ Ningún color de acento hardcodeado — todo usa var(--primary)
+// Las cards responden automáticamente al theme de la empresa en BD
+const PAGE_CSS = `
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;1,300&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500&display=swap');
+
+  .dash-page { font-family: 'DM Sans', sans-serif; }
+  .dash-serif { font-family: 'Cormorant Garamond', Georgia, serif; }
+
+  /* ── Header de página ───────────────────────────────────────────────────── */
+  .dash-page-header {
+    display: flex; flex-direction: column; gap: 16px;
+    padding-bottom: 24px;
+    border-bottom: 1px solid rgba(26,26,24,0.08);
+    margin-bottom: 28px;
+  }
+  @media (min-width: 640px) {
+    .dash-page-header { flex-direction: row; align-items: center; justify-content: space-between; }
+  }
+
+  .dash-page-title {
+    font-size: 22px; font-weight: 400; color: #1a1a18; margin: 0;
+    display: flex; align-items: center; gap: 10px;
+  }
+  /* Cuadrito de acento — var(--primary) */
+  .dash-page-title-dot {
+    width: 8px; height: 8px;
+    background: var(--primary, #984ca8);
+    flex-shrink: 0;
+  }
+  .dash-page-sub { font-size: 12px; color: rgba(26,26,24,0.45); margin: 4px 0 0; }
+
+  /* Badge de fecha — ícono usa var(--primary) */
+  .dash-date-badge {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 8px 14px;
+    background: white;
+    border: 1px solid rgba(26,26,24,0.1);
+    font-size: 12px; color: rgba(26,26,24,0.6); flex-shrink: 0;
+  }
+  .dash-date-badge strong { color: #1a1a18; font-weight: 500; }
+  .dash-date-icon { color: var(--primary, #984ca8); }
+
+  /* ── Grid KPIs ──────────────────────────────────────────────────────────── */
+  .dash-grid {
+    display: grid; gap: 16px;
+    grid-template-columns: 1fr;
+    margin-bottom: 28px;
+  }
+  @media (min-width: 640px)  { .dash-grid { grid-template-columns: repeat(2, 1fr); } }
+  @media (min-width: 1024px) { .dash-grid { grid-template-columns: repeat(3, 1fr); } }
+
+  /* ── StatCard ───────────────────────────────────────────────────────────── */
+  .stat-card {
+    background: white;
+    border: 1px solid rgba(26,26,24,0.08);
+    padding: 20px 22px;
+    position: relative; overflow: hidden;
+    transition: box-shadow 0.2s, transform 0.2s;
+  }
+  .stat-card:hover {
+    box-shadow: 0 4px 20px rgba(var(--primary-rgb, 152,76,168), 0.08);
+    transform: translateY(-1px);
+  }
+  /* Barra superior — var(--primary) en hover */
+  .stat-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 2px;
+    background: var(--primary, #984ca8);
+    opacity: 0; transition: opacity 0.2s;
+  }
+  .stat-card:hover::before { opacity: 1; }
+
+  /* Alerta stock bajo — rojo fijo, no sigue el theme */
+  .stat-card.stat-alert { border-color: rgba(220,38,38,0.2); background: #fffbfb; }
+  .stat-card.stat-alert::before { background: #dc2626; opacity: 1; }
+
+  .stat-card-top {
+    display: flex; align-items: flex-start;
+    justify-content: space-between; gap: 12px; margin-bottom: 16px;
+  }
+  .stat-card-label {
+    font-size: 10px; letter-spacing: 0.16em; text-transform: uppercase;
+    color: rgba(26,26,24,0.4); font-weight: 500; margin: 0;
+  }
+
+  /* Ícono — fondo y color usan var(--primary) */
+  .stat-card-icon {
+    width: 34px; height: 34px; flex-shrink: 0;
+    background: rgba(var(--primary-rgb, 152,76,168), 0.08);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .stat-card-icon svg { color: var(--primary, #984ca8); width: 15px; height: 15px; }
+
+  .stat-card.stat-alert .stat-card-icon { background: rgba(220,38,38,0.07); }
+  .stat-card.stat-alert .stat-card-icon svg { color: #dc2626; }
+
+  .stat-card-value {
+    font-size: 26px; font-weight: 500; color: #1a1a18;
+    line-height: 1.1; margin: 0 0 4px;
+    font-family: 'Cormorant Garamond', Georgia, serif;
+  }
+  .stat-card-sub { font-size: 11px; color: rgba(26,26,24,0.38); margin: 0; }
+
+  /* Badge — var(--primary) */
+  .stat-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    font-size: 9px; font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase;
+    background: rgba(var(--primary-rgb, 152,76,168), 0.08);
+    color: var(--primary, #984ca8);
+    padding: 3px 8px; margin-top: 8px;
+  }
+
+  /* Fondo decorativo — var(--primary) muy suave */
+  .stat-card-bg {
+    position: absolute; right: -20px; bottom: -20px;
+    width: 80px; height: 80px;
+    background: rgba(var(--primary-rgb, 152,76,168), 0.06);
+    border-radius: 50%; pointer-events: none;
+  }
+  .stat-card.stat-alert .stat-card-bg { background: rgba(220,38,38,0.05); }
+
+  /* ── Tablas inferiores ──────────────────────────────────────────────────── */
+  .dash-bottom { display: grid; gap: 16px; grid-template-columns: 1fr; }
+  @media (min-width: 768px) { .dash-bottom { grid-template-columns: 5fr 7fr; } }
+
+  .dash-bottom-card {
+    background: white;
+    border: 1px solid rgba(26,26,24,0.08);
+    overflow: hidden;
+  }
+
+  /* Estado vacío */
+  .dash-empty {
+    display: flex; flex-direction: column;
+    align-items: center; justify-content: center;
+    min-height: 200px; text-align: center;
+    border: 1px dashed rgba(26,26,24,0.12);
+    padding: 40px 24px; background: white;
+  }
+  .dash-empty-icon {
+    width: 40px; height: 40px;
+    background: rgba(var(--primary-rgb, 152,76,168), 0.07);
+    display: flex; align-items: center; justify-content: center;
+    margin: 0 auto 16px;
+  }
+  .dash-empty-icon svg { color: var(--primary, #984ca8); }
+`
+
 interface UserPermissions {
-  ventas: boolean
-  productos: boolean
-  categorias: boolean
-  inventario: boolean
-  rentabilidad: boolean
-  clientes: boolean
-  proveedores: boolean
-  gastos: boolean
-  configuracion: boolean
-  [key: string]: boolean
+  ventas: boolean; productos: boolean; categorias: boolean; inventario: boolean
+  rentabilidad: boolean; clientes: boolean; proveedores: boolean
+  gastos: boolean; configuracion: boolean; [key: string]: boolean
 }
 
 export default async function DashboardPage() {
-  // ── 1. Permisos + company_id ──────────────────────────────────────────────
   const permData = await getUserPermissions()
-
   if (!permData?.company_id) redirect("/auth/sin-empresa")
 
-  const companyId = permData.company_id  // ← FILTRO MULTIEMPRESA
-
+  const companyId = permData.company_id
   const perms: UserPermissions = permData.permissions || {
-    ventas: false, productos: false, inventario: false,
-    rentabilidad: false, clientes: false, categorias: false,
-    proveedores: false, gastos: false, configuracion: false,
+    ventas: false, productos: false, inventario: false, rentabilidad: false,
+    clientes: false, categorias: false, proveedores: false, gastos: false, configuracion: false,
   }
 
   const supabase = await createClient()
-
-  // Fecha de hace 30 días
   const since30d = new Date()
   since30d.setDate(since30d.getDate() - 30)
   const since30dISO = since30d.toISOString()
 
-  // ── 2. Queries — TODAS filtradas por company_id ───────────────────────────
-
-  const productsQuery = perms.productos
-    ? supabase
-        .from("products")
-        .select("*", { count: "exact", head: true })
-        .eq("company_id", companyId)               // ← FILTRO
-    : Promise.resolve({ count: 0 })
-
-  const salesQuery = perms.ventas
-    ? supabase
-        .from("sales")
-        .select("*", { count: "exact", head: true })
-        .eq("company_id", companyId)               // ← FILTRO
-        .gte("sale_date", since30dISO)
-    : Promise.resolve({ count: 0 })
-
-  const revenueQuery = perms.rentabilidad
-    ? supabase
-        .from("sales")
-        .select("total")
-        .eq("company_id", companyId)               // ← FILTRO
-        .gte("sale_date", since30dISO)
-    : Promise.resolve({ data: [] })
-
-  const profitQuery = perms.rentabilidad
-    ? supabase
-        .from("sales_profit")
-        .select("profit")
-        .eq("company_id", companyId)               // ← FILTRO
-        .gte("created_at", since30dISO)
-    : Promise.resolve({ data: [] })
-
-  // get_low_stock_products necesita company_id como parámetro
-  const lowStockQuery = perms.inventario
-    ? supabase.rpc("get_low_stock_products", { p_company_id: companyId }, { count: "exact", head: true })
-    : Promise.resolve({ count: 0 })
-
-  const clientsQuery = perms.clientes
-    ? supabase
-        .from("clients")
-        .select("*", { count: "exact", head: true })
-        .eq("company_id", companyId)               // ← FILTRO
-    : Promise.resolve({ count: 0 })
-
-  // ── 3. Ejecutar en paralelo ───────────────────────────────────────────────
   const [
     { count: productsCount },
     { count: salesCount },
@@ -98,197 +186,103 @@ export default async function DashboardPage() {
     { count: lowStockCount },
     { count: clientsCount },
   ] = await Promise.all([
-    productsQuery,
-    salesQuery,
-    revenueQuery,
-    profitQuery,
-    lowStockQuery,
-    clientsQuery,
+    perms.productos
+      ? supabase.from("products").select("*", { count: "exact", head: true }).eq("company_id", companyId)
+      : Promise.resolve({ count: 0 }),
+    perms.ventas
+      ? supabase.from("sales").select("*", { count: "exact", head: true }).eq("company_id", companyId).gte("sale_date", since30dISO)
+      : Promise.resolve({ count: 0 }),
+    perms.rentabilidad
+      ? supabase.from("sales").select("total").eq("company_id", companyId).gte("sale_date", since30dISO)
+      : Promise.resolve({ data: [] }),
+    perms.rentabilidad
+      ? supabase.from("sales_profit").select("profit").eq("company_id", companyId).gte("created_at", since30dISO)
+      : Promise.resolve({ data: [] }),
+    perms.inventario
+      ? supabase.rpc("get_low_stock_products", { p_company_id: companyId }, { count: "exact", head: true })
+      : Promise.resolve({ count: 0 }),
+    perms.clientes
+      ? supabase.from("clients").select("*", { count: "exact", head: true }).eq("company_id", companyId)
+      : Promise.resolve({ count: 0 }),
   ])
 
   const totalRevenue = (salesTotal as any[])?.reduce((s, v) => s + Number(v.total), 0) || 0
   const totalProfit  = (profitDataRaw as any[])?.reduce((s, v) => s + Number(v.profit), 0) || 0
-
-  const formatCurrency = (v: number) =>
+  const fmt = (v: number) =>
     v.toLocaleString("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 })
+  const today = new Date().toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric" })
+  const hasAnyPerm = Object.values(perms).some(Boolean)
 
-  // ── 4. Render ─────────────────────────────────────────────────────────────
   return (
-    <div className="flex-1 flex flex-col space-y-6">
+    <>
+      <style dangerouslySetInnerHTML={{ __html: PAGE_CSS }} />
+      <div className="dash-page">
 
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-6 border-b border-border/40">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight bg-gradient-to-r from-foreground to-muted-foreground bg-clip-text text-transparent flex items-center gap-2">
-            <LayoutDashboard className="h-6 w-6 text-primary" />
-            Panel de Control
-          </h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Resumen de tu empresa — últimos 30 días.
-          </p>
+        <div className="dash-page-header">
+          <div>
+            <h1 className="dash-page-title dash-serif">
+              <span className="dash-page-title-dot" aria-hidden />
+              Panel de Control
+            </h1>
+            <p className="dash-page-sub">Resumen de tu empresa — últimos 30 días</p>
+          </div>
+          <div className="dash-date-badge">
+            <CalendarDays size={13} className="dash-date-icon" />
+            <span>HOY: <strong>{today}</strong></span>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2 px-4 py-2 rounded-xl bg-white/50 dark:bg-white/5 border border-white/20 shadow-sm backdrop-blur-md">
-          <CalendarDays className="h-4 w-4 text-primary" />
-          <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Hoy:</span>
-          <span className="text-sm font-semibold text-foreground">
-            {new Date().toLocaleDateString("es-CO", { day: "numeric", month: "long", year: "numeric" })}
-          </span>
-        </div>
-      </div>
-
-      {/* Grid de KPIs */}
-      <div className="grid gap-5 md:grid-cols-2 lg:grid-cols-3">
-
-        {perms.productos && (
-          <StatCard
-            title="Productos Activos"
-            value={productsCount || 0}
-            subtitle="Referencias en catálogo"
-            icon={Package}
-            colorClass="text-blue-500"
-            bgClass="bg-blue-500/10"
-          />
-        )}
-
-        {perms.ventas && (
-          <StatCard
-            title="Ventas del Mes"
-            value={salesCount || 0}
-            subtitle="Transacciones completadas"
-            icon={ShoppingCart}
-            colorClass="text-primary"
-            bgClass="bg-primary/10"
-          />
-        )}
-
-        {perms.rentabilidad && (
-          <StatCard
-            title="Ingresos Totales"
-            value={formatCurrency(totalRevenue)}
-            subtitle="Facturación (30 días)"
-            icon={DollarSign}
-            colorClass="text-emerald-500"
-            bgClass="bg-emerald-500/10"
-          />
-        )}
-
-        {perms.rentabilidad && (
-          <StatCard
-            title="Ganancia Neta"
-            value={formatCurrency(totalProfit)}
-            subtitle="Utilidad real"
-            icon={TrendingUp}
-            trend="Neto"
-            colorClass="text-indigo-500"
-            bgClass="bg-indigo-500/10"
-          />
-        )}
-
-        {perms.inventario && (
-          <StatCard
-            title="Alertas de Stock"
-            value={lowStockCount || 0}
-            subtitle="Productos por agotarse"
-            icon={AlertTriangle}
-            colorClass="text-rose-500"
-            bgClass="bg-rose-500/10"
-            alert={Number(lowStockCount) > 0}
-          />
-        )}
-
-        {perms.clientes && (
-          <StatCard
-            title="Clientes Totales"
-            value={clientsCount || 0}
-            subtitle="Base de datos activa"
-            icon={Users}
-            colorClass="text-orange-500"
-            bgClass="bg-orange-500/10"
-          />
-        )}
-      </div>
-
-      {/* Tablas inferiores — pasamos companyId para que también filtren */}
-      <div className="grid gap-6 md:grid-cols-7 mt-4">
-        {perms.inventario && (
-          <div className="md:col-span-3 flex flex-col">
-            <div className="rounded-2xl border border-border/50 bg-card/40 backdrop-blur-xl shadow-sm flex-1 overflow-hidden">
-              <LowStockAlert companyId={companyId} />
-            </div>
+        {hasAnyPerm && (
+          <div className="dash-grid">
+            {perms.productos && <StatCard label="Productos Activos" value={productsCount || 0} sub="Referencias en catálogo" icon={<Package />} />}
+            {perms.ventas && <StatCard label="Ventas del Mes" value={salesCount || 0} sub="Transacciones completadas" icon={<ShoppingCart />} />}
+            {perms.rentabilidad && <StatCard label="Ingresos Totales" value={fmt(totalRevenue)} sub="Facturación (30 días)" icon={<DollarSign />} />}
+            {perms.rentabilidad && <StatCard label="Ganancia Neta" value={fmt(totalProfit)} sub="Utilidad real" icon={<TrendingUp />} badge="Neto" />}
+            {perms.inventario && <StatCard label="Alertas de Stock" value={lowStockCount || 0} sub="Productos por agotarse" icon={<AlertTriangle />} alert={Number(lowStockCount) > 0} />}
+            {perms.clientes && <StatCard label="Clientes Totales" value={clientsCount || 0} sub="Base de datos activa" icon={<Users />} />}
           </div>
         )}
 
-        {perms.ventas && (
-          <div className={cn("flex flex-col", perms.inventario ? "md:col-span-4" : "md:col-span-7")}>
-            <div className="rounded-2xl border border-border/50 bg-card/40 backdrop-blur-xl shadow-sm flex-1 overflow-hidden">
-              <RecentSales companyId={companyId} />
-            </div>
+        {(perms.inventario || perms.ventas) && (
+          <div className="dash-bottom">
+            {perms.inventario && <div className="dash-bottom-card"><LowStockAlert companyId={companyId} /></div>}
+            {perms.ventas && <div className={cn("dash-bottom-card", !perms.inventario && "col-span-2")}><RecentSales companyId={companyId} /></div>}
+          </div>
+        )}
+
+        {!hasAnyPerm && (
+          <div className="dash-empty">
+            <div className="dash-empty-icon"><Users size={18} /></div>
+            <p style={{ fontSize: 13, fontWeight: 500, color: "#1a1a18", margin: "0 0 6px" }}>Vista limitada</p>
+            <p style={{ fontSize: 12, color: "rgba(26,26,24,0.45)", margin: 0, maxWidth: 280 }}>
+              Tu cuenta no tiene permisos habilitados. Contacta al administrador.
+            </p>
           </div>
         )}
       </div>
-
-      {/* Sin permisos */}
-      {!Object.values(perms).some(Boolean) && (
-        <div className="flex flex-col items-center justify-center h-64 text-center p-8 rounded-2xl border border-dashed border-border/50 bg-secondary/20">
-          <div className="bg-secondary/50 p-4 rounded-full mb-4">
-            <LayoutDashboard className="h-8 w-8 text-muted-foreground" />
-          </div>
-          <h3 className="text-lg font-semibold">Vista Limitada</h3>
-          <p className="text-muted-foreground max-w-sm mt-2">
-            Tu cuenta no tiene permisos habilitados. Contacta al administrador.
-          </p>
-        </div>
-      )}
-    </div>
+    </>
   )
 }
 
-// ─── StatCard ─────────────────────────────────────────────────────────────────
-
-interface StatCardProps {
-  title: string
-  value: string | number
-  subtitle: string
-  icon: any
-  trend?: string
-  colorClass: string
-  bgClass: string
-  alert?: boolean
-}
-
-function StatCard({ title, value, subtitle, icon: Icon, trend, colorClass, bgClass, alert }: StatCardProps) {
+function StatCard({ label, value, sub, icon, badge, alert }: {
+  label: string; value: string | number; sub: string
+  icon: React.ReactNode; badge?: string; alert?: boolean
+}) {
   return (
-    <Card className={cn(
-      "relative overflow-hidden border border-white/10 dark:border-white/5 bg-white/60 dark:bg-card/30 backdrop-blur-xl shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-1 group",
-      alert && "border-rose-500/30 bg-rose-50/50 dark:bg-rose-900/10"
-    )}>
-      <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-        <CardTitle className="text-sm font-medium text-muted-foreground tracking-wide">
-          {title}
-        </CardTitle>
-        <div className={cn("p-2 rounded-xl transition-transform group-hover:scale-110", bgClass)}>
-          <Icon className={cn("h-4 w-4", colorClass)} />
+    <div className={cn("stat-card", alert && "stat-alert")}>
+      <div className="stat-card-top">
+        <p className="stat-card-label">{label}</p>
+        <div className="stat-card-icon" aria-hidden>{icon}</div>
+      </div>
+      <p className="stat-card-value">{value}</p>
+      <p className="stat-card-sub">{sub}</p>
+      {badge && (
+        <div className="stat-badge">
+          <ArrowUpRight size={9} />
+          {badge}
         </div>
-      </CardHeader>
-      <CardContent>
-        <div className="flex items-end justify-between">
-          <div>
-            <div className="text-2xl font-bold tracking-tight">{value}</div>
-            <p className="text-xs text-muted-foreground mt-1 font-medium">{subtitle}</p>
-          </div>
-          {trend && (
-            <div className="flex items-center text-[10px] font-bold px-2 py-1 rounded-full bg-green-500/10 text-green-600 dark:text-green-400 mb-1">
-              <ArrowUpRight className="h-3 w-3 mr-1" />
-              {trend}
-            </div>
-          )}
-        </div>
-        <div className={cn(
-          "absolute -right-6 -bottom-6 h-24 w-24 rounded-full opacity-10 blur-2xl pointer-events-none transition-opacity group-hover:opacity-20",
-          bgClass.replace("/10", "")
-        )} />
-      </CardContent>
-    </Card>
+      )}
+      <div className="stat-card-bg" aria-hidden />
+    </div>
   )
 }

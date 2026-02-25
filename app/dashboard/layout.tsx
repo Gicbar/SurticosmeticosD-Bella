@@ -10,15 +10,58 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <CompanyProvider>
-      {/* Inyecta <style> con variables CSS del theme de la empresa — server side */}
+      {/* Inyecta --primary, --secondary, --accent, --primary-rgb desde companies.theme */}
       <DashboardThemeInjector />
 
-      <div className="flex min-h-screen">
-        <DashboardSidebar />
-        <div className="flex-1 flex flex-col bg-pink-50/50 dark:bg-black/60 backdrop-blur-sm">
-          <DashboardHeader />
-          <main className="flex-1 p-6 bg-muted/30">{children}</main>
-        </div>
+      {/*
+        DashboardSidebar es position:fixed y gestiona su propio estado open/close.
+        En desktop (≥769px) siempre visible, 248px de ancho.
+        En móvil (<768px) oculto por defecto, se abre como drawer con overlay.
+
+        El contenedor principal necesita margin-left:248px en desktop
+        para no quedar debajo del sidebar fixed.
+        En móvil margin-left:0 porque el sidebar está fuera del viewport.
+      */}
+      <DashboardSidebar />
+
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          flexDirection: "column",
+          background: "#f8f8f7",
+          // El margin lo manejamos con CSS para poder hacer responsive
+        }}
+        className="layout-main"
+      >
+        {/* CSS del layout aquí — evitamos inyectar un <style> en cada componente */}
+        <style dangerouslySetInnerHTML={{ __html: `
+          .layout-main {
+            margin-left: 0;
+          }
+          @media (min-width: 769px) {
+            .layout-main {
+              margin-left: 248px;
+            }
+          }
+          .layout-content {
+            flex: 1;
+            padding: 24px 20px;
+            background: #f8f8f7;
+          }
+          @media (min-width: 640px) {
+            .layout-content { padding: 28px 28px; }
+          }
+          @media (min-width: 1024px) {
+            .layout-content { padding: 32px 36px; }
+          }
+        ` }} />
+
+        <DashboardHeader />
+
+        <main className="layout-content">
+          {children}
+        </main>
       </div>
     </CompanyProvider>
   )

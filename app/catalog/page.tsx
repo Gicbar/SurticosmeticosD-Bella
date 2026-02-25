@@ -11,10 +11,10 @@ import { notFound } from "next/navigation"
 
 export default async function CatalogPage() {
   // ── 1. Resolver empresa ───────────────────────────────────────────────────
-  const headersList = await headers()
-  const host = headersList.get("host") || ""
+  const headersList = await headers() 
+  //const host = headersList.get("host") || ""
   
-  //const host = "surticosmeticosdbella"
+  const host = "surticosmeticosdbella"
 
   
   const company = await resolveCompanyFromHost(host)

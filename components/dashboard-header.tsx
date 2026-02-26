@@ -45,39 +45,14 @@ const HEADER_CSS = `
 
   .hdr-root {
     font-family: 'DM Sans', sans-serif;
-    position: sticky; top: 0; z-index: 500;
+    position: sticky; top: 0; z-index: 100;
     height: 52px;
     display: flex; align-items: center; justify-content: space-between;
     padding: 0 24px 0 56px;
-    /*
-      Fondo: usa --secondary (color claro del tema leído desde BD).
-      Gradiente 100% opaco que combina con el sidebar sin transparencias.
-      Fallback neutro si el theme aún no cargó.
-    */
-    /*
-      Gradiente diagonal: secondary saturado a la izquierda (lado del sidebar),
-      más claro hacia la derecha. 100% opaco.
-    */
-    background: linear-gradient(
-      to right,
-      rgba(var(--primary-rgb,152,76,168), 0.42) 0%,
-      var(--secondary, #f3edf7) 40%,
-      color-mix(in srgb, var(--secondary, #f3edf7) 30%, #ffffff) 100%
-    );
-    border-bottom: 2px solid rgba(var(--primary-rgb,152,76,168), 0.45);
-    isolation: isolate;
-    transition: background 0.3s, box-shadow 0.25s;
-  }
-  /* Fallback para Safari < 16.2 (sin color-mix) */
-  @supports not (background: color-mix(in srgb, red 50%, blue)) {
-    .hdr-root {
-      background: linear-gradient(
-        to right,
-        rgba(var(--primary-rgb,152,76,168), 0.18) 0%,
-        var(--secondary, #f3edf7) 45%,
-        #ffffff 100%
-      );
-    }
+    /* Fondo 100% opaco — color sólido del tema, sin transparencias */
+    background: var(--secondary, #f3edf7);
+    border-bottom: 1px solid rgba(var(--primary-rgb,152,76,168), 0.20);
+    transition: box-shadow 0.2s;
   }
   @media (min-width: 769px) { .hdr-root { padding: 0 28px; } }
   .hdr-root.hdr-scrolled {

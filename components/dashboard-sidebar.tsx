@@ -34,16 +34,11 @@ const SIDEBAR_CSS = `
     width: 248px;
     display: flex;
     flex-direction: column;
-    z-index: 300;
+    z-index: 400;
     overflow: hidden;
 
-    /* Gradiente VERTICAL — color uniforme en todo el ancho del sidebar */
-    background: linear-gradient(
-      to bottom,
-      rgba(var(--primary-rgb,152,76,168), 0.07) 0%,
-      rgba(var(--primary-rgb,152,76,168), 0.45) 45%,
-      #fff 70%
-    );
+    /* Fondo 100% opaco — sin transparencias que dejen ver el contenido */
+    background: #fff;
 
     /* Borde derecho neutro — sin color para evitar el corte visual */
     border-right: 1px solid rgba(26,26,24,0.08);
@@ -55,7 +50,7 @@ const SIDEBAR_CSS = `
     background: rgba(0,0,0,0.42);
     backdrop-filter: blur(2px);
     -webkit-backdrop-filter: blur(2px);
-    z-index: 299; cursor: pointer;
+    z-index: 399; cursor: pointer;
   }
   @keyframes overlayIn { from{opacity:0} to{opacity:1} }
   .sb-overlay { animation: overlayIn 0.2s ease forwards; }
@@ -78,13 +73,9 @@ const SIDEBAR_CSS = `
     padding: 22px 18px 20px;
     flex-shrink: 0; position: relative;
 
-    /* Gradiente VERTICAL en el header — color uniforme horizontalmente */
-    background: linear-gradient(
-      to bottom,
-      rgba(var(--primary-rgb,152,76,168), 0.5) 0%,
-      rgba(var(--primary-rgb,152,76,168), 0.15) 100%
-    );
-    border-bottom: 1px solid rgba(var(--primary-rgb,152,76,168), 0.12);
+    /* Color sólido del tema — 100% opaco */
+    background: var(--secondary, #f3edf7);
+    border-bottom: 1px solid rgba(var(--primary-rgb,152,76,168), 0.20);
   }
 
   /* Franja de 3px en el top — única decoración en el borde */

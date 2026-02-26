@@ -3,8 +3,8 @@
 import { useState, useEffect, useRef } from "react"
 import { useSearchParams } from "next/navigation"
 import {
-  Search, X, ShoppingBag, Plus, Minus, ChevronDown,
-  Sparkles, ArrowRight, Package
+  Search, X, ShoppingBag, Plus, Minus,
+  Sparkles, ArrowRight, Package, Heart
 } from "lucide-react"
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
@@ -33,333 +33,558 @@ function getInitials(name: string): string {
 
 function formatCOP(amount: number) {
   return new Intl.NumberFormat("es-CO", {
-    style: "currency",
-    currency: "COP",
-    minimumFractionDigits: 0,
-    maximumFractionDigits: 0,
+    style: "currency", currency: "COP",
+    minimumFractionDigits: 0, maximumFractionDigits: 0,
   }).format(amount)
 }
 
-// ─── CSS Global inyectado una sola vez ───────────────────────────────────────
+// ─── CSS ──────────────────────────────────────────────────────────────────────
 
 const CATALOG_CSS = `
-  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=DM+Sans:wght@300;400;500&display=swap');
+  @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,500;1,300;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap');
 
   *, *::before, *::after { box-sizing: border-box; }
 
+  /* ── Variables del tema ─────────────────────────────────────── */
   .cat-root {
     font-family: 'DM Sans', sans-serif;
-    background: #FAFAF8;
+    background: #f8f7f5;
     min-height: 100vh;
     color: #1a1a18;
+
+    /* Tokens derivados del primary inyectado desde BD */
+    --p:   var(--primary, #984ca8);
+    --rgb: var(--primary-rgb, 152,76,168);
+    --sec: var(--secondary, #f3edf7);
+    --acc: var(--accent, #7b3d8a);
+
+    --p04: rgba(var(--primary-rgb,152,76,168), .04);
+    --p08: rgba(var(--primary-rgb,152,76,168), .08);
+    --p12: rgba(var(--primary-rgb,152,76,168), .12);
+    --p20: rgba(var(--primary-rgb,152,76,168), .20);
+    --p30: rgba(var(--primary-rgb,152,76,168), .30);
+
+    --txt:    #1a1a18;
+    --muted:  rgba(26,26,24,.45);
+    --border: rgba(26,26,24,.08);
   }
 
   .cat-serif { font-family: 'Cormorant Garamond', Georgia, serif; }
 
-  /* ── Header ─────────────────────────────────────────────────────── */
+  /* ── Header ─────────────────────────────────────────────────── */
   .cat-header {
-    position: sticky;
-    top: 0;
-    z-index: 100;
-    background: rgba(250,250,248,0.92);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border-bottom: 1px solid rgba(26,26,24,0.08);
+    position: sticky; top: 0; z-index: 100;
+    /* Fondo sólido con el color secundario del tema (viene de BD) */
+    background: var(--secondary, #f3edf7);
+    border-bottom: 1px solid rgba(var(--primary-rgb,152,76,168), .18);
+    /* Sombra coloreada al hacer scroll */
+    transition: box-shadow .2s;
   }
-  /* Inner: flex, gap controlado, altura reducida en móvil */
+  .cat-header.scrolled {
+    box-shadow:
+      0 1px 0 rgba(var(--primary-rgb,152,76,168), .15),
+      0 6px 24px rgba(var(--primary-rgb,152,76,168), .10);
+  }
+
+  /* Franja de acento en la parte inferior del header */
+  .cat-header::after {
+    content: '';
+    position: absolute; bottom: -1px; left: 0; right: 0; height: 2px;
+    background: linear-gradient(
+      90deg,
+      var(--primary, #984ca8) 0%,
+      rgba(var(--primary-rgb,152,76,168), .4) 60%,
+      transparent 100%
+    );
+  }
+
   .cat-header-inner {
-    max-width: 1400px;
-    margin: 0 auto;
+    max-width: 1400px; margin: 0 auto;
     padding: 0 16px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    height: 54px;
-    gap: 12px;
+    display: flex; align-items: center; justify-content: space-between;
+    height: 58px; gap: 12px;
   }
   @media (min-width: 640px) {
-    .cat-header-inner { padding: 0 24px; height: 64px; }
+    .cat-header-inner { padding: 0 28px; height: 68px; }
   }
-  /* Lado izquierdo: logo + nombre con truncate */
-  .cat-brand {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    min-width: 0;
-  }
+
+  /* Brand */
+  .cat-brand { display: flex; align-items: center; gap: 12px; min-width: 0; }
+
   .cat-logo {
-    width: 32px; height: 32px;
-    flex-shrink: 0;
-    overflow: hidden;
-    background: var(--primary);
+    width: 38px; height: 38px; flex-shrink: 0;
+    background: var(--primary, #984ca8);
+    border-radius: 10px;
     display: flex; align-items: center; justify-content: center;
-  }
-  .cat-company-name {
-    font-size: 16px;
-    font-weight: 400;
-    line-height: 1;
-    letter-spacing: 0.02em;
-    white-space: nowrap;
+    box-shadow: 0 3px 12px rgba(var(--primary-rgb,152,76,168), .35);
     overflow: hidden;
-    text-overflow: ellipsis;
+  }
+  @media (min-width: 640px) { .cat-logo { width: 44px; height: 44px; } }
+
+  .cat-company-name {
+    font-size: 17px; font-weight: 400; line-height: 1; letter-spacing: .02em;
+    white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
     max-width: min(160px, 38vw);
+    color: var(--primary, #984ca8);
   }
-  @media (min-width: 480px) { .cat-company-name { max-width: 220px; font-size: 19px; } }
+  @media (min-width: 480px) { .cat-company-name { max-width: 220px; font-size: 20px; } }
+
   .cat-company-sub {
-    font-size: 8px;
-    letter-spacing: 0.22em;
-    text-transform: uppercase;
-    color: rgba(26,26,24,0.45);
-    margin-top: 2px;
+    font-size: 8px; letter-spacing: .22em; text-transform: uppercase;
+    color: rgba(var(--primary-rgb,152,76,168), .55); margin-top: 3px;
   }
-  /* Lado derecho */
+
+  /* Derecha del header */
   .cat-header-right {
-    display: flex; align-items: center; gap: 14px; flex-shrink: 0;
+    display: flex; align-items: center; gap: 16px; flex-shrink: 0;
   }
   .cat-ref-count {
-    font-size: 11px; letter-spacing: 0.06em; color: rgba(26,26,24,0.45);
+    font-size: 10px; letter-spacing: .08em;
+    color: rgba(var(--primary-rgb,152,76,168), .55);
+    background: rgba(var(--primary-rgb,152,76,168), .10);
+    padding: 4px 10px; border-radius: 99px;
   }
   @media (max-width: 420px) { .cat-ref-count { display: none; } }
-  /* Botón carrito — área táctil amplia */
+
   .cat-cart-btn {
-    position: relative;
-    background: none; border: none; cursor: pointer;
-    padding: 8px;
+    position: relative; background: none; border: none; cursor: pointer;
+    width: 42px; height: 42px;
     display: flex; align-items: center; justify-content: center;
+    border-radius: 10px;
+    background: rgba(var(--primary-rgb,152,76,168), .10);
+    color: var(--primary, #984ca8);
+    transition: background .15s, transform .15s;
     -webkit-tap-highlight-color: transparent;
   }
+  .cat-cart-btn:hover { background: rgba(var(--primary-rgb,152,76,168), .18); transform: scale(1.04); }
+  .cat-cart-btn:active { transform: scale(.94); }
+
   .cat-cart-badge {
-    position: absolute; top: 0; right: 0;
-    background: var(--primary); color: white;
+    position: absolute; top: -3px; right: -3px;
+    background: var(--primary, #984ca8); color: white;
     font-size: 9px; font-weight: 700;
-    width: 16px; height: 16px;
+    min-width: 17px; height: 17px; padding: 0 3px;
+    border-radius: 99px; border: 2px solid var(--secondary, #f3edf7);
     display: flex; align-items: center; justify-content: center;
-    border-radius: 50%;
   }
 
-  /* ── Card de producto ────────────────────────────────────────────── */
-  .cat-card {
-    position: relative;
-    cursor: pointer;
-    background: white;
-    overflow: hidden;
-    transition: transform 0.4s cubic-bezier(0.25,0.46,0.45,0.94),
-                box-shadow 0.4s ease;
-    outline: 1px solid rgba(26,26,24,0.06);
-    -webkit-tap-highlight-color: transparent;
+  /* ── Sección intro ───────────────────────────────────────────── */
+  .cat-intro {
+    background: var(--secondary, #f3edf7);
+    border-bottom: 1px solid rgba(var(--primary-rgb,152,76,168), .12);
   }
-  /* Efectos hover sólo en dispositivos con puntero fino (desktop) */
-  @media (hover: hover) and (pointer: fine) {
-    .cat-card:hover {
-      transform: translateY(-3px);
-      box-shadow: 0 16px 48px rgba(26,26,24,0.09);
-      outline-color: transparent;
-    }
-    .cat-card:hover .cat-card-img { transform: scale(1.05); }
-    .cat-card:hover .cat-card-info { background: color-mix(in oklch, var(--primary) 4%, white); }
-    .cat-card:hover .cat-card-accent { opacity: 1; transform: scaleY(1); }
-    .cat-card:hover .cat-add-btn-desktop { transform: translateY(0); }
+  .cat-intro-inner {
+    max-width: 1400px; margin: 0 auto;
+    padding: 28px 16px 24px;
+    display: flex; align-items: flex-end; justify-content: space-between;
+    gap: 16px; flex-wrap: wrap;
+  }
+  @media (min-width: 640px) { .cat-intro-inner { padding: 36px 28px 28px; } }
+
+  .cat-intro-eyebrow {
+    font-size: 9px; letter-spacing: .28em; text-transform: uppercase;
+    color: var(--primary, #984ca8); margin-bottom: 10px; font-weight: 600;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .cat-intro-eyebrow::before {
+    content: '';
+    width: 20px; height: 1.5px;
+    background: var(--primary, #984ca8);
+    display: inline-block;
   }
 
-  .cat-card-img {
-    transition: transform 0.7s cubic-bezier(0.25,0.46,0.45,0.94);
-    width: 100%; height: 100%; object-fit: cover;
+  .cat-intro-count {
+    text-align: right; flex-shrink: 0; padding-bottom: 4px;
+  }
+  .cat-intro-num {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: clamp(30px, 6vw, 44px);
+    font-weight: 300; line-height: 1;
+    color: rgba(var(--primary-rgb,152,76,168), .20);
+  }
+  .cat-intro-num-label {
+    font-size: 8px; letter-spacing: .2em; text-transform: uppercase;
+    color: rgba(var(--primary-rgb,152,76,168), .45); margin-top: 4px;
   }
 
-  .cat-card-accent {
-    position: absolute; left: 0; top: 0; bottom: 0;
-    width: 3px;
-    background: var(--primary);
-    opacity: 0; transform: scaleY(0.3); transform-origin: bottom;
-    transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.34,1.56,0.64,1);
-    z-index: 2;
+  /* Línea divisora con color */
+  .cat-divider-color {
+    height: 1px;
+    background: linear-gradient(
+      90deg,
+      var(--primary, #984ca8),
+      rgba(var(--primary-rgb,152,76,168), .25) 50%,
+      transparent 100%
+    );
+    opacity: .35;
   }
 
-  .cat-card-info {
-    background: white;
-    transition: background 0.35s ease;
-    position: relative;
-    padding: 10px 11px 12px;
-  }
-  @media (min-width: 640px) { .cat-card-info { padding: 12px 14px 14px; } }
-
-  /* ── Botón añadir ───────────────────────────────────────────────── */
-  /* DESKTOP: slide-up en hover */
-  .cat-add-btn-desktop {
-    position: absolute; bottom: 0; left: 0; right: 0;
-    transform: translateY(100%);
-    transition: transform 0.35s cubic-bezier(0.25,0.46,0.45,0.94);
-    background: var(--primary); color: white;
-    display: none; /* oculto en móvil */
-    align-items: center; justify-content: center; gap: 6px;
-    padding: 10px; font-size: 11px; font-weight: 500;
-    letter-spacing: 0.12em; text-transform: uppercase;
-    cursor: pointer; border: none; width: 100%;
-  }
-  @media (hover: hover) and (pointer: fine) {
-    .cat-add-btn-desktop { display: flex; }
-  }
-
-  /* MÓVIL: botón circular flotante siempre visible */
-  .cat-add-btn-mobile {
-    position: absolute; bottom: 8px; right: 8px;
-    width: 34px; height: 34px; border-radius: 50%;
-    background: var(--primary); color: white;
-    display: flex; align-items: center; justify-content: center;
-    border: none; cursor: pointer;
-    box-shadow: 0 3px 12px rgba(0,0,0,0.18);
-    transition: transform 0.15s ease, background 0.2s;
-    -webkit-tap-highlight-color: transparent;
-    z-index: 3;
-  }
-  .cat-add-btn-mobile:active { transform: scale(0.9); }
-  /* Ocultar en desktop con hover */
-  @media (hover: hover) and (pointer: fine) {
-    .cat-add-btn-mobile { display: none; }
-  }
-
-  /* ── Chips de categoría ──────────────────────────────────────────── */
-  .cat-chip {
-    display: inline-block; flex-shrink: 0;
-    font-size: 9px; font-weight: 500;
-    letter-spacing: 0.18em; text-transform: uppercase;
-    padding: 5px 10px;
-    border: 1px solid rgba(26,26,24,0.15);
-    color: rgba(26,26,24,0.55); background: white;
-    cursor: pointer; white-space: nowrap;
-    -webkit-tap-highlight-color: transparent;
-    transition: background 0.2s, color 0.2s, border-color 0.2s;
-  }
-  .cat-chip-active {
-    background: var(--primary); border-color: var(--primary); color: white;
-  }
-
-  /* ── Filtros sticky ──────────────────────────────────────────────── */
+  /* ── Filtros ─────────────────────────────────────────────────── */
   .cat-filters {
-    border-top: 1px solid rgba(26,26,24,0.07);
-    border-bottom: 1px solid rgba(26,26,24,0.07);
-    background: rgba(250,250,248,0.97);
-    position: sticky; top: 54px; z-index: 50;
-    backdrop-filter: blur(16px);
+    background: #fff;
+    border-bottom: 1px solid rgba(26,26,24,.07);
+    position: sticky; top: 58px; z-index: 50;
+    box-shadow: 0 2px 12px rgba(0,0,0,.04);
   }
-  @media (min-width: 640px) { .cat-filters { top: 64px; } }
+  @media (min-width: 640px) { .cat-filters { top: 68px; } }
 
   .cat-filters-inner {
     max-width: 1400px; margin: 0 auto; padding: 0 16px;
   }
-  @media (min-width: 640px) { .cat-filters-inner { padding: 0 24px; } }
+  @media (min-width: 640px) { .cat-filters-inner { padding: 0 28px; } }
 
-  /* Fila buscador */
   .cat-search-row {
     position: relative;
     display: flex; align-items: center;
     padding: 10px 0 8px;
-    border-bottom: 1px solid rgba(26,26,24,0.06);
+    border-bottom: 1px solid rgba(26,26,24,.06);
   }
-  /* Fila chips: scroll horizontal sin barra */
+
   .cat-chips-row {
-    display: flex; gap: 6px;
-    padding: 8px 0; overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+    display: flex; gap: 6px; padding: 9px 0;
+    overflow-x: auto; -webkit-overflow-scrolling: touch;
     scrollbar-width: none;
   }
   .cat-chips-row::-webkit-scrollbar { display: none; }
 
-  /* Input búsqueda */
   .cat-input {
     width: 100%; background: transparent; border: none;
-    border-bottom: 1px solid rgba(26,26,24,0.18);
+    border-bottom: 1.5px solid rgba(26,26,24,.15);
     padding: 6px 28px 6px 26px;
     font-size: 13px; font-family: 'DM Sans', sans-serif;
     color: #1a1a18; outline: none;
-    transition: border-color 0.2s;
+    transition: border-color .2s;
     -webkit-appearance: none;
   }
-  .cat-input:focus { border-bottom-color: var(--primary); }
-  .cat-input::placeholder { color: rgba(26,26,24,0.35); letter-spacing: 0.04em; }
+  .cat-input:focus { border-bottom-color: var(--primary, #984ca8); }
+  .cat-input::placeholder { color: rgba(26,26,24,.35); }
 
-  /* ── Grid de productos ───────────────────────────────────────────── */
-  /* 2 columnas en móvil, escala en pantallas más grandes */
+  /* Chips de categoría — píldoras redondeadas */
+  .cat-chip {
+    display: inline-flex; align-items: center; flex-shrink: 0;
+    font-size: 9px; font-weight: 600;
+    letter-spacing: .14em; text-transform: uppercase;
+    padding: 6px 14px;
+    border-radius: 99px;
+    border: 1.5px solid rgba(26,26,24,.12);
+    color: rgba(26,26,24,.50); background: white;
+    cursor: pointer; white-space: nowrap;
+    transition: all .18s; -webkit-tap-highlight-color: transparent;
+  }
+  .cat-chip:hover {
+    border-color: rgba(var(--primary-rgb,152,76,168), .40);
+    color: var(--primary, #984ca8);
+    background: rgba(var(--primary-rgb,152,76,168), .05);
+  }
+  .cat-chip-active {
+    background: var(--primary, #984ca8);
+    border-color: var(--primary, #984ca8);
+    color: white;
+    box-shadow: 0 3px 10px rgba(var(--primary-rgb,152,76,168), .30);
+  }
+
+  /* ── Grid ────────────────────────────────────────────────────── */
   .cat-grid {
     display: grid;
+    gap: 16px;
     grid-template-columns: repeat(2, 1fr);
-    gap: 2px;
   }
+  @media (min-width: 480px)  { .cat-grid { gap: 18px; } }
   @media (min-width: 540px)  { .cat-grid { grid-template-columns: repeat(3, 1fr); } }
   @media (min-width: 768px)  { .cat-grid { grid-template-columns: repeat(4, 1fr); } }
-  @media (min-width: 1024px) { .cat-grid { grid-template-columns: repeat(5, 1fr); } }
+  @media (min-width: 1024px) { .cat-grid { grid-template-columns: repeat(5, 1fr); gap: 20px; } }
   @media (min-width: 1280px) { .cat-grid { grid-template-columns: repeat(6, 1fr); } }
 
-  /* ── Badge stock ─────────────────────────────────────────────────── */
-  .cat-stock-badge {
-    position: absolute; top: 8px; right: 8px;
-    background: white; color: #c0392b;
-    font-size: 8px; font-weight: 600;
-    letter-spacing: 0.08em; padding: 2px 6px;
-    border: 1px solid #fecdd3;
-  }
-
-  /* ── Línea decorativa ────────────────────────────────────────────── */
-  .cat-divider {
-    height: 1px;
-    background: linear-gradient(90deg, transparent, rgba(26,26,24,0.12), transparent);
-  }
-
-  /* ── Scrollbar refinado ──────────────────────────────────────────── */
-  .cat-scroll::-webkit-scrollbar { width: 3px; }
-  .cat-scroll::-webkit-scrollbar-track { background: transparent; }
-  .cat-scroll::-webkit-scrollbar-thumb { background: var(--primary); opacity: 0.4; }
-
-  /* ── WhatsApp button ─────────────────────────────────────────────── */
-  .cat-wa-btn {
-    display: flex; align-items: center; justify-content: center; gap: 8px;
-    width: 100%; padding: 16px 14px;
-    background: #1a1a18; color: white;
-    font-size: 12px; font-weight: 500;
-    letter-spacing: 0.14em; text-transform: uppercase;
-    cursor: pointer; border: none; transition: background 0.2s;
-    text-decoration: none;
+  /* ── Card — sistema de sombras 3D ───────────────────────────── */
+  .cat-card {
+    position: relative; cursor: pointer;
+    background: white;
+    border-radius: 18px;
+    overflow: visible;        /* sombras no se cortan */
+    isolation: isolate;
+    display: flex; flex-direction: column;
     -webkit-tap-highlight-color: transparent;
-  }
-  .cat-wa-btn:hover, .cat-wa-btn:active { background: var(--primary); }
 
-  /* ── Skeleton ────────────────────────────────────────────────────── */
-  .cat-skeleton {
+    /* Borde con tono primary sutil */
+    border: 1px solid rgba(var(--primary-rgb,152,76,168), .12);
+
+    /* Sombras multicapa: elevación base + halo de color */
+    box-shadow:
+      0 1px 3px  rgba(0,0,0,.05),
+      0 6px 16px rgba(var(--primary-rgb,152,76,168), .09),
+      0 18px 36px rgba(var(--primary-rgb,152,76,168), .06),
+      inset 0 1px 0 rgba(255,255,255,.95),
+      inset 0 -1px 0 rgba(var(--primary-rgb,152,76,168), .05);
+
+    transition: transform .28s cubic-bezier(.25,.46,.45,.94),
+                box-shadow .28s ease, border-color .28s;
+    will-change: transform;
+    animation: catCardIn .4s ease both;
+  }
+
+  /* Clip del contenido para mantener border-radius */
+  .cat-card > *:first-child { border-radius: 18px 18px 0 0; overflow: hidden; }
+  .cat-card > *:last-child  { border-radius: 0 0 18px 18px; }
+
+  /* Franja top — visible en reposo (.2 opacidad), plena en hover */
+  .cat-card::before {
+    content: '';
+    position: absolute; top: 0; left: 0; right: 0; height: 3px;
     background: linear-gradient(
       90deg,
-      color-mix(in oklch, var(--primary) 4%, #f0efec) 25%,
-      color-mix(in oklch, var(--primary) 7%, #e8e6e1) 50%,
-      color-mix(in oklch, var(--primary) 4%, #f0efec) 75%
+      var(--primary, #984ca8) 0%,
+      rgba(var(--primary-rgb,152,76,168), .5) 100%
+    );
+    opacity: .20;
+    border-radius: 18px 18px 0 0;
+    z-index: 3; pointer-events: none;
+    transition: opacity .28s ease;
+  }
+
+  /* Hover — solo dispositivos con puntero */
+  @media (hover: hover) and (pointer: fine) {
+    .cat-card:hover {
+      transform: translateY(-8px) scale(1.018);
+      border-color: rgba(var(--primary-rgb,152,76,168), .28);
+      box-shadow:
+        0 2px 6px  rgba(0,0,0,.04),
+        0 12px 28px rgba(var(--primary-rgb,152,76,168), .18),
+        0 28px 52px rgba(var(--primary-rgb,152,76,168), .13),
+        0 40px 64px rgba(0,0,0,.05),
+        inset 0 1px 0 rgba(255,255,255,.98),
+        inset 0 -1px 0 rgba(var(--primary-rgb,152,76,168), .10);
+    }
+    .cat-card:hover::before { opacity: 1; }
+    .cat-card:hover .cat-card-img { transform: scale(1.06); }
+    .cat-card:hover .cat-body { background: linear-gradient(to bottom, rgba(var(--primary-rgb,152,76,168),.035) 0%, #fff 60%); }
+    .cat-card:hover .cat-name { color: var(--primary, #984ca8); }
+    .cat-card:hover .cat-price { transform: scale(1.04); }
+    .cat-card:hover .cat-add-desktop { transform: translateY(0); }
+    .cat-card:hover .cat-img-overlay { opacity: 1; }
+  }
+
+  /* Tap en móvil */
+  .cat-card:active { transform: scale(.98); }
+
+  /* ── Imagen ──────────────────────────────────────────────────── */
+  .cat-img-wrap {
+    aspect-ratio: 3/4;
+    position: relative; overflow: hidden;
+    background: linear-gradient(
+      135deg,
+      rgba(var(--primary-rgb,152,76,168),.07) 0%,
+      rgba(var(--primary-rgb,152,76,168),.03) 100%
+    );
+  }
+
+  .cat-card-img {
+    width: 100%; height: 100%; object-fit: cover;
+    transition: transform .6s cubic-bezier(.25,.46,.45,.94);
+  }
+
+  /* Overlay gradiente inferior en hover */
+  .cat-img-overlay {
+    position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(
+      180deg,
+      transparent 50%,
+      rgba(var(--primary-rgb,152,76,168), .12) 100%
+    );
+    opacity: 0; transition: opacity .3s;
+  }
+
+  .cat-img-placeholder {
+    width: 100%; height: 100%;
+    display: flex; align-items: center; justify-content: center;
+    color: var(--primary, #984ca8); opacity: .28;
+  }
+
+  /* Badge stock */
+  .cat-stock-badge {
+    position: absolute; top: 8px; left: 8px;
+    background: white; color: #c0392b;
+    font-size: 8px; font-weight: 700;
+    letter-spacing: .06em; padding: 3px 8px;
+    border-radius: 99px;
+    border: 1px solid #fecdd3;
+    box-shadow: 0 2px 6px rgba(0,0,0,.10);
+  }
+
+  /* ── Botón añadir DESKTOP — slide-up en hover ───────────────── */
+  .cat-add-desktop {
+    position: absolute; bottom: 0; left: 0; right: 0;
+    transform: translateY(100%);
+    transition: transform .3s cubic-bezier(.25,.46,.45,.94);
+    background: var(--primary, #984ca8); color: white;
+    display: none; align-items: center; justify-content: center; gap: 6px;
+    padding: 11px; font-size: 10px; font-weight: 600;
+    letter-spacing: .14em; text-transform: uppercase;
+    cursor: pointer; border: none; width: 100%;
+  }
+  @media (hover: hover) and (pointer: fine) {
+    .cat-add-desktop { display: flex; }
+  }
+
+  /* ── Botón añadir MÓVIL — circular siempre visible ──────────── */
+  .cat-add-mobile {
+    position: absolute; bottom: 10px; right: 10px;
+    width: 36px; height: 36px; border-radius: 50%;
+    background: var(--primary, #984ca8); color: white;
+    display: flex; align-items: center; justify-content: center;
+    border: none; cursor: pointer;
+    box-shadow: 0 4px 14px rgba(var(--primary-rgb,152,76,168), .40);
+    transition: transform .15s, box-shadow .15s;
+    -webkit-tap-highlight-color: transparent; z-index: 3;
+  }
+  .cat-add-mobile:active { transform: scale(.88); }
+  @media (hover: hover) and (pointer: fine) { .cat-add-mobile { display: none; } }
+
+  /* ── Body de la tarjeta ──────────────────────────────────────── */
+  .cat-body {
+    padding: 12px 13px 14px;
+    flex: 1; display: flex; flex-direction: column; gap: 8px;
+    background: linear-gradient(to bottom, rgba(var(--primary-rgb,152,76,168),.02) 0%, #fff 50%);
+    transition: background .28s;
+  }
+
+  .cat-category-label {
+    font-size: 8px; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--primary, #984ca8); font-weight: 600; opacity: .7;
+  }
+
+  .cat-name {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 14px; font-weight: 400; line-height: 1.3; color: #1a1a18;
+    display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
+    overflow: hidden; margin: 0;
+    transition: color .18s;
+  }
+  @media (min-width: 640px) { .cat-name { font-size: 15px; } }
+
+  /* Separador con gradiente coloreado */
+  .cat-sep {
+    height: 1px;
+    background: linear-gradient(
+      90deg, transparent,
+      rgba(var(--primary-rgb,152,76,168),.18) 30%,
+      rgba(var(--primary-rgb,152,76,168),.18) 70%,
+      transparent
+    );
+  }
+
+  .cat-price {
+    font-family: 'Cormorant Garamond', serif;
+    font-size: 19px; font-weight: 500;
+    color: var(--primary, #984ca8); margin: 0;
+    transition: transform .18s;
+    text-shadow: 0 1px 8px rgba(var(--primary-rgb,152,76,168),.15);
+  }
+  @media (min-width: 640px) { .cat-price { font-size: 21px; } }
+
+  /* ── Sección de contenido ─────────────────────────────────────── */
+  .cat-content {
+    max-width: 1400px; margin: 0 auto;
+    padding: 20px 16px 80px;
+  }
+  @media (min-width: 640px) { .cat-content { padding: 24px 28px 80px; } }
+
+  /* Contador de resultados */
+  .cat-count-row {
+    display: flex; align-items: center; gap: 16px; margin-bottom: 20px;
+  }
+  .cat-count-label {
+    font-size: 9px; letter-spacing: .12em; text-transform: uppercase;
+    color: rgba(26,26,24,.40); white-space: nowrap;
+    background: rgba(var(--primary-rgb,152,76,168),.07);
+    padding: 4px 12px; border-radius: 99px;
+  }
+
+  /* ── Sin resultados ──────────────────────────────────────────── */
+  .cat-empty {
+    text-align: center; padding: 80px 0;
+  }
+  .cat-empty-ico {
+    width: 68px; height: 68px; margin: 0 auto 20px;
+    background: rgba(var(--primary-rgb,152,76,168),.08);
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .cat-empty-btn {
+    background: none;
+    border: 1.5px solid rgba(var(--primary-rgb,152,76,168),.25);
+    padding: 10px 24px; font-size: 11px; letter-spacing: .12em;
+    text-transform: uppercase; cursor: pointer;
+    color: var(--primary, #984ca8); border-radius: 99px;
+    transition: all .18s;
+  }
+  .cat-empty-btn:hover { background: var(--primary, #984ca8); color: white; }
+
+  /* ── Skeleton ────────────────────────────────────────────────── */
+  .cat-skeleton {
+    border-radius: 18px; overflow: hidden;
+    background: linear-gradient(
+      90deg,
+      rgba(var(--primary-rgb,152,76,168),.05) 25%,
+      rgba(var(--primary-rgb,152,76,168),.10) 50%,
+      rgba(var(--primary-rgb,152,76,168),.05) 75%
     );
     background-size: 200% 100%;
     animation: catShimmer 1.6s infinite;
   }
 
-  /* ── Cart drawer ─────────────────────────────────────────────────── */
+  /* ── Footer ──────────────────────────────────────────────────── */
+  .cat-footer {
+    background: var(--secondary, #f3edf7);
+    border-top: 1px solid rgba(var(--primary-rgb,152,76,168),.15);
+    text-align: center; padding: 24px;
+  }
+  .cat-footer p {
+    font-size: 9px; letter-spacing: .18em; text-transform: uppercase;
+    color: rgba(var(--primary-rgb,152,76,168),.55);
+  }
+
+  /* ── Cart drawer ─────────────────────────────────────────────── */
   .cat-cart-overlay {
     position: fixed; inset: 0; z-index: 200;
-    background: rgba(26,26,24,0.35);
+    background: rgba(26,26,24,.40);
     backdrop-filter: blur(4px);
-    animation: catFadeIn 0.25s ease;
+    animation: catFadeIn .25s ease;
   }
   .cat-cart-drawer {
     position: absolute; top: 0; right: 0; bottom: 0;
     width: min(420px, 100vw);
     background: #FAFAF8;
     display: flex; flex-direction: column;
-    animation: catSlideIn 0.35s cubic-bezier(0.25,0.46,0.45,0.94);
+    animation: catSlideIn .32s cubic-bezier(.25,.46,.45,.94);
+  }
+  .cat-drawer-hd {
+    padding: 22px 24px 20px;
+    border-bottom: 1px solid rgba(26,26,24,.08);
+    flex-shrink: 0;
+    background: var(--secondary, #f3edf7);
+    border-top: 3px solid var(--primary, #984ca8);
   }
 
-  /* ── Modal — bottom sheet en móvil, centrado en desktop ──────────── */
+  /* Botón WhatsApp */
+  .cat-wa-btn {
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    width: 100%; padding: 16px 14px;
+    background: var(--primary, #984ca8); color: white;
+    font-size: 12px; font-weight: 600;
+    letter-spacing: .12em; text-transform: uppercase;
+    cursor: pointer; border: none; transition: opacity .2s;
+    text-decoration: none; border-radius: 0;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .cat-wa-btn:hover { opacity: .88; }
+
+  /* ── Modal — bottom sheet móvil / centrado desktop ───────────── */
   .cat-modal-overlay {
     position: fixed; inset: 0; z-index: 300;
-    background: rgba(26,26,24,0.55);
+    background: rgba(26,26,24,.55);
     backdrop-filter: blur(6px);
-    display: flex;
-    align-items: flex-end;   /* sheet desde abajo en móvil */
-    justify-content: center;
-    padding: 0;
-    animation: catFadeIn 0.2s ease;
+    display: flex; align-items: flex-end; justify-content: center;
+    padding: 0; animation: catFadeIn .2s ease;
   }
   @media (min-width: 600px) {
     .cat-modal-overlay { align-items: center; padding: 16px; }
@@ -367,36 +592,75 @@ const CATALOG_CSS = `
   .cat-modal {
     background: white; width: 100%;
     max-width: 480px; max-height: 92vh; overflow-y: auto;
-    border-radius: 16px 16px 0 0; /* sheet style móvil */
-    animation: catSheetIn 0.32s cubic-bezier(0.34,1.56,0.64,1);
+    border-radius: 20px 20px 0 0;
+    animation: catSheetIn .32s cubic-bezier(.34,1.56,.64,1);
+    border-top: 3px solid var(--primary, #984ca8);
   }
   @media (min-width: 600px) {
-    .cat-modal { border-radius: 0; animation: catModalIn 0.3s cubic-bezier(0.34,1.56,0.64,1); }
+    .cat-modal {
+      border-radius: 20px;
+      animation: catModalIn .3s cubic-bezier(.34,1.56,.64,1);
+    }
   }
-  /* Handle bar visible sólo en móvil */
+
   .cat-modal-handle {
     display: block; width: 36px; height: 4px;
-    background: rgba(26,26,24,0.12); border-radius: 2px;
+    background: rgba(26,26,24,.12); border-radius: 2px;
     margin: 12px auto 0;
   }
   @media (min-width: 600px) { .cat-modal-handle { display: none; } }
-  /* Padding del contenido del modal */
-  .cat-modal-body { padding: 18px 18px 24px; }
+
+  .cat-modal-body { padding: 18px 20px 24px; }
   @media (min-width: 600px) { .cat-modal-body { padding: 24px 28px 28px; } }
 
-  /* ── Keyframes ───────────────────────────────────────────────────── */
-  @keyframes catFadeIn  { from { opacity: 0 } to { opacity: 1 } }
+  /* Botón añadir en modal */
+  .cat-modal-add-btn {
+    background: var(--primary, #984ca8); color: white; border: none;
+    display: flex; align-items: center; gap: 8px;
+    padding: 14px 22px; font-size: 11px; font-weight: 600;
+    letter-spacing: .12em; text-transform: uppercase;
+    cursor: pointer; flex-shrink: 0; border-radius: 10px;
+    box-shadow: 0 4px 16px rgba(var(--primary-rgb,152,76,168), .35);
+    transition: opacity .15s, transform .15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .cat-modal-add-btn:hover { opacity: .88; }
+  .cat-modal-add-btn:active { transform: scale(.97); }
+
+  /* ── Qty controls ────────────────────────────────────────────── */
+  .cat-qty-btn {
+    border: 1.5px solid rgba(var(--primary-rgb,152,76,168),.25);
+    width: 26px; height: 26px; border-radius: 6px;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: all .14s;
+  }
+  .cat-qty-btn.minus { background: #fff; color: rgba(26,26,24,.55); }
+  .cat-qty-btn.plus  { background: var(--primary, #984ca8); color: white; border-color: transparent; }
+  .cat-qty-btn:hover { opacity: .82; }
+
+  /* ── Separador neutro ────────────────────────────────────────── */
+  .cat-divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, rgba(26,26,24,.10), transparent);
+  }
+
+  /* ── Scrollbar ───────────────────────────────────────────────── */
+  .cat-scroll::-webkit-scrollbar { width: 3px; }
+  .cat-scroll::-webkit-scrollbar-track { background: transparent; }
+  .cat-scroll::-webkit-scrollbar-thumb { background: var(--primary, #984ca8); opacity: .4; border-radius: 99px; }
+
+  /* ── Keyframes ───────────────────────────────────────────────── */
+  @keyframes catFadeIn  { from { opacity: 0 }              to { opacity: 1 } }
   @keyframes catSlideIn { from { transform: translateX(100%) } to { transform: translateX(0) } }
   @keyframes catSheetIn { from { transform: translateY(100%) } to { transform: translateY(0) } }
   @keyframes catModalIn {
-    from { opacity: 0; transform: scale(0.94) translateY(10px) }
+    from { opacity: 0; transform: scale(.94) translateY(10px) }
     to   { opacity: 1; transform: scale(1) translateY(0) }
   }
   @keyframes catCardIn {
-    from { opacity: 0; transform: translateY(16px) }
+    from { opacity: 0; transform: translateY(18px) }
     to   { opacity: 1; transform: translateY(0) }
   }
-  .cat-card-anim { animation: catCardIn 0.45s ease both; }
   @keyframes catShimmer {
     from { background-position: 200% 0 }
     to   { background-position: -200% 0 }
@@ -406,21 +670,28 @@ const CATALOG_CSS = `
 // ─── Componente principal ─────────────────────────────────────────────────────
 
 export default function PublicCatalogPage({ products, categories, company }: PublicCatalogPageProps) {
-  const searchParams = useSearchParams()
-  const [search, setSearch]                     = useState("")
-  const [selectedCategory, setSelectedCategory] = useState("all")
-  const [imageErrors, setImageErrors]           = useState<Record<string, boolean>>({})
-  const [loading, setLoading]                   = useState(true)
-  const [cart, setCart]                         = useState<any[]>([])
-  const [showCart, setShowCart]                 = useState(false)
-  const [selectedProduct, setSelectedProduct]   = useState<any>(null)
-  const [showProductModal, setShowProductModal] = useState(false)
-  const [addedId, setAddedId]                   = useState<string | null>(null)
-  const searchRef = useRef<HTMLInputElement>(null)
+  const searchParams                              = useSearchParams()
+  const [search, setSearch]                       = useState("")
+  const [selectedCategory, setSelectedCategory]  = useState("all")
+  const [imageErrors, setImageErrors]             = useState<Record<string, boolean>>({})
+  const [loading, setLoading]                     = useState(true)
+  const [cart, setCart]                           = useState<any[]>([])
+  const [showCart, setShowCart]                   = useState(false)
+  const [selectedProduct, setSelectedProduct]     = useState<any>(null)
+  const [showProductModal, setShowProductModal]   = useState(false)
+  const [addedId, setAddedId]                     = useState<string | null>(null)
+  const [scrolled, setScrolled]                   = useState(false)
+  const searchRef                                 = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     const t = setTimeout(() => setLoading(false), 400)
     return () => clearTimeout(t)
+  }, [])
+
+  useEffect(() => {
+    const fn = () => setScrolled(window.scrollY > 10)
+    window.addEventListener("scroll", fn, { passive: true })
+    return () => window.removeEventListener("scroll", fn)
   }, [])
 
   useEffect(() => {
@@ -431,7 +702,6 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
     }
   }, [searchParams, products])
 
-  // Bloquear scroll cuando hay modal/drawer abierto
   useEffect(() => {
     document.body.style.overflow = (showCart || showProductModal) ? "hidden" : ""
     return () => { document.body.style.overflow = "" }
@@ -446,7 +716,6 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
       if (ex) return prev.map((i) => i.id === product.id ? { ...i, quantity: i.quantity + 1 } : i)
       return [...prev, { ...product, quantity: 1 }]
     })
-    // Feedback visual
     setAddedId(product.id)
     setTimeout(() => setAddedId(null), 800)
   }
@@ -459,8 +728,8 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
     })
   }
 
-  const getTotalItems = () => cart.reduce((s, i) => s + i.quantity, 0)
-  const getTotalPrice = () => cart.reduce((s, i) => s + i.sale_price * i.quantity, 0)
+  const getTotalItems  = () => cart.reduce((s, i) => s + i.quantity, 0)
+  const getTotalPrice  = () => cart.reduce((s, i) => s + i.sale_price * i.quantity, 0)
 
   const filtered = products.filter((p) => {
     const matchSearch   = p.name.toLowerCase().includes(search.toLowerCase())
@@ -488,16 +757,15 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
 
   return (
     <>
-      {/* CSS del catálogo */}
       <style dangerouslySetInnerHTML={{ __html: CATALOG_CSS }} />
 
       <div className="cat-root">
 
         {/* ══ HEADER ══════════════════════════════════════════════════════════ */}
-        <header className="cat-header">
+        <header className={`cat-header${scrolled ? " scrolled" : ""}`}>
           <div className="cat-header-inner">
 
-            {/* Logo + nombre con truncate */}
+            {/* Brand */}
             <div className="cat-brand">
               <div className="cat-logo">
                 {company.logo_url ? (
@@ -506,7 +774,7 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
                     onError={(e) => { (e.target as HTMLImageElement).style.display = "none" }}
                   />
                 ) : (
-                  <span style={{ color: "white", fontSize: 11, fontWeight: 700, letterSpacing: "0.05em" }}>
+                  <span style={{ color: "white", fontSize: 12, fontWeight: 700, letterSpacing: ".05em" }}>
                     {initials}
                   </span>
                 )}
@@ -521,7 +789,7 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
             <div className="cat-header-right">
               <span className="cat-ref-count">{products.length} refs.</span>
               <button className="cat-cart-btn" onClick={() => setShowCart(true)} aria-label="Ver carrito">
-                <ShoppingBag size={20} strokeWidth={1.5} color="#1a1a18" />
+                <ShoppingBag size={18} strokeWidth={1.5} />
                 {getTotalItems() > 0 && (
                   <span className="cat-cart-badge">{getTotalItems()}</span>
                 )}
@@ -530,43 +798,36 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
           </div>
         </header>
 
-        {/* ══ INTRO TIPOGRÁFICO ════════════════════════════════════════════════ */}
-        <div style={{ maxWidth: 1400, margin: "0 auto", padding: "32px 16px 24px" }}>
-          <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "space-between", gap: 16, flexWrap: "wrap" }}>
+        {/* ══ INTRO ════════════════════════════════════════════════════════════ */}
+        <div className="cat-intro">
+          <div className="cat-intro-inner">
             <div>
-              <p style={{ fontSize: 10, letterSpacing: "0.26em", textTransform: "uppercase", color: "var(--primary)", marginBottom: 10, fontWeight: 500 }}>
-                Colección completa
-              </p>
-              <h1 className="cat-serif" style={{ fontSize: "clamp(24px, 5vw, 52px)", fontWeight: 300, lineHeight: 1.15, color: "#1a1a18", margin: 0 }}>
+              <p className="cat-intro-eyebrow">Colección completa</p>
+              <h1 className="cat-serif" style={{
+                fontSize: "clamp(24px, 5vw, 50px)", fontWeight: 300,
+                lineHeight: 1.15, color: "#1a1a18", margin: 0,
+              }}>
                 Belleza que{" "}
-                <em style={{ fontStyle: "italic", color: "rgba(26,26,24,0.55)" }}>transforma</em>
+                <em style={{ fontStyle: "italic", color: "var(--primary, #984ca8)", opacity: .7 }}>transforma</em>
               </h1>
             </div>
-            {/* Stat numérico — oculto en móvil muy pequeño via CSS si es necesario */}
-            <div style={{ textAlign: "right", flexShrink: 0, paddingBottom: 4 }}>
-              <p className="cat-serif" style={{ fontSize: "clamp(28px, 6vw, 40px)", fontWeight: 300, lineHeight: 1, color: "rgba(26,26,24,0.12)" }}>
-                {String(products.length).padStart(2, "0")}
-              </p>
-              <p style={{ fontSize: 9, letterSpacing: "0.18em", textTransform: "uppercase", color: "rgba(26,26,24,0.35)", marginTop: 4 }}>
-                referencias
-              </p>
+            <div className="cat-intro-count">
+              <p className="cat-intro-num">{String(products.length).padStart(2, "0")}</p>
+              <p className="cat-intro-num-label">referencias</p>
             </div>
           </div>
-          <div style={{ display: "flex", alignItems: "center", marginTop: 24 }}>
-            <div style={{ width: 28, height: 1.5, background: "var(--primary)", opacity: 0.6, flexShrink: 0 }} />
-            <div style={{ flex: 1, height: 1, background: "rgba(26,26,24,0.08)" }} />
-          </div>
+          <div className="cat-divider-color" />
         </div>
 
         {/* ══ FILTROS ══════════════════════════════════════════════════════════ */}
         <div className="cat-filters">
           <div className="cat-filters-inner">
 
-            {/* Fila 1: buscador ancho completo */}
+            {/* Buscador */}
             <div className="cat-search-row">
               <Search size={13} strokeWidth={1.5} style={{
                 position: "absolute", left: 0,
-                color: "rgba(26,26,24,0.35)", pointerEvents: "none",
+                color: "rgba(26,26,24,.35)", pointerEvents: "none",
               }} />
               <input
                 ref={searchRef}
@@ -578,17 +839,17 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
               {search && (
                 <button onClick={() => setSearch("")} style={{
                   position: "absolute", right: 0, background: "none", border: "none",
-                  cursor: "pointer", padding: 4, color: "rgba(26,26,24,0.4)",
+                  cursor: "pointer", padding: 4, color: "rgba(26,26,24,.4)",
                 }}>
                   <X size={13} />
                 </button>
               )}
             </div>
 
-            {/* Fila 2: chips con scroll horizontal invisible */}
+            {/* Chips */}
             <div className="cat-chips-row">
               <button
-                className={`cat-chip ${selectedCategory === "all" ? "cat-chip-active" : ""}`}
+                className={`cat-chip${selectedCategory === "all" ? " cat-chip-active" : ""}`}
                 onClick={() => setSelectedCategory("all")}
               >
                 Todo
@@ -596,7 +857,7 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
               {categories.map((c) => (
                 <button
                   key={c.name}
-                  className={`cat-chip ${selectedCategory === c.name ? "cat-chip-active" : ""}`}
+                  className={`cat-chip${selectedCategory === c.name ? " cat-chip-active" : ""}`}
                   onClick={() => setSelectedCategory(c.name)}
                 >
                   {c.name}
@@ -608,8 +869,8 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
                   style={{
                     flexShrink: 0, background: "none", border: "none",
                     display: "flex", alignItems: "center", gap: 4,
-                    fontSize: 10, color: "rgba(26,26,24,0.5)", cursor: "pointer",
-                    letterSpacing: "0.06em", padding: "5px 6px",
+                    fontSize: 10, color: "rgba(26,26,24,.45)", cursor: "pointer",
+                    letterSpacing: ".06em", padding: "5px 6px",
                   }}
                 >
                   <X size={11} /> Limpiar
@@ -619,20 +880,20 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
           </div>
         </div>
 
-        {/* ══ GRID DE PRODUCTOS ═══════════════════════════════════════════════ */}
-        <div style={{ maxWidth: 1400, margin: "0 auto", padding: "16px 16px 80px" }}>
+        {/* ══ GRID ═══════════════════════════════════════════════════════════ */}
+        <div className="cat-content">
 
           {/* Contador */}
           {!loading && (
-            <div style={{ display: "flex", alignItems: "center", marginBottom: 20 }}>
-              <p style={{ fontSize: 10, letterSpacing: "0.08em", color: "rgba(26,26,24,0.45)", textTransform: "uppercase", whiteSpace: "nowrap" }}>
+            <div className="cat-count-row">
+              <span className="cat-count-label">
                 {filtered.length} {filtered.length === 1 ? "producto" : "productos"}
-              </p>
-              <div className="cat-divider" style={{ flex: 1, margin: "0 16px" }} />
+              </span>
+              <div className="cat-divider" style={{ flex: 1 }} />
             </div>
           )}
 
-          {/* Skeletons — grid responsive */}
+          {/* Skeletons */}
           {loading && (
             <div className="cat-grid">
               {Array.from({ length: 12 }).map((_, i) => (
@@ -641,80 +902,66 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
             </div>
           )}
 
-          {/* Grid de productos */}
+          {/* Productos */}
           {!loading && filtered.length > 0 && (
             <div className="cat-grid">
               {filtered.map((product, idx) => (
                 <div
                   key={product.id}
-                  className="cat-card cat-card-anim"
-                  style={{ animationDelay: `${Math.min(idx * 40, 400)}ms` }}
+                  className="cat-card"
+                  style={{ animationDelay: `${Math.min(idx * 35, 350)}ms` }}
                   onClick={() => { setSelectedProduct(product); setShowProductModal(true) }}
                 >
                   {/* Imagen */}
-                  <div style={{ aspectRatio: "3/4", overflow: "hidden", position: "relative", background: "#F5F4F0" }}>
+                  <div className="cat-img-wrap">
                     {product.image_url && !imageErrors[product.id] ? (
                       <img
-                        src={product.image_url}
-                        alt={product.name}
-                        className="cat-card-img"
-                        loading="lazy"
+                        src={product.image_url} alt={product.name}
+                        className="cat-card-img" loading="lazy"
                         onError={() => handleImageError(product.id)}
                       />
                     ) : (
-                      <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "color-mix(in oklch, var(--primary) 5%, #F5F4F0)" }}>
-                        <Package size={28} strokeWidth={1} style={{ color: "color-mix(in oklch, var(--primary) 40%, rgba(26,26,24,0.15))" }} />
-                      </div>
+                      <div className="cat-img-placeholder"><Package size={28} strokeWidth={1} /></div>
                     )}
+
+                    <div className="cat-img-overlay" />
 
                     {product.total_inventario > 0 && product.total_inventario <= 1 && (
                       <div className="cat-stock-badge">Últimas {product.total_inventario}</div>
                     )}
 
-                    {/* Desktop: slide-up en hover */}
+                    {/* Añadir desktop */}
                     <button
-                      className="cat-add-btn-desktop"
+                      className="cat-add-desktop"
                       onClick={(e) => { e.stopPropagation(); addToCart(product, e) }}
                     >
-                      {addedId === product.id ? (
-                        <span style={{ letterSpacing: "0.1em" }}>✓ Añadido</span>
-                      ) : (
-                        <><Plus size={12} strokeWidth={2} /> Añadir</>
-                      )}
+                      {addedId === product.id
+                        ? <span>✓ Añadido</span>
+                        : <><Plus size={12} strokeWidth={2.5} /> Añadir</>
+                      }
                     </button>
 
-                    {/* Móvil: botón circular siempre visible */}
+                    {/* Añadir móvil */}
                     <button
-                      className="cat-add-btn-mobile"
+                      className="cat-add-mobile"
                       onClick={(e) => { e.stopPropagation(); addToCart(product, e) }}
                       aria-label={`Añadir ${product.name}`}
                     >
                       {addedId === product.id
-                        ? <span style={{ fontSize: 14 }}>✓</span>
-                        : <Plus size={14} strokeWidth={2.5} />
+                        ? <span style={{ fontSize: 13 }}>✓</span>
+                        : <Plus size={15} strokeWidth={2.5} />
                       }
                     </button>
                   </div>
 
-                  {/* Info */}
-                  <div className="cat-card-info">
-                    <div className="cat-card-accent" />
+                  {/* Body */}
+                  <div className="cat-body">
                     {product.category_name && (
-                      <p style={{ fontSize: 8, letterSpacing: "0.18em", textTransform: "uppercase", color: "var(--primary)", marginBottom: 4, fontWeight: 500 }}>
-                        {product.category_name}
-                      </p>
+                      <p className="cat-category-label">{product.category_name}</p>
                     )}
-                    <h3 className="cat-serif" style={{
-                      fontSize: 13, fontWeight: 400, lineHeight: 1.3,
-                      color: "#1a1a18", marginBottom: 6,
-                      display: "-webkit-box", WebkitLineClamp: 2,
-                      WebkitBoxOrient: "vertical", overflow: "hidden",
-                    }}>
-                      {product.name}
-                    </h3>
-                    <p style={{ fontSize: 12, fontWeight: 500, color: "#1a1a18", letterSpacing: "0.02em" }}>
-                      {formatCOP(product.sale_price)}
-                    </p>
+                    <h3 className="cat-name" title={product.name}>{product.name}</h3>
+                    <div className="cat-sep" aria-hidden />
+                    <p className="cat-price">{formatCOP(product.sale_price)}</p>
                   </div>
                 </div>
               ))}
@@ -723,40 +970,26 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
 
           {/* Sin resultados */}
           {!loading && filtered.length === 0 && (
-            <div style={{ textAlign: "center", padding: "80px 0" }}>
-              <div style={{
-                width: 64, height: 64, margin: "0 auto 20px",
-                border: "1px solid rgba(26,26,24,0.12)",
-                display: "flex", alignItems: "center", justifyContent: "center",
-              }}>
-                <Search size={20} strokeWidth={1} style={{ color: "rgba(26,26,24,0.3)" }} />
+            <div className="cat-empty">
+              <div className="cat-empty-ico">
+                <Search size={22} strokeWidth={1} style={{ color: "var(--primary, #984ca8)", opacity: .5 }} />
               </div>
               <p className="cat-serif" style={{ fontSize: 22, fontWeight: 300, marginBottom: 8 }}>
                 Sin resultados
               </p>
-              <p style={{ fontSize: 13, color: "rgba(26,26,24,0.5)", marginBottom: 20 }}>
+              <p style={{ fontSize: 13, color: "rgba(26,26,24,.5)", marginBottom: 20 }}>
                 Prueba con otros términos o categorías
               </p>
-              <button
-                onClick={() => { setSearch(""); setSelectedCategory("all") }}
-                style={{
-                  background: "none", border: "1px solid rgba(26,26,24,0.2)",
-                  padding: "8px 20px", fontSize: 11, letterSpacing: "0.12em",
-                  textTransform: "uppercase", cursor: "pointer", color: "#1a1a18",
-                }}
-              >
+              <button className="cat-empty-btn" onClick={() => { setSearch(""); setSelectedCategory("all") }}>
                 Ver todo
               </button>
             </div>
           )}
         </div>
 
-        {/* ══ FOOTER STRIP ════════════════════════════════════════════════════ */}
-        <div className="cat-divider" />
-        <div style={{ textAlign: "center", padding: "24px", background: "#FAFAF8" }}>
-          <p style={{ fontSize: 10, letterSpacing: "0.16em", textTransform: "uppercase", color: "rgba(26,26,24,0.35)" }}>
-            {company.name} · Catálogo oficial
-          </p>
+        {/* ══ FOOTER ══════════════════════════════════════════════════════════ */}
+        <div className="cat-footer">
+          <p>{company.name} · Catálogo oficial</p>
         </div>
 
         {/* ══ CART DRAWER ══════════════════════════════════════════════════════ */}
@@ -765,35 +998,43 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
             <div className="cat-cart-drawer" onClick={(e) => e.stopPropagation()}>
 
               {/* Header drawer */}
-              <div style={{
-                display: "flex", alignItems: "center", justifyContent: "space-between",
-                padding: "20px 24px",
-                borderBottom: "1px solid rgba(26,26,24,0.08)",
-                flexShrink: 0,
-              }}>
-                <div>
-                  <p className="cat-serif" style={{ fontSize: 20, fontWeight: 400 }}>Tu selección</p>
-                  <p style={{ fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(26,26,24,0.45)", marginTop: 2 }}>
-                    {getTotalItems()} {getTotalItems() === 1 ? "artículo" : "artículos"}
-                  </p>
+              <div className="cat-drawer-hd">
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+                  <div>
+                    <p className="cat-serif" style={{ fontSize: 20, fontWeight: 400, color: "var(--primary, #984ca8)" }}>
+                      Tu selección
+                    </p>
+                    <p style={{ fontSize: 10, letterSpacing: ".12em", textTransform: "uppercase", color: "rgba(var(--primary-rgb,152,76,168),.55)", marginTop: 2 }}>
+                      {getTotalItems()} {getTotalItems() === 1 ? "artículo" : "artículos"}
+                    </p>
+                  </div>
+                  <button onClick={() => setShowCart(false)} style={{
+                    background: "rgba(var(--primary-rgb,152,76,168),.10)",
+                    border: "none", cursor: "pointer", padding: 8,
+                    borderRadius: 8, color: "var(--primary, #984ca8)",
+                    display: "flex",
+                  }}>
+                    <X size={16} strokeWidth={1.5} />
+                  </button>
                 </div>
-                <button
-                  onClick={() => setShowCart(false)}
-                  style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}
-                >
-                  <X size={18} strokeWidth={1.5} style={{ color: "rgba(26,26,24,0.5)" }} />
-                </button>
               </div>
 
               {/* Items */}
               <div className="cat-scroll" style={{ flex: 1, overflowY: "auto", padding: "16px 24px" }}>
                 {cart.length === 0 ? (
                   <div style={{ textAlign: "center", padding: "60px 0" }}>
-                    <ShoppingBag size={36} strokeWidth={1} style={{ color: "rgba(26,26,24,0.2)", margin: "0 auto 16px" }} />
-                    <p className="cat-serif" style={{ fontSize: 18, fontWeight: 300, color: "rgba(26,26,24,0.5)" }}>
+                    <div style={{
+                      width: 60, height: 60, margin: "0 auto 16px",
+                      background: "rgba(var(--primary-rgb,152,76,168),.08)",
+                      borderRadius: "50%",
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                    }}>
+                      <ShoppingBag size={24} strokeWidth={1} style={{ color: "var(--primary, #984ca8)", opacity: .5 }} />
+                    </div>
+                    <p className="cat-serif" style={{ fontSize: 18, fontWeight: 300, color: "rgba(26,26,24,.5)" }}>
                       Tu selección está vacía
                     </p>
-                    <p style={{ fontSize: 12, color: "rgba(26,26,24,0.35)", marginTop: 8 }}>
+                    <p style={{ fontSize: 12, color: "rgba(26,26,24,.35)", marginTop: 8 }}>
                       Explora el catálogo y elige tus favoritos
                     </p>
                   </div>
@@ -804,8 +1045,10 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
                         <div style={{ display: "flex", gap: 14, padding: "16px 0" }}>
                           {/* Miniatura */}
                           <div style={{
-                            width: 70, height: 88, flexShrink: 0, overflow: "hidden",
-                            background: "#F5F4F0",
+                            width: 68, height: 84, flexShrink: 0,
+                            borderRadius: 10, overflow: "hidden",
+                            background: "rgba(var(--primary-rgb,152,76,168),.06)",
+                            border: "1px solid rgba(var(--primary-rgb,152,76,168),.10)",
                           }}>
                             {item.image_url && !imageErrors[item.id] ? (
                               <img src={item.image_url} alt={item.name}
@@ -814,36 +1057,34 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
                               />
                             ) : (
                               <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                <Package size={20} strokeWidth={1} style={{ color: "rgba(26,26,24,0.2)" }} />
+                                <Package size={18} strokeWidth={1} style={{ color: "rgba(26,26,24,.2)" }} />
                               </div>
                             )}
                           </div>
-
                           {/* Info */}
                           <div style={{ flex: 1, minWidth: 0 }}>
                             {item.category_name && (
-                              <p style={{ fontSize: 9, letterSpacing: "0.15em", textTransform: "uppercase", color: "var(--primary)", marginBottom: 3 }}>
+                              <p style={{ fontSize: 8, letterSpacing: ".16em", textTransform: "uppercase", color: "var(--primary, #984ca8)", marginBottom: 3, fontWeight: 600, opacity: .7 }}>
                                 {item.category_name}
                               </p>
                             )}
-                            <p className="cat-serif" style={{ fontSize: 14, fontWeight: 400, lineHeight: 1.3, marginBottom: 8 }}>
+                            <p className="cat-serif" style={{ fontSize: 14, fontWeight: 400, lineHeight: 1.3, marginBottom: 6 }}>
                               {item.name}
                             </p>
-                            <p style={{ fontSize: 12, fontWeight: 500, marginBottom: 10 }}>
+                            <p style={{ fontSize: 13, fontWeight: 500, color: "var(--primary, #984ca8)", marginBottom: 10 }}>
                               {formatCOP(item.sale_price)}
                             </p>
-                            {/* Qty controls */}
-                            <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                              <button onClick={() => removeFromCart(item.id)}
-                                style={{ background: "none", border: "1px solid rgba(26,26,24,0.15)", width: 24, height: 24, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                              <button className="cat-qty-btn minus" onClick={() => removeFromCart(item.id)}>
                                 <Minus size={10} />
                               </button>
-                              <span style={{ fontSize: 13, fontWeight: 500, minWidth: 16, textAlign: "center" }}>{item.quantity}</span>
-                              <button onClick={() => addToCart(item)}
-                                style={{ background: "var(--primary)", border: "none", width: 24, height: 24, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                                <Plus size={10} style={{ color: "white" }} />
+                              <span style={{ fontSize: 13, fontWeight: 600, minWidth: 16, textAlign: "center" }}>
+                                {item.quantity}
+                              </span>
+                              <button className="cat-qty-btn plus" onClick={() => addToCart(item)}>
+                                <Plus size={10} />
                               </button>
-                              <span style={{ marginLeft: "auto", fontSize: 12, fontWeight: 500, color: "rgba(26,26,24,0.6)" }}>
+                              <span style={{ marginLeft: "auto", fontSize: 12, fontWeight: 500, color: "rgba(26,26,24,.55)" }}>
                                 {formatCOP(item.sale_price * item.quantity)}
                               </span>
                             </div>
@@ -858,11 +1099,15 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
 
               {/* Footer drawer */}
               {cart.length > 0 && (
-                <div style={{ borderTop: "1px solid rgba(26,26,24,0.08)", flexShrink: 0 }}>
+                <div style={{ borderTop: "1px solid rgba(26,26,24,.08)", flexShrink: 0 }}>
                   <div style={{ padding: "16px 24px" }}>
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
-                      <span style={{ fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(26,26,24,0.55)" }}>Total</span>
-                      <span className="cat-serif" style={{ fontSize: 24, fontWeight: 400 }}>{formatCOP(getTotalPrice())}</span>
+                      <span style={{ fontSize: 10, letterSpacing: ".14em", textTransform: "uppercase", color: "rgba(26,26,24,.45)" }}>
+                        Total pedido
+                      </span>
+                      <span className="cat-serif" style={{ fontSize: 26, fontWeight: 400, color: "var(--primary, #984ca8)" }}>
+                        {formatCOP(getTotalPrice())}
+                      </span>
                     </div>
                     <a href={whatsappHref} target="_blank" rel="noopener noreferrer" className="cat-wa-btn">
                       <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
@@ -878,35 +1123,35 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
           </div>
         )}
 
-        {/* ══ MODAL DETALLE — bottom sheet en móvil ═══════════════════════════ */}
+        {/* ══ MODAL DETALLE ════════════════════════════════════════════════════ */}
         {showProductModal && selectedProduct && (
           <div className="cat-modal-overlay" onClick={closeModal}>
             <div className="cat-modal" onClick={(e) => e.stopPropagation()}>
 
-              {/* Handle visible solo en móvil */}
               <span className="cat-modal-handle" />
 
               {/* Imagen */}
-              <div style={{ position: "relative", aspectRatio: "1/1", background: "#F5F4F0", overflow: "hidden" }}>
+              <div style={{ position: "relative", aspectRatio: "1/1", overflow: "hidden", background: "rgba(var(--primary-rgb,152,76,168),.06)" }}>
                 {selectedProduct.image_url && !imageErrors[selectedProduct.id] ? (
                   <img
-                    src={selectedProduct.image_url}
-                    alt={selectedProduct.name}
+                    src={selectedProduct.image_url} alt={selectedProduct.name}
                     style={{ width: "100%", height: "100%", objectFit: "cover" }}
                     onError={() => handleImageError(selectedProduct.id)}
                   />
                 ) : (
                   <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <Package size={48} strokeWidth={1} style={{ color: "rgba(26,26,24,0.15)" }} />
+                    <Package size={48} strokeWidth={1} style={{ color: "rgba(var(--primary-rgb,152,76,168),.3)" }} />
                   </div>
                 )}
 
-                {/* Cerrar */}
+                {/* Botón cerrar */}
                 <button onClick={closeModal} style={{
                   position: "absolute", top: 12, right: 12,
-                  background: "white", border: "none", width: 34, height: 34,
+                  background: "white", border: "none", width: 36, height: 36,
+                  borderRadius: 10,
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  cursor: "pointer", boxShadow: "0 2px 12px rgba(0,0,0,0.12)", borderRadius: 2,
+                  cursor: "pointer",
+                  boxShadow: "0 3px 12px rgba(0,0,0,.14)",
                 }}>
                   <X size={14} strokeWidth={1.5} />
                 </button>
@@ -918,10 +1163,10 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
                 )}
               </div>
 
-              {/* Info — padding adaptado por clase CSS */}
+              {/* Info */}
               <div className="cat-modal-body">
                 {selectedProduct.category_name && (
-                  <p style={{ fontSize: 9, letterSpacing: "0.22em", textTransform: "uppercase", color: "var(--primary)", marginBottom: 10, fontWeight: 500 }}>
+                  <p style={{ fontSize: 9, letterSpacing: ".22em", textTransform: "uppercase", color: "var(--primary, #984ca8)", marginBottom: 10, fontWeight: 600, opacity: .7 }}>
                     {selectedProduct.category_name}
                   </p>
                 )}
@@ -931,41 +1176,35 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
                 </h2>
 
                 {selectedProduct.description && (
-                  <p style={{ fontSize: 13, color: "rgba(26,26,24,0.6)", lineHeight: 1.65, marginBottom: 18 }}>
+                  <p style={{ fontSize: 13, color: "rgba(26,26,24,.6)", lineHeight: 1.65, marginBottom: 18 }}>
                     {selectedProduct.description}
                   </p>
                 )}
 
                 <div className="cat-divider" style={{ marginBottom: 18 }} />
 
-                {/* Precio + CTA — en móvil pueden ir uno sobre otro si no caben */}
+                {/* Precio + CTA */}
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
                   <div>
-                    <p style={{ fontSize: 10, letterSpacing: "0.12em", textTransform: "uppercase", color: "rgba(26,26,24,0.45)", marginBottom: 4 }}>
+                    <p style={{ fontSize: 9, letterSpacing: ".14em", textTransform: "uppercase", color: "rgba(26,26,24,.4)", marginBottom: 5 }}>
                       Precio
                     </p>
-                    <p className="cat-serif" style={{ fontSize: "clamp(22px, 5vw, 28px)", fontWeight: 400, letterSpacing: "-0.01em" }}>
+                    <p className="cat-serif" style={{ fontSize: "clamp(24px, 5vw, 30px)", fontWeight: 400, color: "var(--primary, #984ca8)" }}>
                       {formatCOP(selectedProduct.sale_price)}
                     </p>
                   </div>
 
                   <button
-                    style={{
-                      background: "var(--primary)", color: "white", border: "none",
-                      display: "flex", alignItems: "center", gap: 6,
-                      padding: "14px 20px", fontSize: 11, fontWeight: 500,
-                      letterSpacing: "0.12em", textTransform: "uppercase",
-                      cursor: "pointer", flexShrink: 0,
-                    }}
+                    className="cat-modal-add-btn"
                     onClick={() => { addToCart(selectedProduct); closeModal(); setShowCart(true) }}
                   >
-                    <Plus size={13} strokeWidth={2} />
+                    <Plus size={13} strokeWidth={2.5} />
                     Añadir al pedido
                   </button>
                 </div>
 
                 {selectedProduct.total_inventario > 3 && (
-                  <p style={{ fontSize: 11, color: "rgba(26,26,24,0.4)", marginTop: 14, letterSpacing: "0.04em" }}>
+                  <p style={{ fontSize: 11, color: "rgba(26,26,24,.38)", marginTop: 14, letterSpacing: ".04em" }}>
                     {selectedProduct.total_inventario} unidades disponibles
                   </p>
                 )}

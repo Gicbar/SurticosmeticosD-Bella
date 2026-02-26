@@ -11,33 +11,63 @@ export default function DashboardLayout({
     <>
       <DashboardThemeInjector />
 
-      {/* Sidebar fixed — no ocupa espacio en el flujo del documento */}
+      {/* Sidebar — position:fixed, fuera del flujo del documento */}
       <DashboardSidebar />
 
       {/*
-        Contenedor principal desplazado 248px a la derecha para no
-        quedar debajo del sidebar en desktop. En móvil el sidebar es
-        un drawer oculto, por lo que el margin baja a 0.
+        OUTER SHELL — height:100vh + overflow:hidden
+        Impide que el BODY haga scroll. Sin esto el contenido
+        se desliza por debajo del sidebar fijo.
       */}
-      <div
-        className="ml-0 md:ml-[248px]"
-        style={{
-          minHeight: "100vh",
-          display: "flex",
-          flexDirection: "column",
-          background: "#ffffff",
-        }}
-      >
-        <DashboardHeader />
-        <main
+      <div style={{ height: "100vh", overflow: "hidden" }}>
+
+        {/*
+          CONTENT SHELL — height:100vh + overflow-y:auto
+          El scroll ocurre SOLO aquí, no en el body.
+          El sidebar (position:fixed, z-index:400) nunca se superpone
+          porque el scroll no mueve el viewport, solo este contenedor.
+        */}
+        <div
+          id="dash-scroll"
           style={{
-            flex: 1,
-            padding: "24px 28px",
-            background: "#f8f8f7",   /* fondo ligeramente crema para el contenido */
+            height: "100vh",
+            overflowY: "auto",
+            overflowX: "hidden",
+            display: "flex",
+            flexDirection: "column",
+            background: "#ffffff",
           }}
         >
-          {children}
-        </main>
+          <style>{`
+            /* Desktop: empujar el contenido al ancho exacto del sidebar */
+            @media (min-width: 769px) {
+              #dash-scroll { margin-left: 248px; }
+            }
+            /* Móvil: sin margin, sidebar es un drawer oculto */
+            @media (max-width: 768px) {
+              #dash-scroll { margin-left: 0; }
+            }
+            /* Padding reducido en móvil */
+            @media (max-width: 640px) {
+              #dash-main { padding: 16px 14px !important; }
+            }
+          `}</style>
+
+          {/* Header sticky dentro del scroll container */}
+          <DashboardHeader />
+
+          <main
+            id="dash-main"
+            style={{
+              flex: 1,
+              padding: "24px 28px",
+              background: "#f8f8f7",
+            }}
+          >
+            {children}
+          </main>
+
+        </div>
       </div>
     </>
   )

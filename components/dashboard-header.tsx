@@ -45,46 +45,69 @@ const HEADER_CSS = `
 
   .hdr-root {
     font-family: 'DM Sans', sans-serif;
-    position: sticky; top: 0; z-index: 150;
+    position: sticky; top: 0; z-index: 500;
     height: 52px;
     display: flex; align-items: center; justify-content: space-between;
     padding: 0 24px 0 56px;
-    /* Fondo con micro-tono del primary muy sutil */
+    /*
+      Fondo: usa --secondary (color claro del tema leído desde BD).
+      Gradiente 100% opaco que combina con el sidebar sin transparencias.
+      Fallback neutro si el theme aún no cargó.
+    */
+    /*
+      Gradiente diagonal: secondary saturado a la izquierda (lado del sidebar),
+      más claro hacia la derecha. 100% opaco.
+    */
     background: linear-gradient(
-      to bottom,
-      rgba(var(--primary-rgb,152,76,168), 0.04) 0%,
-      rgba(255,255,255,0.98) 100%
+      to right,
+      rgba(var(--primary-rgb,152,76,168), 0.42) 0%,
+      var(--secondary, #f3edf7) 40%,
+      color-mix(in srgb, var(--secondary, #f3edf7) 30%, #ffffff) 100%
     );
-    /* Borde inferior con color */
-    border-bottom: 1px solid rgba(var(--primary-rgb,152,76,168), 0.15);
-    transition: box-shadow 0.2s;
+    border-bottom: 2px solid rgba(var(--primary-rgb,152,76,168), 0.45);
+    isolation: isolate;
+    transition: background 0.3s, box-shadow 0.25s;
+  }
+  /* Fallback para Safari < 16.2 (sin color-mix) */
+  @supports not (background: color-mix(in srgb, red 50%, blue)) {
+    .hdr-root {
+      background: linear-gradient(
+        to right,
+        rgba(var(--primary-rgb,152,76,168), 0.18) 0%,
+        var(--secondary, #f3edf7) 45%,
+        #ffffff 100%
+      );
+    }
   }
   @media (min-width: 769px) { .hdr-root { padding: 0 28px; } }
   .hdr-root.hdr-scrolled {
     box-shadow:
-      0 1px 0 rgba(var(--primary-rgb,152,76,168), 0.12),
-      0 4px 16px rgba(var(--primary-rgb,152,76,168), 0.07);
+      0 2px 0 rgba(var(--primary-rgb,152,76,168), 0.35),
+      0 8px 28px rgba(var(--primary-rgb,152,76,168), 0.18);
   }
 
-  /* Línea de acento inferior — más larga y visible */
+  /* Línea de acento inferior */
   .hdr-root::after {
-    content: ''; position: absolute; bottom: -1px; left: 28px;
-    width: 44px; height: 2px;
-    background: var(--primary, #984ca8); opacity: 0.7;
-    border-radius: 0 0 2px 2px;
+    content: ''; position: absolute; bottom: -2px; left: 0;
+    width: 100%; height: 3px;
+    background: linear-gradient(
+      to right,
+      var(--primary, #984ca8) 0%,
+      rgba(var(--primary-rgb,152,76,168), 0.35) 55%,
+      rgba(var(--primary-rgb,152,76,168), 0.05) 100%
+    );
   }
   @media (max-width: 768px) { .hdr-root::after { left: 50%; transform: translateX(-50%); } }
 
   /* Breadcrumb */
   .hdr-bread {
     display: flex; align-items: center; gap: 6px;
-    font-size: 11px; color: rgba(26,26,24,0.38);
+    font-size: 11px; color: rgba(3, 3, 3, 0.88);
     overflow: hidden; min-width: 0;
   }
   .hdr-bread-sep   { color: rgba(26,26,24,0.18); user-select: none; }
   .hdr-bread-current {
-    font-size: 12px; font-weight: 600;
-    /* Texto del breadcrumb activo en color primario */
+    font-size: 12px; font-weight: 700;
     color: var(--primary, #984ca8);
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   }
@@ -97,29 +120,31 @@ const HEADER_CSS = `
     width: 36px; height: 36px;
     display: flex; align-items: center; justify-content: center;
     background: none; border: none; cursor: pointer;
-    color: rgba(26,26,24,0.32); position: relative;
+    color: rgba(2, 2, 2, 0.92); position: relative;
     transition: color 0.15s, background 0.15s;
     -webkit-tap-highlight-color: transparent;
   }
   .hdr-icon-btn:hover {
     color: var(--primary, #984ca8);
-    background: rgba(var(--primary-rgb,152,76,168), 0.07);
+    background: rgba(var(--primary-rgb,152,76,168), 0.14);
   }
   .hdr-icon-btn.active {
     color: var(--primary, #984ca8);
-    background: rgba(var(--primary-rgb,152,76,168), 0.10);
+    background: rgba(var(--primary-rgb,152,76,168), 0.20);
   }
 
   .hdr-notif-dot {
     position: absolute; top: 8px; right: 8px;
     width: 5px; height: 5px;
-    background: var(--primary, #984ca8); border-radius: 50%; border: 1.5px solid white;
+    background: var(--primary, #984ca8); border-radius: 50%;
+    /* border combina con el fondo secondary del header */
+    border: 1.5px solid var(--secondary, #f3edf7);
   }
 
   /* Divisor con color */
   .hdr-vdiv {
-    width: 1px; height: 16px;
-    background: rgba(var(--primary-rgb,152,76,168), 0.15);
+    width: 1px; height: 18px;
+    background: rgba(var(--primary-rgb,152,76,168), 0.95);
     margin: 0 4px;
   }
 
@@ -132,7 +157,7 @@ const HEADER_CSS = `
     border-radius: 4px;
     transition: background 0.15s; -webkit-tap-highlight-color: transparent;
   }
-  .hdr-user-btn:hover { background: rgba(var(--primary-rgb,152,76,168), 0.07); }
+  .hdr-user-btn:hover { background: rgba(var(--primary-rgb,152,76,168), 0.16); }
 
   /* Avatar con sombra coloreada */
   .hdr-avatar {
@@ -145,7 +170,7 @@ const HEADER_CSS = `
   .hdr-avatar span { font-size: 10px; font-weight: 700; color: white; letter-spacing: 0.04em; text-transform: uppercase; }
 
   .hdr-user-name {
-    font-size: 11px; font-weight: 500; color: rgba(26,26,24,0.75);
+    font-size: 11px; font-weight: 500; color: rgba(26,26,24,0.95);
     max-width: 110px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
   }
   @media (max-width: 480px) { .hdr-user-name { display: none; } }
@@ -184,7 +209,7 @@ const HEADER_CSS = `
     transition: background 0.12s, color 0.12s; text-align: left; min-height: 40px;
   }
   .hdr-menu-btn:hover { background: rgba(var(--primary-rgb,152,76,168), 0.05); color: #1a1a18; }
-  .hdr-menu-btn.danger { color: #b91c1c; }
+  .hdr-menu-btn.danger { color: #eb1010; }
   .hdr-menu-btn.danger:hover { background: rgba(185,28,28,0.04); }
 
   /* ════════════════════════════════════════════════════════════

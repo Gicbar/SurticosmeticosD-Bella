@@ -17,7 +17,7 @@ const PAGE_CSS = `
     --sp-p:      var(--primary, #984ca8);
     --sp-p10:    rgba(var(--primary-rgb, 152,76,168), 0.10);
     --sp-txt:    #1a1a18;
-    --sp-muted:  rgba(26,26,24,0.45);
+    --sp-muted:  #1a1a18;
     --sp-border: rgba(26,26,24,0.08);
   }
 

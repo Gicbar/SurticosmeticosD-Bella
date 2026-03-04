@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client"
 import {
   Barcode, Plus, Minus, Trash2, ShoppingCart, Search,
   CreditCard, Receipt, ChevronsUpDown, Check, Package,
-  Clock,                          // ← nuevo: icono crédito
+  Clock, Layers,                  // Layers = icono kit
 } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { showSuccess, showError, showWarning, showInput } from "@/lib/sweetalert"
@@ -280,6 +280,35 @@ const POS_CSS = `
   .pos-checkout-btn:hover:not(:disabled) { opacity: 0.88; }
   .pos-checkout-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
+
+  /* ── Kit badge en carrito ── */
+  .pos-kit-badge {
+    display:inline-flex; align-items:center; gap:4px;
+    padding:1px 7px; font-size:9px; font-weight:700; letter-spacing:.08em;
+    text-transform:uppercase; margin-left:6px;
+    background:rgba(var(--primary-rgb,152,76,168),.10);
+    color:var(--pos-p);
+  }
+  .pos-kit-badge svg { width:9px; height:9px; }
+
+  /* ── Kit en resultados búsqueda barcode ── */
+  .pos-kit-item {
+    display:flex; align-items:center; justify-content:space-between;
+    padding:11px 14px; background:var(--pos-p10);
+    border-bottom:1px solid var(--pos-border); gap:10px;
+  }
+  .pos-kit-info { flex:1; min-width:0; }
+  .pos-kit-name { font-size:13px; font-weight:600; color:var(--pos-p); margin:0 0 3px; }
+  .pos-kit-detail { font-size:10px; color:var(--pos-muted); margin:0; }
+  .pos-kit-load-btn {
+    height:38px; padding:0 14px; background:var(--pos-p); border:none; cursor:pointer;
+    font-family:'DM Sans',sans-serif; font-size:11px; font-weight:600;
+    letter-spacing:.06em; text-transform:uppercase; color:#fff;
+    display:flex; align-items:center; gap:5px; flex-shrink:0; transition:opacity .15s;
+  }
+  .pos-kit-load-btn:hover { opacity:.88; }
+  .pos-kit-load-btn svg { width:11px; height:11px; }
+
   .pos-spinner {
     width: 16px; height: 16px;
     border: 2px solid rgba(255,255,255,0.3); border-top-color: white;
@@ -297,8 +326,13 @@ const POS_CSS = `
 type CartItem = {
   product_id: string; name: string; barcode: string | null
   quantity: number; unit_price: number; subtotal: number
+  fromKit?: string   // nombre del kit del que proviene (opcional)
 }
 type Product = { id: string; name: string; barcode: string | null; sale_price: number }
+type KitPreview = {
+  id: string; code: number; name: string
+  items: { product_id: string; name: string; quantity: number; unit_price_in_kit: number }[]
+}
 type Client  = { id: string; name: string }
 
 // ── ClientCombobox ────────────────────────────────────────────────────────────
@@ -364,6 +398,8 @@ export function POSInterface({ companyId }: POSInterfaceProps) {
   const [products, setProducts]                 = useState<Product[]>([])
   const [clients, setClients]                   = useState<Client[]>([])
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([])
+  const [kitPreview, setKitPreview]             = useState<KitPreview | null>(null)
+  const [loadingKit, setLoadingKit]             = useState(false)
 
   useEffect(() => {
     ;(async () => {
@@ -400,11 +436,89 @@ export function POSInterface({ companyId }: POSInterfaceProps) {
     return null
   }
 
-  const handleBarcode = (e: React.FormEvent) => {
+  // Buscar kit por código numérico
+  const lookupKit = async (codeStr: string) => {
+    const codeNum = parseInt(codeStr)
+    if (isNaN(codeNum) || codeNum <= 0) return null
+    const supabase = createClient()
+    const { data } = await supabase
+      .from("product_kits")
+      .select(`
+        id, code, name,
+        product_kit_items (
+          product_id, quantity, unit_price_in_kit,
+          products ( name )
+        )
+      `)
+      .eq("company_id", companyId)
+      .eq("code", codeNum)
+      .eq("is_active", true)
+      .single()
+    if (!data) return null
+    return {
+      id:    data.id,
+      code:  data.code,
+      name:  data.name,
+      items: data.product_kit_items.map((i: any) => ({
+        product_id:        i.product_id,
+        name:              i.products?.name ?? "—",
+        quantity:          i.quantity,
+        unit_price_in_kit: Number(i.unit_price_in_kit),
+      })),
+    } as KitPreview
+  }
+
+  const handleBarcode = async (e: React.FormEvent) => {
     e.preventDefault()
-    const product = products.find(p => p.barcode === barcodeInput.trim())
-    if (product) { addToCart(product); setBarcodeInput("") }
-    else { showWarning("Producto no encontrado", "Código de barras no existe"); setBarcodeInput("") }
+    const raw = barcodeInput.trim()
+    if (!raw) return
+
+    // 1) Intentar como código de barras de producto primero
+    const product = products.find(p => p.barcode === raw)
+    if (product) { addToCart(product); setBarcodeInput(""); return }
+
+    // 2) Si es numérico puro, buscar como código de kit
+    if (/^\d+$/.test(raw)) {
+      setLoadingKit(true)
+      const kit = await lookupKit(raw)
+      setLoadingKit(false)
+      if (kit) {
+        setKitPreview(kit)
+        setBarcodeInput("")
+        return
+      }
+    }
+
+    showWarning("No encontrado", "No existe producto ni kit con ese código")
+    setBarcodeInput("")
+  }
+
+  const addKitToCart = (kit: KitPreview) => {
+    setCart(prev => {
+      let next = [...prev]
+      for (const item of kit.items) {
+        const ex = next.find(i => i.product_id === item.product_id)
+        if (ex) {
+          next = next.map(i => i.product_id === item.product_id
+            ? { ...i,
+                quantity: i.quantity + item.quantity,
+                subtotal: (i.quantity + item.quantity) * i.unit_price }
+            : i)
+        } else {
+          next.push({
+            product_id: item.product_id,
+            name:       item.name,
+            barcode:    null,
+            quantity:   item.quantity,
+            unit_price: item.unit_price_in_kit,
+            subtotal:   item.unit_price_in_kit * item.quantity,
+            fromKit:    kit.name,   // marcar origen del kit
+          } as any)
+        }
+      }
+      return next
+    })
+    setKitPreview(null)
   }
 
   const addToCart = (product: Product) => {
@@ -573,12 +687,49 @@ export function POSInterface({ companyId }: POSInterfaceProps) {
                           value={barcodeInput} onChange={e => setBarcodeInput(e.target.value)}
                           autoComplete="off" />
                       </div>
-                      <button type="submit" className="pos-add-btn">
-                        <Plus size={14} />Agregar
+                      <button type="submit" className="pos-add-btn" disabled={loadingKit}>
+                        {loadingKit
+                          ? <><div className="pos-spinner" style={{width:12,height:12}} />Buscando…</>
+                          : <><Plus size={14} />Agregar</>
+                        }
                       </button>
                     </div>
                   </form>
                 </div>
+
+                {/* Kit preview — aparece cuando se detecta un kit por código */}
+                {kitPreview && (
+                  <div className="pos-kit-item" style={{ marginTop: 4 }}>
+                    <div className="pos-kit-info">
+                      <p className="pos-kit-name">
+                        <Layers size={12} style={{verticalAlign:"middle",marginRight:5}} aria-hidden />
+                        Kit #{kitPreview.code} — {kitPreview.name}
+                      </p>
+                      <p className="pos-kit-detail">
+                        {kitPreview.items.map(i =>
+                          `${i.name} ×${i.quantity}`
+                        ).join(" · ")}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      className="pos-kit-load-btn"
+                      onClick={() => addKitToCart(kitPreview)}
+                    >
+                      <Plus size={11} aria-hidden />
+                      Cargar kit
+                    </button>
+                    <button
+                      type="button"
+                      style={{
+                        border:"none", background:"none", cursor:"pointer",
+                        color:"rgba(26,26,24,.35)", padding:"0 4px", fontSize:18, lineHeight:1,
+                      }}
+                      onClick={() => setKitPreview(null)}
+                      aria-label="Cerrar"
+                    >×</button>
+                  </div>
+                )}
 
                 <div>
                   <label className="pos-label">Buscar por nombre</label>
@@ -635,7 +786,14 @@ export function POSInterface({ companyId }: POSInterfaceProps) {
                   {cart.map(item => (
                     <div key={item.product_id} className="pos-cart-item">
                       <div className="pos-cart-info">
-                        <p className="pos-cart-name">{item.name}</p>
+                        <p className="pos-cart-name">
+                          {item.name}
+                          {(item as any).fromKit && (
+                            <span className="pos-kit-badge">
+                              <Layers aria-hidden />{(item as any).fromKit}
+                            </span>
+                          )}
+                        </p>
                         <p className="pos-cart-unit">{fmt(item.unit_price)} c/u</p>
                       </div>
                       <div className="pos-qty-row">

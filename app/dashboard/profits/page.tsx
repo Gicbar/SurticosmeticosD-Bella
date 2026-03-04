@@ -18,7 +18,7 @@ const CSS = `
   --p:    var(--primary,#984ca8);
   --p10:  rgba(var(--primary-rgb,152,76,168),.10);
   --txt:  #1a1a18;
-  --muted:rgba(26,26,24,.45);
+  --muted: #1a1a18;
   --border:rgba(26,26,24,.08);
 }
 .prf-hd { display:flex; flex-direction:column; gap:14px; padding-bottom:20px; border-bottom:1px solid var(--border); margin-bottom:22px; }

@@ -121,7 +121,13 @@ export function ProfitsTable({ profits }: { profits: any[] }) {
                       <span style={{ fontSize: 12, color: "rgba(26,26,24,.55)" }}>{COP(Number(p.total_cost))}</span>
                     </td>
                     <td className="r">
-                      <span className="pt-money ok">{COP(Number(p.profit))}</span>
+                      <span
+                        className={`pt-money ${
+                          Number(p.profit) < 0 ? "text-red-600" : "text-green-600"
+                        }`}
+                      >
+                        {COP(Number(p.profit))}
+                      </span>
                     </td>
                     <td className="c">
                       <span className={`pt-margin ${mClass}`}>

@@ -17,7 +17,7 @@ const CSS = `
   --p:    var(--primary,#984ca8);
   --p10:  rgba(var(--primary-rgb,152,76,168),.10);
   --txt:  #1a1a18;
-  --muted:rgba(26,26,24,.45);
+  --muted:#1a1a18;
   --border:rgba(26,26,24,.08);
   --danger:#dc2626;
 }

@@ -10,7 +10,7 @@ import { useCompany } from "@/contexts/CompanyContext"
 import { getCompanyInitials } from "@/lib/theme"
 import {
   LayoutDashboard, Package, ShoppingCart, Users, TrendingUp, Receipt, CreditCard,
-  Settings, Truck, FolderTree, DollarSign, PiggyBank, BarChart2, X, Menu,
+  Settings, Truck, FolderTree, DollarSign, PiggyBank, BarChart2, X, Menu,Megaphone,Layers,
 } from "lucide-react"
 
 const SIDEBAR_CSS = `
@@ -198,7 +198,8 @@ const SIDEBAR_CSS = `
 interface UserPermissions {
   ventas: boolean; productos: boolean; categorias: boolean; inventario: boolean;
   rentabilidad: boolean; clientes: boolean; proveedores: boolean;
-  gastos: boolean; creditos: boolean; configuracion: boolean;
+  gastos: boolean; creditos: boolean; configuracion: boolean; campanias:boolean;
+  kits: boolean
   [key: string]: boolean
 }
 
@@ -207,6 +208,7 @@ const mainNav = [
   { name: "Punto de Venta", href: "/dashboard/pos",     icon: ShoppingCart,    key: "ventas" },
   { name: "Ventas",         href: "/dashboard/sales",   icon: Receipt,         key: "ventas" },
   { name: "Reportes",       href: "/dashboard/reports", icon: BarChart2,       key: "reportes" },
+  { name: "Campaña Descuentos",       href: "/dashboard/campanias", icon: Megaphone,     key: "campanias" },
 ]
 const catalogNav = [
   { name: "Productos",   href: "/dashboard/products",   icon: Package,    key: "productos" },
@@ -219,6 +221,7 @@ const mgmtNav = [
   { name: "Clientes",     href: "/dashboard/clients",  icon: Users,      key: "clientes" },
   { name: "Gastos",       href: "/dashboard/expenses", icon: DollarSign, key: "gastos" },
   { name: "Créditos",     href: "/dashboard/debts",    icon: CreditCard, key: "creditos" },
+  { name: "Kit Promoción",     href: "/dashboard/kits",    icon: Layers, key: "kits" },
   { name: "Configuración",href: "/dashboard/settings", icon: Settings,   key: "configuracion" },
 ]
 

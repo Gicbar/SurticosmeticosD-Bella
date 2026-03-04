@@ -114,7 +114,11 @@ function KpiCard({ title, value, sub, icon:Icon }: {
 }
 
 export default async function KitsPage() {
+
   const permissions = await getUserPermissions()
+  
+    if (!permissions?.permissions?.kits) redirect("/dashboard")
+  
   const companyId   = permissions?.company_id
   if (!companyId) redirect("/auth/sin-empresa")
 

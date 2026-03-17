@@ -30,7 +30,7 @@ export default async function ReportsPage() {
   ] = await Promise.all([
     supabase
       .from("sales")
-      .select("id, total, payment_method, sale_date, client_id, clients(name)")
+      .select("id, total, payment_method, sale_date, client_id, is_credit, clients(name), customer_debts(status, original_amount, debt_payments(amount))")
       .eq("company_id", companyId)
       .order("sale_date", { ascending: true }),
 

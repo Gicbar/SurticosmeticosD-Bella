@@ -8,7 +8,7 @@ import {
 import {
   TrendingUp, TrendingDown, DollarSign, ShoppingCart, Package,
   AlertTriangle, BarChart2, PieChart as PieIcon, Clock, Zap,
-  ArrowUpRight, ArrowDownRight, Tag, RotateCcw, ChevronRight,
+  ArrowUpRight, ArrowDownRight, Tag, RotateCcw, ChevronRight, Banknote,
 } from "lucide-react"
 
 // ─── CSS — mismo token system que dashboard, POS, Ventas ─────────────────────
@@ -117,9 +117,9 @@ const CSS = `
 .rd-g3 { display:grid; gap:10px; grid-template-columns:1fr; }
 @media(min-width:768px){ .rd-g3{ grid-template-columns:repeat(3,1fr); } }
 
-/* Cashflow */
+/* Panel cashflow expandido */
 .rd-cashflow { display:grid; gap:14px; grid-template-columns:1fr; margin-bottom:14px; }
-@media(min-width:768px){ .rd-cashflow{ grid-template-columns:200px 1fr; } }
+@media(min-width:768px){ .rd-cashflow{ grid-template-columns:220px 1fr; } }
 .rd-net { background:#fff; border:1px solid var(--border); padding:18px; display:flex; flex-direction:column; }
 .rd-net-lbl { font-size:8px; font-weight:700; letter-spacing:.2em; text-transform:uppercase; color:var(--muted); margin:0 0 5px; }
 .rd-net-val { font-family:'Cormorant Garamond',Georgia,serif; font-size:26px; font-weight:500; margin:0; line-height:1; }
@@ -129,6 +129,31 @@ const CSS = `
 .rd-net-sep  { height:1px; background:var(--border); margin:12px 0; }
 .rd-net-roi-lbl { font-size:8px; font-weight:700; letter-spacing:.2em; text-transform:uppercase; color:var(--muted); margin:0 0 3px; }
 .rd-net-roi { font-family:'Cormorant Garamond',Georgia,serif; font-size:20px; font-weight:500; color:var(--p); margin:0; }
+
+/* Cartera breakdown */
+.rd-cartera-row {
+  display:flex; justify-content:space-between; align-items:flex-start;
+  padding:10px 0; border-bottom:1px solid var(--border); gap:10px;
+}
+.rd-cartera-row:last-child { border-bottom:none; }
+.rd-cartera-rl { display:flex; align-items:flex-start; gap:8px; }
+.rd-cartera-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; margin-top:3px; }
+.rd-cartera-lbl { font-size:11px; font-weight:500; color:var(--txt); margin:0; }
+.rd-cartera-sub { font-size:10px; color:var(--muted); margin:2px 0 0; }
+.rd-cartera-val { font-family:'Cormorant Garamond',Georgia,serif; font-size:15px; font-weight:500; white-space:nowrap; flex-shrink:0; }
+.rd-cartera-val.pos  { color:var(--ok); }
+.rd-cartera-val.warn { color:var(--warn); }
+.rd-cartera-val.neg  { color:var(--danger); }
+.rd-cartera-val.muted { color:var(--muted); }
+
+/* Barra progreso efectivo */
+.rd-eff-bar { margin-top:10px; }
+.rd-eff-bar-hd { display:flex; justify-content:space-between; font-size:9px; font-weight:700; letter-spacing:.12em; text-transform:uppercase; color:var(--muted); margin-bottom:5px; }
+.rd-eff-track { height:6px; background:var(--border); display:flex; overflow:hidden; }
+.rd-eff-seg-ok   { height:100%; background:var(--ok);   transition:width .4s; }
+.rd-eff-seg-warn { height:100%; background:var(--warn); transition:width .4s; }
+.rd-eff-seg-red  { height:100%; background:var(--danger); transition:width .4s; }
+
 
 /* Barra progreso */
 .rd-bar-row { margin-bottom:12px; }
@@ -269,7 +294,15 @@ function colombiaMidnight(daysBack = 0): Date {
 }
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
-interface Sale { id: string; total: number; payment_method: string; sale_date: string; client_id: string | null; clients: { name: string } | null }
+interface Sale {
+  id: string; total: number; payment_method: string; sale_date: string; client_id: string | null
+  is_credit: boolean
+  clients: { name: string } | null
+  customer_debts?: {
+    status: string; original_amount?: number
+    debt_payments?: { amount: number }[]
+  }[] | null
+}
 interface SaleItem { id: string; sale_id: string; product_id: string; quantity: number; unit_price: number; subtotal: number; products: { name: string; category_id: string | null; categories: { name: string } | null } | null }
 interface Profit { sale_id: string; total_cost: number; total_sale: number; profit: number; profit_margin: number; created_at: string }
 interface Expense { id: string; description: string; amount: number; date: string; categories_expense: { name: string } | null }
@@ -477,6 +510,58 @@ export function ReportsDashboard({ sales, saleItems, profits, expenses, products
     return { net, roi: expT > 0 ? (net/expT)*100 : 0 }
   }, [profit, expT])
 
+  /* ── Desglose cartera: efectivo vs crédito ──────────────────────────────── */
+  const cartera = useMemo(() => {
+    const sumaAbonos = (debt: any) =>
+      ((debt?.debt_payments ?? []) as any[]).reduce((s: number, p: any) => s + Number(p.amount ?? 0), 0)
+
+    // Ventas contado: todo el total ya cobrado
+    const contado = fSales.filter(s => !s.is_credit)
+    const totalContado = contado.reduce((s, v) => s + Number(v.total), 0)
+
+    // Créditos saldados: también ya cobrado en su totalidad
+    const creditosPagados = fSales.filter(s => s.is_credit && s.customer_debts?.[0]?.status === "paid")
+    const totalCreditosPagados = creditosPagados.reduce((s, v) => s + Number(v.total), 0)
+
+    // Créditos abiertos: separar lo abonado (ya cobrado) del saldo pendiente
+    const creditosAbiertos = fSales.filter(s =>
+      s.is_credit && (s.customer_debts?.[0]?.status === "pending" || s.customer_debts?.[0]?.status === "partial")
+    )
+    const totalAbonosRecibidos = creditosAbiertos.reduce((s, v) => s + sumaAbonos(v.customer_debts?.[0]), 0)
+    const totalBrutoAbierto    = creditosAbiertos.reduce((s, v) =>
+      s + Number(v.customer_debts?.[0]?.original_amount ?? v.total), 0
+    )
+    const totalPendiente = Math.max(0, totalBrutoAbierto - totalAbonosRecibidos)
+
+    // Ingresos reales cobrados = contado + créditos saldados + abonos de abiertos
+    const revCobrado = totalContado + totalCreditosPagados + totalAbonosRecibidos
+
+    // Ganancia proporcional cobrada: (revCobrado / rev) * profit
+    // Solo calculamos si hay rev para evitar NaN
+    const pctCobrado     = rev > 0 ? revCobrado / rev : 1
+    const gananciaCobrada = profit * pctCobrado
+
+    // Flujo neto REAL (solo sobre lo cobrado) vs flujo total (incluye crédito pendiente)
+    const flujoReal  = gananciaCobrada - expT
+    const flujoTotal = profit - expT   // = cashflow.net
+
+    return {
+      totalContado,
+      totalCreditosPagados,
+      totalAbonosRecibidos,
+      totalBrutoAbierto,
+      totalPendiente,
+      revCobrado,
+      revPendiente: totalPendiente,
+      gananciaCobrada,
+      flujoReal,
+      flujoTotal,
+      cuentasPendientes: creditosAbiertos.filter(s => s.customer_debts?.[0]?.status === "pending").length,
+      cuentasAbonadas:   creditosAbiertos.filter(s => s.customer_debts?.[0]?.status === "partial").length,
+      creditosTotal:     fSales.filter(s => s.is_credit).length,
+    }
+  }, [fSales, profit, rev, expT])
+
   /* ── Resumen totalizado ─────────────────────────────────────────────────── */
   // Ganancia real = ganancia bruta (de ventas) - gastos operativos del período
   const gananciaReal = profit - expT
@@ -651,25 +736,84 @@ export function ReportsDashboard({ sales, saleItems, profits, expenses, products
         {tab === "rentabilidad" && (
           <div>
             <div className="rd-cashflow">
-              {/* Panel neto */}
+
+              {/* ── Panel izquierdo: Flujo neto ─────────────────────────── */}
               <div className="rd-net">
-                <p className="rd-net-lbl">Flujo neto</p>
-                <p className={`rd-net-val${cashflow.net >= 0 ? " pos" : " neg"}`}>{COP(cashflow.net)}</p>
-                <p className="rd-net-note">Ganancia − Gastos operativos</p>
+                <p className="rd-net-lbl">Flujo neto en efectivo</p>
+                <p className={`rd-net-val${cartera.flujoReal >= 0 ? " pos" : " neg"}`}>
+                  {COP(cartera.flujoReal)}
+                </p>
+                <p className="rd-net-note">Ganancia cobrada − Gastos</p>
+                <div className="rd-net-sep"/>
+                <p className="rd-net-roi-lbl">Flujo total (incl. cartera)</p>
+                <p className="rd-net-roi">{COP(cartera.flujoTotal)}</p>
                 <div className="rd-net-sep"/>
                 <p className="rd-net-roi-lbl">ROI operativo</p>
                 <p className="rd-net-roi">{PCT(cashflow.roi)}</p>
               </div>
 
-              {/* Barras ingresos vs costos */}
-              <div className="rd-card" style={{ margin:0 }}>
-                <CardHd icon={BarChart2} title="Ingresos vs Costos"/>
+              {/* ── Panel derecho: Efectivo vs Cartera + Ingresos vs Costos */}
+              <div className="rd-card" style={{ margin: 0 }}>
+                <CardHd icon={Banknote} title="Efectivo vs Cartera" sub="Dinero real en caja vs pendiente de cobro" />
                 <div className="rd-card-body">
+
+                  {/* Cobrado */}
+                  <div className="rd-cartera-row">
+                    <div className="rd-cartera-rl">
+                      <span className="rd-cartera-dot" style={{ background: "var(--ok)" }} aria-hidden />
+                      <div>
+                        <p className="rd-cartera-lbl">Cobrado — en efectivo</p>
+                        <p className="rd-cartera-sub">
+                          Contado: {COP(cartera.totalContado)}
+                          {cartera.totalCreditosPagados > 0 && ` · Crédito saldado: ${COP(cartera.totalCreditosPagados)}`}
+                          {cartera.totalAbonosRecibidos > 0 && ` · Abonos: ${COP(cartera.totalAbonosRecibidos)}`}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="rd-cartera-val pos">{COP(cartera.revCobrado)}</span>
+                  </div>
+
+                  {/* Cartera pendiente */}
+                  <div className="rd-cartera-row">
+                    <div className="rd-cartera-rl">
+                      <span className="rd-cartera-dot" style={{ background: "var(--warn)" }} aria-hidden />
+                      <div>
+                        <p className="rd-cartera-lbl">Cartera pendiente — por cobrar</p>
+                        <p className="rd-cartera-sub">
+                          {cartera.cuentasPendientes > 0 && `${cartera.cuentasPendientes} sin abono`}
+                          {cartera.cuentasAbonadas > 0 && ` · ${cartera.cuentasAbonadas} con abono parcial`}
+                          {cartera.totalBrutoAbierto > 0 && ` · original: ${COP(cartera.totalBrutoAbierto)}`}
+                          {(cartera.cuentasPendientes === 0 && cartera.cuentasAbonadas === 0) && "Sin créditos abiertos"}
+                        </p>
+                      </div>
+                    </div>
+                    <span className={`rd-cartera-val ${cartera.totalPendiente > 0 ? "warn" : "muted"}`}>
+                      {COP(cartera.totalPendiente)}
+                    </span>
+                  </div>
+
+                  {/* Barra cobrado vs pendiente */}
+                  {rev > 0 && (
+                    <div className="rd-eff-bar">
+                      <div className="rd-eff-bar-hd">
+                        <span>Cobrado {PCT(cartera.revCobrado / rev * 100)}</span>
+                        <span>Pendiente {PCT(cartera.totalPendiente / rev * 100)}</span>
+                      </div>
+                      <div className="rd-eff-track">
+                        <div className="rd-eff-seg-ok"   style={{ width: `${(cartera.revCobrado / rev) * 100}%` }} />
+                        <div className="rd-eff-seg-warn" style={{ width: `${(cartera.totalPendiente / rev) * 100}%` }} />
+                      </div>
+                    </div>
+                  )}
+
+                  <div style={{ height: 1, background: "var(--border)", margin: "14px 0 12px" }} />
+
+                  {/* Ingresos vs Costos */}
                   {[
-                    { label:"Ingresos brutos",   value:rev,                           pct:100,                                            cls:"" },
-                    { label:"Costo de ventas",    value:rev - profit,                  pct:rev ? ((rev-profit)/rev)*100 : 0,               cls:"danger" },
-                    { label:"Ganancia bruta",     value:profit,                        pct:rev ? (profit/rev)*100 : 0,                     cls:"ok" },
-                    { label:"Gastos operativos",  value:expT,                          pct:rev ? (expT/rev)*100 : 0,                       cls:"warn" },
+                    { label: "Ingresos brutos",    value: rev,           pct: 100,                               cls: "" },
+                    { label: "Costo de ventas",     value: rev - profit,  pct: rev ? ((rev-profit)/rev)*100 : 0,  cls: "danger" },
+                    { label: "Ganancia bruta",       value: profit,        pct: rev ? (profit/rev)*100 : 0,        cls: "ok" },
+                    { label: "Gastos operativos",    value: expT,          pct: rev ? (expT/rev)*100 : 0,          cls: "warn" },
                   ].map(r => (
                     <div key={r.label} className="rd-bar-row">
                       <div className="rd-bar-header">
@@ -677,7 +821,7 @@ export function ReportsDashboard({ sales, saleItems, profits, expenses, products
                         <span className="rd-bar-amt">{COP(r.value)}</span>
                       </div>
                       <div className="rd-bar-track">
-                        <div className={`rd-bar-fill ${r.cls}`} style={{ width:`${Math.min(r.pct,100)}%` }}/>
+                        <div className={`rd-bar-fill ${r.cls}`} style={{ width: `${Math.min(r.pct, 100)}%` }} />
                       </div>
                     </div>
                   ))}

@@ -216,13 +216,57 @@ const CSS = `
 .rd-tt-lbl  { font-weight:600; color:var(--txt); margin:0 0 4px; }
 .rd-tt-item { margin:2px 0; font-weight:500; }
 
-/* Vacío */
-.rd-empty { display:flex; flex-direction:column; align-items:center; gap:8px; padding:40px 20px; text-align:center; }
-.rd-empty-ico { width:38px; height:38px; background:var(--p10); display:flex; align-items:center; justify-content:center; }
-.rd-empty-ico svg { color:var(--p); opacity:.35; width:17px; height:17px; }
-.rd-empty-t { font-size:12px; font-weight:500; color:var(--txt); margin:0; }
-.rd-empty-s { font-size:11px; color:var(--muted); margin:0; }
+/* Toggles de serie en la gráfica consolidada */
+.rd-series-toggles { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:14px; }
+.rd-stoggle {
+  display:inline-flex; align-items:center; gap:6px; padding:4px 12px;
+  border:1px solid var(--border); background:#fff; cursor:pointer;
+  font-family:'DM Sans',sans-serif; font-size:11px; font-weight:500; color:var(--muted);
+  transition:all .15s; user-select:none;
+}
+.rd-stoggle:hover { border-color:var(--p20); color:var(--txt); }
+.rd-stoggle.on  { color:#fff; border-color:transparent; }
+.rd-stoggle-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; }
+
+/* Card resumen totalizado */
+.rd-resumen {
+  display:grid; gap:0; border:1px solid var(--border); background:#fff; margin-bottom:14px; overflow:hidden;
+}
+.rd-res-row {
+  display:flex; justify-content:space-between; align-items:center;
+  padding:13px 18px; border-bottom:1px solid var(--border);
+}
+.rd-res-row:last-child { border-bottom:none; }
+.rd-res-row.total { background:rgba(26,26,24,.02); }
+.rd-res-left  { display:flex; align-items:center; gap:10px; }
+.rd-res-dot   { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+.rd-res-lbl   { font-size:12px; font-weight:500; color:var(--txt); margin:0; }
+.rd-res-note  { font-size:10px; color:var(--muted); margin:2px 0 0; }
+.rd-res-val   { font-family:'Cormorant Garamond',Georgia,serif; font-size:17px; font-weight:500; }
+.rd-res-val.pos { color:var(--ok); }
+.rd-res-val.neg { color:var(--danger); }
+.rd-res-val.neu { color:var(--p); }
+.rd-res-val.exp { color:var(--warn); }
 `
+
+// ─── Timezone Colombia (UTC-5, sin DST) ───────────────────────────────────────
+// El servidor corre en UTC. Colombia siempre es UTC-5.
+// Convertimos restando 5h antes de cualquier comparación o agrupación por fecha.
+const COL_MS = 5 * 60 * 60 * 1000
+
+/** Desplaza un Date UTC a la hora Colombia equivalente */
+const toCol = (d: Date) => new Date(d.getTime() - COL_MS)
+
+/** Devuelve "YYYY-MM-DD" en hora Colombia dado un ISO string */
+const colDateStr = (iso: string) => toCol(new Date(iso)).toISOString().slice(0, 10)
+
+/** Medianoche de hoy en Colombia, expresada como Date (comparable con otros Date) */
+function colombiaMidnight(daysBack = 0): Date {
+  const nowCol = toCol(new Date())
+  nowCol.setUTCHours(0, 0, 0, 0)
+  nowCol.setUTCDate(nowCol.getUTCDate() - daysBack)
+  return nowCol
+}
 
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 interface Sale { id: string; total: number; payment_method: string; sale_date: string; client_id: string | null; clients: { name: string } | null }
@@ -242,6 +286,8 @@ const SHORT = (n: number) => n >= 1_000_000 ? `${(n/1_000_000).toFixed(1)}M` : n
 // Recharts no puede leer var() en atributos SVG nativos, usamos hex consistentes
 // El color primario lo asignamos directamente al primer slot
 const C = ["#984ca8","#c48fd4","#7b3d95","#ddb8e8","#5e2f73","#b870d8"]
+// Colores fijos para las 3 series de la gráfica consolidada
+const S = { Ventas: "#984ca8", Ganancia: "#16a34a", Gastos: "#dc2626" }
 const PERIOD = [
   { label:"7 días", days:7 }, { label:"30 días", days:30 },
   { label:"90 días", days:90 }, { label:"6 meses", days:180 }, { label:"1 año", days:365 },
@@ -307,16 +353,29 @@ function CardHd({ icon: Icon, title, sub }: { icon: any; title: string; sub?: st
 export function ReportsDashboard({ sales, saleItems, profits, expenses, products, batches }: Props) {
   const [days, setDays]   = useState(30)
   const [tab, setTab]     = useState<"ventas"|"rentabilidad"|"inventario"|"decisiones">("ventas")
+  const [vis, setVis]     = useState({ Ventas: true, Ganancia: true, Gastos: true })
 
-  /* ── Filtros de período ─────────────────────────────────────────────────── */
-  const cutoff = useMemo(() => { const d = new Date(); d.setDate(d.getDate()-days); return d }, [days])
-  const prevCutoff = useMemo(() => { const d = new Date(cutoff); d.setDate(d.getDate()-days); return d }, [cutoff, days])
+  /* ── Filtros de período (hora Colombia) ─────────────────────────────────── */
+  // colombiaMidnight() devuelve medianoche de HOY en Colombia.
+  // Comparamos con toCol(new Date(iso)) para que la fecha sea la local Colombia.
+  const cutoff     = useMemo(() => colombiaMidnight(days),       [days])
+  const prevCutoff = useMemo(() => colombiaMidnight(days * 2),   [days])
 
-  const fSales    = useMemo(() => sales.filter(s => new Date(s.sale_date) >= cutoff), [sales, cutoff])
-  const prevSales = useMemo(() => sales.filter(s => new Date(s.sale_date) >= prevCutoff && new Date(s.sale_date) < cutoff), [sales, cutoff, prevCutoff])
+  // Filtrar ventas comparando la FECHA COLOMBIA de sale_date con el cutoff Colombia
+  const fSales    = useMemo(() => sales.filter(s => toCol(new Date(s.sale_date)) >= cutoff), [sales, cutoff])
+  const prevSales = useMemo(() => sales.filter(s => {
+    const d = toCol(new Date(s.sale_date))
+    return d >= prevCutoff && d < cutoff
+  }), [sales, cutoff, prevCutoff])
   const fItems    = useMemo(() => { const ids = new Set(fSales.map(s => s.id)); return saleItems.filter(i => ids.has(i.sale_id)) }, [fSales, saleItems])
   const fProfits  = useMemo(() => { const ids = new Set(fSales.map(s => s.id)); return profits.filter(p => ids.has(p.sale_id)) }, [fSales, profits])
-  const fExp      = useMemo(() => expenses.filter(e => new Date(e.date) >= cutoff), [expenses, cutoff])
+  // Gastos: e.date puede venir como "YYYY-MM-DD" (tipo date) o
+  // como "YYYY-MM-DDT00:00:00+00:00" (tipo timestamptz).
+  // Normalizamos siempre con .slice(0,10) antes de parsear.
+  const fExp = useMemo(() => expenses.filter(e => {
+    const d = new Date(e.date.slice(0, 10) + "T12:00:00")
+    return d >= cutoff
+  }), [expenses, cutoff])
 
   /* ── KPIs ───────────────────────────────────────────────────────────────── */
   const rev     = fSales.reduce((s, v) => s + Number(v.total), 0)
@@ -331,25 +390,39 @@ export function ReportsDashboard({ sales, saleItems, profits, expenses, products
   const qty     = fItems.reduce((s, i) => s + i.quantity, 0)
   const ticket  = fSales.length ? rev/fSales.length : 0
 
-  /* ── Datos gráficas ─────────────────────────────────────────────────────── */
+  /* ── Datos gráfica consolidada (Ventas + Ganancia + Gastos por día) ──────── */
   const byDay = useMemo(() => {
-    const m: Record<string, { revenue: number; profit: number }> = {}
+    const m: Record<string, { Ventas: number; Ganancia: number; Gastos: number }> = {}
+
+    // Ventas agrupadas por fecha Colombia
     fSales.forEach(s => {
-      const d = s.sale_date.slice(0,10)
-      if (!m[d]) m[d] = { revenue:0, profit:0 }
-      m[d].revenue += Number(s.total)
+      const d = colDateStr(s.sale_date)
+      if (!m[d]) m[d] = { Ventas: 0, Ganancia: 0, Gastos: 0 }
+      m[d].Ventas += Number(s.total)
     })
+
+    // Ganancia del mismo día Colombia
     fProfits.forEach(p => {
       const sale = fSales.find(s => s.id === p.sale_id)
       if (!sale) return
-      const d = sale.sale_date.slice(0,10)
-      if (m[d]) m[d].profit += Number(p.profit)
+      const d = colDateStr(sale.sale_date)
+      if (!m[d]) m[d] = { Ventas: 0, Ganancia: 0, Gastos: 0 }
+      m[d].Ganancia += Number(p.profit)
     })
+
+    // Gastos por fecha (e.date = YYYY-MM-DD sin hora, ya es hora local)
+    fExp.forEach(e => {
+      const d = e.date.slice(0, 10)
+      if (!m[d]) m[d] = { Ventas: 0, Ganancia: 0, Gastos: 0 }
+      m[d].Gastos += Number(e.amount)
+    })
+
     return Object.entries(m).sort().map(([date, v]) => ({
-      date: new Date(date).toLocaleDateString("es-CO", { month:"short", day:"numeric" }),
-      Ingresos: v.revenue, Ganancia: v.profit,
+      // Mostrar como "10 mar." — parseamos con T12:00 para evitar drift UTC
+      date: new Date(date + "T12:00:00").toLocaleDateString("es-CO", { month: "short", day: "numeric" }),
+      ...v,
     }))
-  }, [fSales, fProfits])
+  }, [fSales, fProfits, fExp])
 
   const topProds = useMemo(() => {
     const m: Record<string, { name: string; qty: number; revenue: number }> = {}
@@ -404,6 +477,13 @@ export function ReportsDashboard({ sales, saleItems, profits, expenses, products
     return { net, roi: expT > 0 ? (net/expT)*100 : 0 }
   }, [profit, expT])
 
+  /* ── Resumen totalizado ─────────────────────────────────────────────────── */
+  // Ganancia real = ganancia bruta (de ventas) - gastos operativos del período
+  const gananciaReal = profit - expT
+  // Saldo = ingresos cobrados - costo de ventas - gastos operativos
+  const costoVentas  = rev - profit
+  const saldo        = rev - costoVentas - expT  // = gananciaReal
+
   // ─── RENDER ───────────────────────────────────────────────────────────────
   return (
     <>
@@ -449,31 +529,74 @@ export function ReportsDashboard({ sales, saleItems, profits, expenses, products
         {/* ════════════ TAB VENTAS ════════════════════════════════════════ */}
         {tab === "ventas" && (
           <div>
+
+            {/* ── Card resumen totalizado ──────────────────────────────── */}
+            <div className="rd-resumen">
+              {[
+                { dot: S.Ventas,   lbl: "Total ventas",       note: `${fSales.length} transacciones · ${qty} uds`,          val: COP(rev),           cls: "neu" },
+                { dot: S.Ganancia, lbl: "Ganancia bruta",      note: `Margen promedio: ${PCT(margin)}`,                       val: COP(profit),        cls: profit >= 0 ? "pos" : "neg" },
+                { dot: S.Gastos,   lbl: "Gastos operativos",   note: `${PCT(rev ? (expT/rev)*100 : 0)} sobre ingresos`,       val: COP(expT),          cls: "exp" },
+                { dot: gananciaReal >= 0 ? "#16a34a" : "#dc2626",
+                                   lbl: "Ganancia real",       note: "Ganancia bruta − Gastos operativos",                    val: COP(gananciaReal),  cls: gananciaReal >= 0 ? "pos" : "neg" },
+                { dot: saldo >= 0 ? "#16a34a" : "#dc2626",
+                                   lbl: "Saldo neto",          note: `Ingresos − Costos (${COP(costoVentas)}) − Gastos`,     val: COP(saldo),         cls: saldo >= 0 ? "pos" : "neg" },
+              ].map((r, i) => (
+                <div key={i} className={`rd-res-row${i >= 3 ? " total" : ""}`}>
+                  <div className="rd-res-left">
+                    <span className="rd-res-dot" style={{ background: r.dot }} aria-hidden />
+                    <div>
+                      <p className="rd-res-lbl">{r.lbl}</p>
+                      <p className="rd-res-note">{r.note}</p>
+                    </div>
+                  </div>
+                  <span className={`rd-res-val ${r.cls}`}>{r.val}</span>
+                </div>
+              ))}
+            </div>
+
+            {/* ── Gráfica consolidada ──────────────────────────────────── */}
             <div className="rd-card">
-              <CardHd icon={BarChart2} title="Ingresos y Ganancia por día" sub="Evolución del período seleccionado" />
+              <CardHd icon={BarChart2} title="Consolidado por día" sub="Ventas · Ganancia · Gastos — selecciona qué ver" />
               <div className="rd-card-body">
+                {/* Toggles de serie */}
+                <div className="rd-series-toggles">
+                  {(["Ventas", "Ganancia", "Gastos"] as const).map(key => (
+                    <button
+                      key={key}
+                      className={`rd-stoggle${vis[key] ? " on" : ""}`}
+                      style={vis[key] ? { background: S[key], borderColor: S[key] } : {}}
+                      onClick={() => setVis(v => ({ ...v, [key]: !v[key] }))}
+                    >
+                      <span className="rd-stoggle-dot" style={{ background: vis[key] ? "#fff" : S[key] }} aria-hidden />
+                      {key}
+                    </button>
+                  ))}
+                </div>
+
                 {byDay.length === 0 ? (
-                  <div className="rd-empty"><div className="rd-empty-ico"><BarChart2/></div><p className="rd-empty-t">Sin datos en este período</p></div>
+                  <div className="rd-empty">
+                    <div className="rd-empty-ico"><BarChart2 /></div>
+                    <p className="rd-empty-t">Sin datos en este período</p>
+                  </div>
                 ) : (
-                  <ResponsiveContainer width="100%" height={250}>
-                    <AreaChart data={byDay} margin={{ top:5, right:8, left:0, bottom:5 }}>
+                  <ResponsiveContainer width="100%" height={260}>
+                    <AreaChart data={byDay} margin={{ top: 5, right: 8, left: 0, bottom: 5 }}>
                       <defs>
-                        <linearGradient id="gR" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%"  stopColor={C[0]} stopOpacity={.22}/>
-                          <stop offset="95%" stopColor={C[0]} stopOpacity={0}/>
-                        </linearGradient>
-                        <linearGradient id="gP" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%"  stopColor={C[1]} stopOpacity={.22}/>
-                          <stop offset="95%" stopColor={C[1]} stopOpacity={0}/>
-                        </linearGradient>
+                        {(["Ventas", "Ganancia", "Gastos"] as const).map(k => (
+                          <linearGradient key={k} id={`g${k}`} x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="5%"  stopColor={S[k]} stopOpacity={.20} />
+                            <stop offset="95%" stopColor={S[k]} stopOpacity={0}   />
+                          </linearGradient>
+                        ))}
                       </defs>
-                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(26,26,24,.06)"/>
-                      <XAxis dataKey="date" tick={{ fontSize:10, fill:"rgba(26,26,24,.4)" }} axisLine={false} tickLine={false}/>
-                      <YAxis tickFormatter={v => `$${SHORT(v)}`} tick={{ fontSize:10, fill:"rgba(26,26,24,.4)" }} axisLine={false} tickLine={false}/>
-                      <Tooltip content={<Tt/>}/>
-                      <Legend wrapperStyle={{ fontSize:11 }}/>
-                      <Area type="monotone" dataKey="Ingresos" stroke={C[0]} fill="url(#gR)" strokeWidth={2} dot={false}/>
-                      <Area type="monotone" dataKey="Ganancia" stroke={C[1]} fill="url(#gP)" strokeWidth={2} dot={false}/>
+                      <CartesianGrid strokeDasharray="3 3" stroke="rgba(26,26,24,.06)" />
+                      <XAxis dataKey="date" tick={{ fontSize: 10, fill: "rgba(26,26,24,.4)" }} axisLine={false} tickLine={false} />
+                      <YAxis tickFormatter={v => `$${SHORT(v)}`} tick={{ fontSize: 10, fill: "rgba(26,26,24,.4)" }} axisLine={false} tickLine={false} />
+                      <Tooltip content={<Tt />} />
+                      <Legend wrapperStyle={{ fontSize: 11 }} />
+                      {vis.Ventas   && <Area type="monotone" dataKey="Ventas"   stroke={S.Ventas}   fill={`url(#gVentas)`}   strokeWidth={2} dot={false} />}
+                      {vis.Ganancia && <Area type="monotone" dataKey="Ganancia" stroke={S.Ganancia} fill={`url(#gGanancia)`} strokeWidth={2} dot={false} />}
+                      {vis.Gastos   && <Area type="monotone" dataKey="Gastos"   stroke={S.Gastos}   fill={`url(#gGastos)`}   strokeWidth={2} dot={false} />}
                     </AreaChart>
                   </ResponsiveContainer>
                 )}
@@ -481,20 +604,20 @@ export function ReportsDashboard({ sales, saleItems, profits, expenses, products
             </div>
 
             <div className="rd-g2">
-              <div className="rd-card" style={{ margin:0 }}>
-                <CardHd icon={TrendingUp} title="Top productos" sub="Por ingresos generados"/>
+              <div className="rd-card" style={{ margin: 0 }}>
+                <CardHd icon={TrendingUp} title="Top productos" sub="Por ingresos generados" />
                 <div className="rd-card-body">
                   {topProds.length === 0 ? (
-                    <div className="rd-empty"><div className="rd-empty-ico"><Package/></div><p className="rd-empty-t">Sin datos</p></div>
+                    <div className="rd-empty"><div className="rd-empty-ico"><Package /></div><p className="rd-empty-t">Sin datos</p></div>
                   ) : (
                     <ResponsiveContainer width="100%" height={230}>
-                      <BarChart data={topProds} layout="vertical" margin={{ left:0, right:14 }}>
-                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(26,26,24,.06)" horizontal={false}/>
-                        <XAxis type="number" tickFormatter={v => `$${SHORT(v)}`} tick={{ fontSize:10, fill:"rgba(26,26,24,.4)" }} axisLine={false} tickLine={false}/>
-                        <YAxis type="category" dataKey="name" width={96} tick={{ fontSize:10, fill:"rgba(26,26,24,.4)" }} axisLine={false} tickLine={false}/>
-                        <Tooltip content={<Tt/>}/>
-                        <Bar dataKey="revenue" name="Ingresos" radius={[0,2,2,0]}>
-                          {topProds.map((_,i) => <Cell key={i} fill={C[i % C.length]}/>)}
+                      <BarChart data={topProds} layout="vertical" margin={{ left: 0, right: 14 }}>
+                        <CartesianGrid strokeDasharray="3 3" stroke="rgba(26,26,24,.06)" horizontal={false} />
+                        <XAxis type="number" tickFormatter={v => `$${SHORT(v)}`} tick={{ fontSize: 10, fill: "rgba(26,26,24,.4)" }} axisLine={false} tickLine={false} />
+                        <YAxis type="category" dataKey="name" width={96} tick={{ fontSize: 10, fill: "rgba(26,26,24,.4)" }} axisLine={false} tickLine={false} />
+                        <Tooltip content={<Tt />} />
+                        <Bar dataKey="revenue" name="Ingresos" radius={[0, 2, 2, 0]}>
+                          {topProds.map((_, i) => <Cell key={i} fill={C[i % C.length]} />)}
                         </Bar>
                       </BarChart>
                     </ResponsiveContainer>
@@ -502,19 +625,19 @@ export function ReportsDashboard({ sales, saleItems, profits, expenses, products
                 </div>
               </div>
 
-              <div className="rd-card" style={{ margin:0 }}>
-                <CardHd icon={PieIcon} title="Métodos de pago" sub="Distribución de ingresos"/>
+              <div className="rd-card" style={{ margin: 0 }}>
+                <CardHd icon={PieIcon} title="Métodos de pago" sub="Distribución de ingresos" />
                 <div className="rd-card-body">
                   {byPay.length === 0 ? (
-                    <div className="rd-empty"><div className="rd-empty-ico"><PieIcon/></div><p className="rd-empty-t">Sin datos</p></div>
+                    <div className="rd-empty"><div className="rd-empty-ico"><PieIcon /></div><p className="rd-empty-t">Sin datos</p></div>
                   ) : (
                     <ResponsiveContainer width="100%" height={230}>
                       <PieChart>
                         <Pie data={byPay} cx="50%" cy="50%" innerRadius={52} outerRadius={86} paddingAngle={3} dataKey="value" nameKey="name">
-                          {byPay.map((_,i) => <Cell key={i} fill={C[i % C.length]}/>)}
+                          {byPay.map((_, i) => <Cell key={i} fill={C[i % C.length]} />)}
                         </Pie>
-                        <Tooltip formatter={(v: number) => COP(v)}/>
-                        <Legend wrapperStyle={{ fontSize:11 }}/>
+                        <Tooltip formatter={(v: number) => COP(v)} />
+                        <Legend wrapperStyle={{ fontSize: 11 }} />
                       </PieChart>
                     </ResponsiveContainer>
                   )}

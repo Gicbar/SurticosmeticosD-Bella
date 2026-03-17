@@ -34,8 +34,8 @@ table.et-tbl { width:100%; border-collapse:collapse; min-width:640px; }
 .et-tbl td.r { text-align:right; }
 
 /* Fecha */
-.et-date { display:flex; align-items:center; gap:5px; font-size:11px; color:var(--muted); }
-.et-date svg { width:11px; height:11px; }
+.et-date { display:flex; align-items:flex-start; gap:5px; font-size:11px; color:var(--muted); }
+.et-date svg { width:11px; height:11px; margin-top:2px; flex-shrink:0; }
 
 /* Descripción */
 .et-desc { display:flex; align-items:center; gap:7px; font-weight:500; }
@@ -69,9 +69,23 @@ table.et-tbl { width:100%; border-collapse:collapse; min-width:640px; }
 
 type Expense = { id:string; description:string; amount:number; category:string|null; date:string }
 
-const FMT = (s: string) => {
-  try { return new Date(s).toLocaleDateString("es-CO", { day:"2-digit", month:"short", year:"numeric" }) }
-  catch { return s }
+// Muestra fecha y hora en zona Colombia usando Intl (sin librerías externas)
+const FMT = (iso: string): { fecha: string; hora: string } => {
+  try {
+    const d = new Date(iso)
+    const fecha = new Intl.DateTimeFormat("es-CO", {
+      timeZone: "America/Bogota",
+      day: "2-digit", month: "short", year: "numeric",
+    }).format(d)
+    const hora = new Intl.DateTimeFormat("es-CO", {
+      timeZone: "America/Bogota",
+      hour: "2-digit", minute: "2-digit", second: "2-digit",
+      hour12: true,
+    }).format(d)
+    return { fecha, hora }
+  } catch {
+    return { fecha: iso, hora: "" }
+  }
 }
 
 const COP = (n: number|string|null|undefined): string => {
@@ -136,9 +150,20 @@ export function ExpensesTable({ expenses, companyId }: { expenses: Expense[]; co
                 {expenses.map(e => (
                   <tr key={e.id}>
                     <td>
-                      <div className="et-date">
-                        <Calendar aria-hidden />{FMT(e.date)}
-                      </div>
+                      {(() => {
+                        const { fecha, hora } = FMT(e.date)
+                        return (
+                          <div className="et-date">
+                            <Calendar aria-hidden />
+                            <div>
+                              <div>{fecha}</div>
+                              {hora && (
+                                <div style={{ fontSize: 10, opacity: 0.65, marginTop: 2 }}>{hora}</div>
+                              )}
+                            </div>
+                          </div>
+                        )
+                      })()}
                     </td>
                     <td>
                       <div className="et-desc">

@@ -116,6 +116,28 @@ const CSS = `
 @keyframes edSpin { to{ transform:rotate(360deg); } }
 `
 
+// ── Helpers timezone Colombia (UTC-5, sin DST) ────────────────────────────────
+const COL_MS = 5 * 60 * 60 * 1000
+
+/** "YYYY-MM-DD" de hoy en Colombia */
+function todayColStr(): string {
+  return new Date(Date.now() - COL_MS).toISOString().slice(0, 10)
+}
+
+/** "YYYY-MM-DD" de una fecha ISO almacenada en UTC, convertida a Colombia */
+function isoToColDateStr(iso: string): string {
+  return new Date(new Date(iso).getTime() - COL_MS).toISOString().slice(0, 10)
+}
+
+/**
+ * Convierte "YYYY-MM-DD" (fecha Colombia) al ISO UTC que se guarda en BD.
+ * Medianoche Colombia (00:00:00 GMT-5) = 05:00:00 UTC del mismo día.
+ */
+function colDateToUTCIso(dateStr: string): string {
+  const [y, m, d] = dateStr.split("-").map(Number)
+  return new Date(Date.UTC(y, m - 1, d, 5, 0, 0)).toISOString()
+}
+
 type Expense = { id:string; description:string; amount:number; category:string|null; date:string }
 
 function CategorySelect({ value, onChange, options, disabled }: {
@@ -177,8 +199,8 @@ export function ExpenseDialog({
     amount:      expense?.amount?.toString() || "",
     category:    expense?.category?.toString() || "",
     date:        expense?.date
-      ? new Date(expense.date).toISOString().split("T")[0]
-      : new Date().toISOString().split("T")[0],
+      ? isoToColDateStr(expense.date)   // edición: fecha almacenada → día Colombia
+      : todayColStr(),                  // nuevo: hoy en Colombia
   })
 
   useEffect(() => {
@@ -204,7 +226,7 @@ export function ExpenseDialog({
         description: form.description.trim(),
         amount:      parseFloat(form.amount),
         category:    form.category ? parseInt(form.category) : null,
-        date:        new Date(form.date).toISOString(),
+        date: colDateToUTCIso(form.date), // medianoche Colombia → UTC correcto
         created_by:  user.id,
         company_id:  companyId,
       }

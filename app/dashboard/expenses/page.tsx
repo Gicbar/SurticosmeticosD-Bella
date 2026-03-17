@@ -75,10 +75,18 @@ export default async function ExpensesPage() {
   const companyId = permissions.company_id
   if (!companyId) redirect("/auth/sin-empresa")
 
-  const now = new Date()
-  const firstDay  = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
-  const lastDay   = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59).toISOString()
-  const monthLabel = now.toLocaleDateString("es-CO", { month: "long", year: "numeric" })
+  // Colombia = UTC-5 sin DST. Calculamos límites del mes en hora Colombia.
+  const COL_MS = 5 * 60 * 60 * 1000
+  const nowCol = new Date(Date.now() - COL_MS)
+  const y  = nowCol.getUTCFullYear()
+  const mo = nowCol.getUTCMonth()
+  // Medianoche 1º del mes Colombia = 05:00 UTC de ese día
+  const firstDay = new Date(Date.UTC(y, mo,     1, 5, 0, 0)).toISOString()
+  // Último instante del mes Colombia = justo antes de las 05:00 UTC del 1º siguiente
+  const lastDay  = new Date(Date.UTC(y, mo + 1, 1, 5, 0, 0) - 1).toISOString()
+  const monthLabel = nowCol.toLocaleDateString("es-CO", {
+    month: "long", year: "numeric", timeZone: "America/Bogota",
+  })
 
   const supabase = await createClient()
   const [{ data: expenses }, { data: monthExpenses }] = await Promise.all([
@@ -89,7 +97,8 @@ export default async function ExpensesPage() {
   const totalMonth       = monthExpenses?.reduce((s, e) => s + Number(e.amount), 0) || 0
   const gastosOperativos = monthExpenses?.filter(e => e.category === "operativos").reduce((s, e) => s + Number(e.amount), 0) || 0
   const gastosGenerales  = monthExpenses?.filter(e => e.category === "generales").reduce((s, e) => s + Number(e.amount), 0) || 0
-  const promedioDiario   = now.getDate() > 0 ? totalMonth / now.getDate() : 0
+  const diaColombiaActual = nowCol.getUTCDate()
+  const promedioDiario = diaColombiaActual > 0 ? totalMonth / diaColombiaActual : 0
 
   return (
     <>
@@ -111,7 +120,7 @@ export default async function ExpensesPage() {
           <KpiCard title="Gastos del mes"    value={COP(totalMonth)}       sub={monthLabel}              icon={DollarSign} />
           <KpiCard title="Operativos"        value={COP(gastosOperativos)} sub="Operación diaria"        icon={TrendingUp} />
           <KpiCard title="Generales"         value={COP(gastosGenerales)}  sub="Administrativos y otros" icon={Receipt}    />
-          <KpiCard title="Promedio diario"   value={COP(promedioDiario)}   sub={`${now.getDate()} días`} icon={Calendar}   />
+          <KpiCard title="Promedio diario"   value={COP(promedioDiario)}   sub={`${diaColombiaActual} días`} icon={Calendar}   />
         </div>
 
         <div className="ex-table-wrap">

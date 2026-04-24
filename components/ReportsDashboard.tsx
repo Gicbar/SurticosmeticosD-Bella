@@ -537,14 +537,18 @@ export function ReportsDashboard({ sales, saleItems, profits, expenses, products
   // `days` = span del rango (inclusivo); se usa para velocidades y labels
   const days = useMemo(() => Math.max(1, daysBetween(dateFrom, dateTo)), [dateFrom, dateTo])
 
+  // Fin del día Colombia del rango (23:59:59.999) para incluir ventas del último día completo.
+  // dateTo sigue siendo medianoche (se usa como etiqueta/min-max del input); dateToEnd es solo para filtrar.
+  const dateToEnd = useMemo(() => { const d = new Date(dateTo); d.setUTCHours(23, 59, 59, 999); return d }, [dateTo])
+
   // Ventana previa del mismo tamaño inmediatamente anterior (comparativa)
   const prevFrom = useMemo(() => { const d = new Date(dateFrom); d.setUTCDate(d.getUTCDate() - days); return d }, [dateFrom, days])
-  const prevTo   = useMemo(() => { const d = new Date(dateFrom); d.setUTCDate(d.getUTCDate() - 1);    return d }, [dateFrom])
+  const prevTo   = useMemo(() => { const d = new Date(dateFrom); d.setUTCDate(d.getUTCDate() - 1); d.setUTCHours(23, 59, 59, 999); return d }, [dateFrom])
 
   const inRange = (d: Date, from: Date, to: Date) => d >= from && d <= to
 
   /* ── Filtros de período (hora Colombia) ─────────────────────────────────── */
-  const fSales    = useMemo(() => sales.filter(s => inRange(toCol(new Date(s.sale_date)), dateFrom, dateTo)), [sales, dateFrom, dateTo])
+  const fSales    = useMemo(() => sales.filter(s => inRange(toCol(new Date(s.sale_date)), dateFrom, dateToEnd)), [sales, dateFrom, dateToEnd])
   const prevSales = useMemo(() => sales.filter(s => inRange(toCol(new Date(s.sale_date)), prevFrom, prevTo)), [sales, prevFrom, prevTo])
   const fItems    = useMemo(() => { const ids = new Set(fSales.map(s => s.id)); return saleItems.filter(i => ids.has(i.sale_id)) }, [fSales, saleItems])
   const fProfits  = useMemo(() => { const ids = new Set(fSales.map(s => s.id)); return profits.filter(p => ids.has(p.sale_id)) }, [fSales, profits])
@@ -1039,7 +1043,7 @@ export function ReportsDashboard({ sales, saleItems, profits, expenses, products
           <div>
             <h1 className="rd-title"><span className="rd-dot" aria-hidden />Centro de Reportes</h1>
             <p className="rd-sub">
-              {fSales.length} ventas · {dateFrom.toLocaleDateString("es-CO", { day:"numeric", month:"short" })} → {dateTo.toLocaleDateString("es-CO", { day:"numeric", month:"short", year:"numeric" })} ({days} {days===1?"día":"días"})
+              {fSales.length} ventas · {dateFrom.toLocaleDateString("es-CO", { day:"numeric", month:"short", timeZone:"UTC" })} → {dateTo.toLocaleDateString("es-CO", { day:"numeric", month:"short", year:"numeric", timeZone:"UTC" })} ({days} {days===1?"día":"días"})
             </p>
           </div>
           <div className="rd-period">
@@ -1316,7 +1320,7 @@ export function ReportsDashboard({ sales, saleItems, profits, expenses, products
                   <ResponsiveContainer width="100%" height={210}>
                     <AreaChart data={[...fProfits]
                       .sort((a,b) => a.created_at.localeCompare(b.created_at))
-                      .map(p => ({ date: new Date(p.created_at.slice(0,10)).toLocaleDateString("es-CO", { month:"short", day:"numeric" }), margin: Number(p.profit_margin) }))}>
+                      .map(p => ({ date: new Date(colDateStr(p.created_at) + "T12:00:00").toLocaleDateString("es-CO", { month:"short", day:"numeric" }), margin: Number(p.profit_margin) }))}>
                       <defs>
                         <linearGradient id="gM" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%"  stopColor={C[0]} stopOpacity={.18}/>

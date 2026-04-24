@@ -50,7 +50,9 @@ const CATALOG_CSS = `
     font-family: 'DM Sans', sans-serif;
     background: #f8f7f5;
     min-height: 100vh;
+    min-height: 100svh;
     color: #1a1a18;
+    overflow-x: hidden;
 
     /* Tokens derivados del primary inyectado desde BD */
     --p:   var(--primary, #984ca8);
@@ -100,10 +102,11 @@ const CATALOG_CSS = `
 
   .cat-header-inner {
     max-width: 1400px; margin: 0 auto;
-    padding: 0 16px;
+    padding: 0 12px;
     display: flex; align-items: center; justify-content: space-between;
-    height: 58px; gap: 12px;
+    height: 58px; gap: 10px;
   }
+  @media (min-width: 420px) { .cat-header-inner { padding: 0 16px; gap: 12px; } }
   @media (min-width: 640px) {
     .cat-header-inner { padding: 0 28px; height: 68px; }
   }
@@ -122,12 +125,12 @@ const CATALOG_CSS = `
   @media (min-width: 640px) { .cat-logo { width: 44px; height: 44px; } }
 
   .cat-company-name {
-    font-size: 17px; font-weight: 400; line-height: 1; letter-spacing: .02em;
+    font-size: 16px; font-weight: 400; line-height: 1; letter-spacing: .02em;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    max-width: min(160px, 38vw);
+    max-width: min(180px, 48vw);
     color: var(--primary, #984ca8);
   }
-  @media (min-width: 480px) { .cat-company-name { max-width: 220px; font-size: 20px; } }
+  @media (min-width: 480px) { .cat-company-name { max-width: 260px; font-size: 20px; } }
 
   .cat-company-sub {
     font-size: 8px; letter-spacing: .22em; text-transform: uppercase;
@@ -136,8 +139,9 @@ const CATALOG_CSS = `
 
   /* Derecha del header */
   .cat-header-right {
-    display: flex; align-items: center; gap: 16px; flex-shrink: 0;
+    display: flex; align-items: center; gap: 10px; flex-shrink: 0;
   }
+  @media (min-width: 480px) { .cat-header-right { gap: 16px; } }
   .cat-ref-count {
     font-size: 10px; letter-spacing: .08em;
     color: rgba(var(--primary-rgb,152,76,168), .55);
@@ -175,9 +179,9 @@ const CATALOG_CSS = `
   }
   .cat-intro-inner {
     max-width: 1400px; margin: 0 auto;
-    padding: 28px 16px 24px;
+    padding: 22px 16px 20px;
     display: flex; align-items: flex-end; justify-content: space-between;
-    gap: 16px; flex-wrap: wrap;
+    gap: 14px; flex-wrap: wrap;
   }
   @media (min-width: 640px) { .cat-intro-inner { padding: 36px 28px 28px; } }
 
@@ -194,8 +198,9 @@ const CATALOG_CSS = `
   }
 
   .cat-intro-count {
-    text-align: right; flex-shrink: 0; padding-bottom: 4px;
+    text-align: left; flex-shrink: 0; padding-bottom: 4px;
   }
+  @media (min-width: 480px) { .cat-intro-count { text-align: right; } }
   .cat-intro-num {
     font-family: 'Cormorant Garamond', serif;
     font-size: clamp(30px, 6vw, 44px);
@@ -229,8 +234,9 @@ const CATALOG_CSS = `
   @media (min-width: 640px) { .cat-filters { top: 68px; } }
 
   .cat-filters-inner {
-    max-width: 1400px; margin: 0 auto; padding: 0 16px;
+    max-width: 1400px; margin: 0 auto; padding: 0 12px;
   }
+  @media (min-width: 420px) { .cat-filters-inner { padding: 0 16px; } }
   @media (min-width: 640px) { .cat-filters-inner { padding: 0 28px; } }
 
   .cat-search-row {
@@ -250,12 +256,15 @@ const CATALOG_CSS = `
   .cat-input {
     width: 100%; background: transparent; border: none;
     border-bottom: 1.5px solid rgba(26,26,24,.15);
-    padding: 6px 28px 6px 26px;
-    font-size: 13px; font-family: 'DM Sans', sans-serif;
+    padding: 8px 28px 8px 26px;
+    /* 16px evita zoom automático en iOS Safari al enfocar */
+    font-size: 16px; font-family: 'DM Sans', sans-serif;
     color: #1a1a18; outline: none;
     transition: border-color .2s;
-    -webkit-appearance: none;
+    -webkit-appearance: none; appearance: none;
+    border-radius: 0;
   }
+  @media (min-width: 640px) { .cat-input { font-size: 14px; } }
   .cat-input:focus { border-bottom-color: var(--primary, #984ca8); }
   .cat-input::placeholder { color: rgba(26,26,24,.35); }
 
@@ -286,14 +295,14 @@ const CATALOG_CSS = `
   /* ── Grid ────────────────────────────────────────────────────── */
   .cat-grid {
     display: grid;
-    gap: 16px;
-    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
-  @media (min-width: 480px)  { .cat-grid { gap: 18px; } }
-  @media (min-width: 540px)  { .cat-grid { grid-template-columns: repeat(3, 1fr); } }
-  @media (min-width: 768px)  { .cat-grid { grid-template-columns: repeat(4, 1fr); } }
-  @media (min-width: 1024px) { .cat-grid { grid-template-columns: repeat(5, 1fr); gap: 20px; } }
-  @media (min-width: 1280px) { .cat-grid { grid-template-columns: repeat(6, 1fr); } }
+  @media (min-width: 420px)  { .cat-grid { gap: 16px; } }
+  @media (min-width: 540px)  { .cat-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+  @media (min-width: 768px)  { .cat-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+  @media (min-width: 1024px) { .cat-grid { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 20px; } }
+  @media (min-width: 1280px) { .cat-grid { grid-template-columns: repeat(6, minmax(0, 1fr)); } }
 
   /* ── Card — sistema de sombras 3D ───────────────────────────── */
   .cat-card {
@@ -428,10 +437,10 @@ const CATALOG_CSS = `
   /* ── Botón añadir MÓVIL — circular siempre visible ──────────── */
   .cat-add-mobile {
     position: absolute; bottom: 10px; right: 10px;
-    width: 36px; height: 36px; border-radius: 50%;
+    width: 40px; height: 40px; border-radius: 50%;
     background: var(--primary, #984ca8); color: white;
     display: flex; align-items: center; justify-content: center;
-    border: none; cursor: pointer;
+    border: none; cursor: pointer; touch-action: manipulation;
     box-shadow: 0 4px 14px rgba(var(--primary-rgb,152,76,168), .40);
     transition: transform .15s, box-shadow .15s;
     -webkit-tap-highlight-color: transparent; z-index: 3;
@@ -441,11 +450,13 @@ const CATALOG_CSS = `
 
   /* ── Body de la tarjeta ──────────────────────────────────────── */
   .cat-body {
-    padding: 12px 13px 14px;
-    flex: 1; display: flex; flex-direction: column; gap: 8px;
+    padding: 10px 11px 12px;
+    flex: 1; display: flex; flex-direction: column; gap: 6px;
     background: linear-gradient(to bottom, rgba(var(--primary-rgb,152,76,168),.02) 0%, #fff 50%);
     transition: background .28s;
+    min-width: 0;
   }
+  @media (min-width: 420px) { .cat-body { padding: 12px 13px 14px; gap: 8px; } }
 
   .cat-category-label {
     font-size: 8px; letter-spacing: .18em; text-transform: uppercase;
@@ -454,11 +465,12 @@ const CATALOG_CSS = `
 
   .cat-name {
     font-family: 'Cormorant Garamond', serif;
-    font-size: 14px; font-weight: 400; line-height: 1.3; color: #1a1a18;
+    font-size: 13px; font-weight: 400; line-height: 1.3; color: #1a1a18;
     display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;
-    overflow: hidden; margin: 0;
+    overflow: hidden; margin: 0; word-break: break-word;
     transition: color .18s;
   }
+  @media (min-width: 420px) { .cat-name { font-size: 14px; } }
   @media (min-width: 640px) { .cat-name { font-size: 15px; } }
 
   /* Separador con gradiente coloreado */
@@ -474,24 +486,29 @@ const CATALOG_CSS = `
 
   .cat-price {
     font-family: 'Cormorant Garamond', serif;
-    font-size: 19px; font-weight: 500;
+    font-size: 17px; font-weight: 500;
     color: var(--primary, #984ca8); margin: 0;
     transition: transform .18s;
     text-shadow: 0 1px 8px rgba(var(--primary-rgb,152,76,168),.15);
+    transform-origin: left center;
   }
+  @media (min-width: 420px) { .cat-price { font-size: 19px; } }
   @media (min-width: 640px) { .cat-price { font-size: 21px; } }
 
   /* ── Sección de contenido ─────────────────────────────────────── */
   .cat-content {
     max-width: 1400px; margin: 0 auto;
-    padding: 20px 16px 80px;
+    padding: 16px 12px 48px;
+    padding-bottom: calc(48px + env(safe-area-inset-bottom, 0px));
   }
-  @media (min-width: 640px) { .cat-content { padding: 24px 28px 80px; } }
+  @media (min-width: 420px) { .cat-content { padding-left: 16px; padding-right: 16px; } }
+  @media (min-width: 640px) { .cat-content { padding: 24px 28px 80px; padding-bottom: calc(80px + env(safe-area-inset-bottom, 0px)); } }
 
   /* Contador de resultados */
   .cat-count-row {
-    display: flex; align-items: center; gap: 16px; margin-bottom: 20px;
+    display: flex; align-items: center; gap: 12px; margin-bottom: 16px;
   }
+  @media (min-width: 640px) { .cat-count-row { gap: 16px; margin-bottom: 20px; } }
   .cat-count-label {
     font-size: 9px; letter-spacing: .12em; text-transform: uppercase;
     color: rgba(26,26,24,.40); white-space: nowrap;
@@ -536,7 +553,8 @@ const CATALOG_CSS = `
   .cat-footer {
     background: var(--secondary, #f3edf7);
     border-top: 1px solid rgba(var(--primary-rgb,152,76,168),.15);
-    text-align: center; padding: 24px;
+    text-align: center; padding: 20px 16px;
+    padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
   }
   .cat-footer p {
     font-size: 9px; letter-spacing: .18em; text-transform: uppercase;
@@ -553,28 +571,33 @@ const CATALOG_CSS = `
   .cat-cart-drawer {
     position: absolute; top: 0; right: 0; bottom: 0;
     width: min(420px, 100vw);
+    max-width: 100vw;
     background: #FAFAF8;
     display: flex; flex-direction: column;
     animation: catSlideIn .32s cubic-bezier(.25,.46,.45,.94);
+    overflow: hidden;
   }
   .cat-drawer-hd {
-    padding: 22px 24px 20px;
+    padding: 18px 18px 16px;
     border-bottom: 1px solid rgba(26,26,24,.08);
     flex-shrink: 0;
     background: var(--secondary, #f3edf7);
     border-top: 3px solid var(--primary, #984ca8);
+    padding-top: calc(18px + env(safe-area-inset-top, 0px));
   }
+  @media (min-width: 480px) { .cat-drawer-hd { padding: 22px 24px 20px; } }
 
   /* Botón WhatsApp */
   .cat-wa-btn {
     display: flex; align-items: center; justify-content: center; gap: 8px;
     width: 100%; padding: 16px 14px;
+    padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
     background: var(--primary, #984ca8); color: white;
     font-size: 12px; font-weight: 600;
     letter-spacing: .12em; text-transform: uppercase;
     cursor: pointer; border: none; transition: opacity .2s;
     text-decoration: none; border-radius: 0;
-    -webkit-tap-highlight-color: transparent;
+    -webkit-tap-highlight-color: transparent; touch-action: manipulation;
   }
   .cat-wa-btn:hover { opacity: .88; }
 
@@ -591,10 +614,13 @@ const CATALOG_CSS = `
   }
   .cat-modal {
     background: white; width: 100%;
-    max-width: 480px; max-height: 92vh; overflow-y: auto;
+    max-width: 480px;
+    max-height: 92vh; max-height: 92dvh;
+    overflow-y: auto; overscroll-behavior: contain;
     border-radius: 20px 20px 0 0;
     animation: catSheetIn .32s cubic-bezier(.34,1.56,.64,1);
     border-top: 3px solid var(--primary, #984ca8);
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
   @media (min-width: 600px) {
     .cat-modal {
@@ -613,36 +639,62 @@ const CATALOG_CSS = `
   .cat-modal-body { padding: 18px 20px 24px; }
   @media (min-width: 600px) { .cat-modal-body { padding: 24px 28px 28px; } }
 
+  /* Precio + CTA en modal */
+  .cat-modal-cta-row {
+    display: flex; align-items: center; justify-content: space-between;
+    gap: 14px; flex-direction: column; align-items: stretch;
+  }
+  @media (min-width: 420px) {
+    .cat-modal-cta-row { flex-direction: row; align-items: center; }
+  }
+
   /* Botón añadir en modal */
   .cat-modal-add-btn {
     background: var(--primary, #984ca8); color: white; border: none;
-    display: flex; align-items: center; gap: 8px;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
     padding: 14px 22px; font-size: 11px; font-weight: 600;
     letter-spacing: .12em; text-transform: uppercase;
     cursor: pointer; flex-shrink: 0; border-radius: 10px;
     box-shadow: 0 4px 16px rgba(var(--primary-rgb,152,76,168), .35);
     transition: opacity .15s, transform .15s;
-    -webkit-tap-highlight-color: transparent;
+    -webkit-tap-highlight-color: transparent; touch-action: manipulation;
+    width: 100%;
   }
+  @media (min-width: 420px) { .cat-modal-add-btn { width: auto; } }
   .cat-modal-add-btn:hover { opacity: .88; }
   .cat-modal-add-btn:active { transform: scale(.97); }
 
   /* ── Qty controls ────────────────────────────────────────────── */
   .cat-qty-btn {
     border: 1.5px solid rgba(var(--primary-rgb,152,76,168),.25);
-    width: 26px; height: 26px; border-radius: 6px;
+    width: 32px; height: 32px; border-radius: 6px;
     cursor: pointer; display: flex; align-items: center; justify-content: center;
-    transition: all .14s;
+    transition: all .14s; touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
   }
   .cat-qty-btn.minus { background: #fff; color: rgba(26,26,24,.55); }
   .cat-qty-btn.plus  { background: var(--primary, #984ca8); color: white; border-color: transparent; }
   .cat-qty-btn:hover { opacity: .82; }
+  .cat-qty-btn:active { transform: scale(.92); }
 
   /* ── Separador neutro ────────────────────────────────────────── */
   .cat-divider {
     height: 1px;
     background: linear-gradient(90deg, transparent, rgba(26,26,24,.10), transparent);
   }
+
+  /* ── Cart items scroll ───────────────────────────────────────── */
+  .cat-cart-items {
+    flex: 1; overflow-y: auto; padding: 12px 18px;
+    overscroll-behavior: contain;
+  }
+  @media (min-width: 480px) { .cat-cart-items { padding: 16px 24px; } }
+
+  .cat-cart-foot {
+    padding: 14px 18px;
+    padding-bottom: calc(14px + env(safe-area-inset-bottom, 0px));
+  }
+  @media (min-width: 480px) { .cat-cart-foot { padding: 16px 24px; padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px)); } }
 
   /* ── Scrollbar ───────────────────────────────────────────────── */
   .cat-scroll::-webkit-scrollbar { width: 3px; }
@@ -1020,7 +1072,7 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
               </div>
 
               {/* Items */}
-              <div className="cat-scroll" style={{ flex: 1, overflowY: "auto", padding: "16px 24px" }}>
+              <div className="cat-scroll cat-cart-items">
                 {cart.length === 0 ? (
                   <div style={{ textAlign: "center", padding: "60px 0" }}>
                     <div style={{
@@ -1042,10 +1094,10 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
                   <div style={{ display: "flex", flexDirection: "column", gap: 0 }}>
                     {cart.map((item, idx) => (
                       <div key={item.id}>
-                        <div style={{ display: "flex", gap: 14, padding: "16px 0" }}>
+                        <div style={{ display: "flex", gap: 12, padding: "14px 0" }}>
                           {/* Miniatura */}
                           <div style={{
-                            width: 68, height: 84, flexShrink: 0,
+                            width: 60, height: 75, flexShrink: 0,
                             borderRadius: 10, overflow: "hidden",
                             background: "rgba(var(--primary-rgb,152,76,168),.06)",
                             border: "1px solid rgba(var(--primary-rgb,152,76,168),.10)",
@@ -1068,23 +1120,23 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
                                 {item.category_name}
                               </p>
                             )}
-                            <p className="cat-serif" style={{ fontSize: 14, fontWeight: 400, lineHeight: 1.3, marginBottom: 6 }}>
+                            <p className="cat-serif" style={{ fontSize: 14, fontWeight: 400, lineHeight: 1.3, marginBottom: 4, wordBreak: "break-word", display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
                               {item.name}
                             </p>
-                            <p style={{ fontSize: 13, fontWeight: 500, color: "var(--primary, #984ca8)", marginBottom: 10 }}>
+                            <p style={{ fontSize: 13, fontWeight: 500, color: "var(--primary, #984ca8)", marginBottom: 8 }}>
                               {formatCOP(item.sale_price)}
                             </p>
-                            <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                              <button className="cat-qty-btn minus" onClick={() => removeFromCart(item.id)}>
-                                <Minus size={10} />
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+                              <button className="cat-qty-btn minus" onClick={() => removeFromCart(item.id)} aria-label="Disminuir">
+                                <Minus size={12} />
                               </button>
-                              <span style={{ fontSize: 13, fontWeight: 600, minWidth: 16, textAlign: "center" }}>
+                              <span style={{ fontSize: 14, fontWeight: 600, minWidth: 18, textAlign: "center" }}>
                                 {item.quantity}
                               </span>
-                              <button className="cat-qty-btn plus" onClick={() => addToCart(item)}>
-                                <Plus size={10} />
+                              <button className="cat-qty-btn plus" onClick={() => addToCart(item)} aria-label="Aumentar">
+                                <Plus size={12} />
                               </button>
-                              <span style={{ marginLeft: "auto", fontSize: 12, fontWeight: 500, color: "rgba(26,26,24,.55)" }}>
+                              <span style={{ marginLeft: "auto", fontSize: 12, fontWeight: 500, color: "rgba(26,26,24,.55)", whiteSpace: "nowrap" }}>
                                 {formatCOP(item.sale_price * item.quantity)}
                               </span>
                             </div>
@@ -1100,7 +1152,7 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
               {/* Footer drawer */}
               {cart.length > 0 && (
                 <div style={{ borderTop: "1px solid rgba(26,26,24,.08)", flexShrink: 0 }}>
-                  <div style={{ padding: "16px 24px" }}>
+                  <div className="cat-cart-foot">
                     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
                       <span style={{ fontSize: 10, letterSpacing: ".14em", textTransform: "uppercase", color: "rgba(26,26,24,.45)" }}>
                         Total pedido
@@ -1184,7 +1236,7 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
                 <div className="cat-divider" style={{ marginBottom: 18 }} />
 
                 {/* Precio + CTA */}
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 14, flexWrap: "wrap" }}>
+                <div className="cat-modal-cta-row">
                   <div>
                     <p style={{ fontSize: 9, letterSpacing: ".14em", textTransform: "uppercase", color: "rgba(26,26,24,.4)", marginBottom: 5 }}>
                       Precio

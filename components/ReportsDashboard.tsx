@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useMemo } from "react"
+import { Fragment, useState, useMemo } from "react"
 import {
   AreaChart, Area, BarChart, Bar, PieChart, Pie, Cell,
   XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend,
@@ -8,8 +8,10 @@ import {
 import {
   TrendingUp, TrendingDown, DollarSign, ShoppingCart, Package,
   AlertTriangle, BarChart2, PieChart as PieIcon, Clock, Zap,
-  ArrowUpRight, ArrowDownRight, Tag, RotateCcw, ChevronRight, Banknote,
+  ArrowUpRight, ArrowDownRight, Tag, RotateCcw, ChevronRight, ChevronDown, Banknote,
+  Truck, ClipboardList, Download, ShoppingBag,
 } from "lucide-react"
+import * as XLSX from "xlsx"
 
 // ─── CSS — mismo token system que dashboard, POS, Ventas ─────────────────────
 const CSS = `
@@ -47,7 +49,21 @@ const CSS = `
 .rd-sub  { font-size:12px; color:var(--muted); margin:3px 0 0; }
 
 /* Período */
-.rd-period { display:flex; flex-wrap:wrap; gap:5px; }
+.rd-period { display:flex; flex-direction:column; gap:8px; align-items:flex-start; }
+@media(min-width:900px){ .rd-period{ flex-direction:row; align-items:center; } }
+.rd-period-presets { display:flex; flex-wrap:wrap; gap:5px; }
+.rd-period-range {
+  display:flex; flex-wrap:wrap; align-items:center; gap:6px;
+  font-size:10px; color:var(--muted); letter-spacing:.04em;
+}
+.rd-period-range label { font-size:9px; font-weight:700; letter-spacing:.14em; text-transform:uppercase; }
+.rd-period-range input[type="date"] {
+  font-family:'DM Sans',sans-serif; font-size:11px; color:var(--txt);
+  padding:4px 8px; border:1px solid var(--border); background:#fff; outline:none;
+  transition:border-color .14s;
+}
+.rd-period-range input[type="date"]:focus,
+.rd-period-range input[type="date"]:hover { border-color:var(--p40); }
 .rd-pbtn {
   padding:5px 12px; border:1px solid var(--border); background:#fff;
   font-family:'DM Sans',sans-serif; font-size:11px; font-weight:500;
@@ -55,6 +71,7 @@ const CSS = `
   transition:border-color .15s, color .15s, background .15s;
 }
 .rd-pbtn:hover { border-color:var(--p20); color:var(--txt); }
+.rd-pbtn:disabled { opacity:.5; cursor:not-allowed; }
 .rd-pbtn.on { background:var(--p); border-color:var(--p); color:#fff; }
 
 /* ── KPI grid ─────────────────────────────────────────────────────────── */
@@ -272,6 +289,56 @@ const CSS = `
 .rd-res-val.neg { color:var(--danger); }
 .rd-res-val.neu { color:var(--p); }
 .rd-res-val.exp { color:var(--warn); }
+
+/* ── Reposición: tags, matriz ABC×XYZ, explicación ───────────────────── */
+.rd-repo-tag {
+  display:inline-flex; align-items:center; padding:2px 8px;
+  font-size:10px; font-weight:500; background:var(--p06); color:var(--txt);
+  border:1px solid var(--border); white-space:nowrap;
+}
+.rd-repo-tag.up   { background:rgba(22,163,74,.08);  color:var(--ok);     border-color:rgba(22,163,74,.15); }
+.rd-repo-tag.down { background:rgba(220,38,38,.08);  color:var(--danger); border-color:rgba(220,38,38,.15); }
+
+.rd-explain {
+  font-size:12px; color:var(--txt); margin:0; line-height:1.6; font-style:italic;
+}
+
+.rd-matrix {
+  display:grid; grid-template-columns:110px repeat(3,1fr); gap:2px;
+  background:var(--border); padding:2px; margin-bottom:14px;
+}
+.rd-matrix-hd {
+  background:#fff; padding:10px 8px;
+  font-size:9px; font-weight:700; letter-spacing:.1em; text-transform:uppercase;
+  color:var(--muted); text-align:center;
+  display:flex; align-items:center; justify-content:center;
+}
+.rd-matrix-cell {
+  background:#fff; padding:14px 8px; text-align:center;
+  transition:background .15s;
+}
+.rd-matrix-cell:hover { background:var(--p06); }
+.rd-matrix-cnt {
+  font-family:'Cormorant Garamond',Georgia,serif;
+  font-size:22px; font-weight:500; color:var(--txt); line-height:1;
+}
+.rd-matrix-pct { font-size:10px; color:var(--muted); margin-top:4px; }
+.rd-matrix-legend {
+  display:grid; grid-template-columns:repeat(2,1fr); gap:10px 20px;
+  font-size:11px; color:var(--muted); margin-top:12px;
+}
+.rd-matrix-legend strong { color:var(--txt); font-weight:600; }
+
+.rd-repo-section-title {
+  font-family:'Cormorant Garamond',Georgia,serif;
+  font-size:16px; font-weight:500; color:var(--txt); margin:4px 0 12px;
+  display:flex; align-items:center; gap:8px;
+}
+.rd-repo-section-title .num {
+  width:22px; height:22px; background:var(--p); color:#fff;
+  display:inline-flex; align-items:center; justify-content:center;
+  font-size:11px; font-weight:700; border-radius:50%;
+}
 `
 
 // ─── Timezone Colombia (UTC-5, sin DST) ───────────────────────────────────────
@@ -293,6 +360,23 @@ function colombiaMidnight(daysBack = 0): Date {
   return nowCol
 }
 
+/** "YYYY-MM-DD" → Date medianoche Colombia (comparable con otros Date) */
+function ymdToCol(ymd: string): Date {
+  const [y, m, d] = ymd.split("-").map(Number)
+  const date = new Date(Date.UTC(y, (m || 1) - 1, d || 1))
+  return date
+}
+
+/** Date Colombia → "YYYY-MM-DD" para value de input[type=date] */
+function colToYmd(d: Date): string {
+  return d.toISOString().slice(0, 10)
+}
+
+/** Diferencia en días (incl. ambos extremos) entre dos fechas Colombia */
+function daysBetween(from: Date, to: Date): number {
+  return Math.round((to.getTime() - from.getTime()) / 86400000) + 1
+}
+
 // ─── Tipos ────────────────────────────────────────────────────────────────────
 interface Sale {
   id: string; total: number; payment_method: string; sale_date: string; client_id: string | null
@@ -306,8 +390,8 @@ interface Sale {
 interface SaleItem { id: string; sale_id: string; product_id: string; quantity: number; unit_price: number; subtotal: number; products: { name: string; category_id: string | null; categories: { name: string } | null } | null }
 interface Profit { sale_id: string; total_cost: number; total_sale: number; profit: number; profit_margin: number; created_at: string }
 interface Expense { id: string; description: string; amount: number; date: string; categories_expense: { name: string } | null }
-interface Product { id: string; name: string; sale_price: number; min_stock: number; category_id: string | null; categories: { name: string } | null }
-interface Batch { id: string; product_id: string; quantity: number; purchase_price: number; purchase_date: string; remaining_quantity: number; products: { name: string } | null }
+interface Product { id: string; name: string; sale_price: number; min_stock: number; category_id: string | null; supplier_id?: string | null; categories: { name: string } | null; suppliers?: { id: string; name: string } | null }
+interface Batch { id: string; product_id: string; quantity: number; purchase_price: number; purchase_date: string; remaining_quantity: number; supplier_id?: string | null; products: { name: string } | null; suppliers?: { id: string; name: string } | null }
 interface Props { sales: Sale[]; saleItems: SaleItem[]; profits: Profit[]; expenses: Expense[]; products: Product[]; batches: Batch[]; companyId: string }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -321,16 +405,75 @@ const SHORT = (n: number) => n >= 1_000_000 ? `${(n/1_000_000).toFixed(1)}M` : n
 const C = ["#984ca8","#c48fd4","#7b3d95","#ddb8e8","#5e2f73","#b870d8"]
 // Colores fijos para las 3 series de la gráfica consolidada
 const S = { Ventas: "#984ca8", Ganancia: "#16a34a", Gastos: "#dc2626" }
-const PERIOD = [
-  { label:"7 días", days:7 }, { label:"30 días", days:30 },
-  { label:"90 días", days:90 }, { label:"6 meses", days:180 }, { label:"1 año", days:365 },
+/** Presets rápidos: calculan [from, to] dinámicamente al hacer clic */
+const PRESETS: { label: string; range: () => [Date, Date] }[] = [
+  { label: "Hoy",        range: () => [colombiaMidnight(0),   colombiaMidnight(0)] },
+  { label: "7 días",     range: () => [colombiaMidnight(6),   colombiaMidnight(0)] },
+  { label: "30 días",    range: () => [colombiaMidnight(29),  colombiaMidnight(0)] },
+  { label: "90 días",    range: () => [colombiaMidnight(89),  colombiaMidnight(0)] },
+  { label: "Este mes",   range: () => {
+    const t = colombiaMidnight(0)
+    const from = new Date(t); from.setUTCDate(1)
+    return [from, t]
+  }},
+  { label: "Mes pasado", range: () => {
+    const t = colombiaMidnight(0)
+    const from = new Date(t); from.setUTCDate(1); from.setUTCMonth(from.getUTCMonth() - 1)
+    const to   = new Date(t); to.setUTCDate(1); to.setUTCDate(0) // último día mes anterior
+    return [from, to]
+  }},
+  { label: "Este año",   range: () => {
+    const t = colombiaMidnight(0)
+    const from = new Date(t); from.setUTCMonth(0, 1)
+    return [from, t]
+  }},
 ]
 const TABS = [
-  { key:"ventas",       label:"Ventas",       icon:BarChart2  },
-  { key:"rentabilidad", label:"Rentabilidad",  icon:TrendingUp },
-  { key:"inventario",   label:"Inventario",    icon:Package    },
-  { key:"decisiones",   label:"Decisiones",    icon:Zap        },
+  { key:"ventas",       label:"Ventas",       icon:BarChart2     },
+  { key:"rentabilidad", label:"Rentabilidad",  icon:TrendingUp    },
+  { key:"inventario",   label:"Inventario",    icon:Package       },
+  { key:"reposicion",   label:"Reposición",    icon:Truck         },
+  { key:"decisiones",   label:"Decisiones",    icon:Zap           },
 ] as const
+
+// ── Parámetros Reposición (modelo analítico) ─────────────────────────────────
+// Defaults basados en prácticas estándar de gestión de inventario:
+// · Cobertura más corta para productos Clave (se revisan seguido), más larga para Marginales
+// · Nivel de servicio más alto para Clave (Z=2.05 ≈ 98%), más bajo para Marginal (Z=1.28 ≈ 90%)
+const REPO_CFG = {
+  leadDias:                    5,                    // días hábiles promedio del proveedor
+  cobertura:                   { A: 30, B: 45, C: 60 } as const,
+  Z:                           { A: 2.05, B: 1.65, C: 1.28 } as const,
+  sobrestockDiasCobertura:     90,
+  sobrestockDiasSinVenta:      60,
+  minHistoriaSimple:           14,                   // < este umbral: solo promedio plano, sin tendencia/CV
+}
+
+type Clase     = "A" | "B" | "C"
+type Patron    = "X" | "Y" | "Z"
+type Tendencia = "up" | "flat" | "down"
+type Estado    = "AGOTADO" | "CRITICO" | "BAJO" | "OK" | "DORMIDO"
+
+const CLASE_LABEL:     Record<Clase,     string> = { A: "⭐ Clave",    B: "◼ Normal",   C: "· Marginal" }
+const PATRON_LABEL:    Record<Patron,    string> = { X: "📈 Estable",  Y: "📊 Variable", Z: "⚡ Errático" }
+const TENDENCIA_LABEL: Record<Tendencia, string> = { up: "↗ Subiendo", flat: "→ Estable", down: "↘ Bajando" }
+
+function explicarSugerencia(f: {
+  name: string; stock: number; demandaDiaria: number; diasRestantes: number;
+  clase: Clase; cobertura: number; SS: number; sugerido: number;
+}): string {
+  const vel    = f.demandaDiaria
+  const dr     = isFinite(f.diasRestantes) ? Math.floor(f.diasRestantes) : null
+  const claseT = f.clase === "A" ? "Clave" : f.clase === "B" ? "Normal" : "Marginal"
+  const nivel  = f.clase === "A" ? "98%"   : f.clase === "B" ? "95%"    : "90%"
+  const ss     = Math.round(f.SS)
+  const estadoStock = f.stock === 0
+    ? "ya está agotado"
+    : dr !== null
+      ? `se acaba en ~${dr} día${dr === 1 ? "" : "s"}`
+      : "no tiene ventas recientes"
+  return `Vendes ~${vel.toFixed(1)} uds/día, tienes ${f.stock} en stock → ${estadoStock}. El proveedor tarda ${REPO_CFG.leadDias} días. Como es un producto ${claseT.toLowerCase()}, se busca ${f.cobertura} días de cobertura con nivel de servicio ${nivel}. Compra sugerida: ${f.sugerido} uds (cubre demora + ${f.cobertura} días${ss > 0 ? ` + ${ss} uds de seguridad por variabilidad` : ""}).`
+}
 
 // ─── Sub-componentes ──────────────────────────────────────────────────────────
 function Tt({ active, payload, label }: any) {
@@ -384,31 +527,30 @@ function CardHd({ icon: Icon, title, sub }: { icon: any; title: string; sub?: st
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 export function ReportsDashboard({ sales, saleItems, profits, expenses, products, batches }: Props) {
-  const [days, setDays]   = useState(30)
-  const [tab, setTab]     = useState<"ventas"|"rentabilidad"|"inventario"|"decisiones">("ventas")
+  const [dateFrom, setDateFrom] = useState<Date>(() => colombiaMidnight(29))
+  const [dateTo,   setDateTo]   = useState<Date>(() => colombiaMidnight(0))
+  const [tab, setTab]     = useState<"ventas"|"rentabilidad"|"inventario"|"reposicion"|"decisiones">("ventas")
   const [vis, setVis]     = useState({ Ventas: true, Ganancia: true, Gastos: true })
+  const [filaExpandida, setFilaExpandida] = useState<string | null>(null)
+
+  /* ── Rango derivado ─────────────────────────────────────────────────────── */
+  // `days` = span del rango (inclusivo); se usa para velocidades y labels
+  const days = useMemo(() => Math.max(1, daysBetween(dateFrom, dateTo)), [dateFrom, dateTo])
+
+  // Ventana previa del mismo tamaño inmediatamente anterior (comparativa)
+  const prevFrom = useMemo(() => { const d = new Date(dateFrom); d.setUTCDate(d.getUTCDate() - days); return d }, [dateFrom, days])
+  const prevTo   = useMemo(() => { const d = new Date(dateFrom); d.setUTCDate(d.getUTCDate() - 1);    return d }, [dateFrom])
+
+  const inRange = (d: Date, from: Date, to: Date) => d >= from && d <= to
 
   /* ── Filtros de período (hora Colombia) ─────────────────────────────────── */
-  // colombiaMidnight() devuelve medianoche de HOY en Colombia.
-  // Comparamos con toCol(new Date(iso)) para que la fecha sea la local Colombia.
-  const cutoff     = useMemo(() => colombiaMidnight(days),       [days])
-  const prevCutoff = useMemo(() => colombiaMidnight(days * 2),   [days])
-
-  // Filtrar ventas comparando la FECHA COLOMBIA de sale_date con el cutoff Colombia
-  const fSales    = useMemo(() => sales.filter(s => toCol(new Date(s.sale_date)) >= cutoff), [sales, cutoff])
-  const prevSales = useMemo(() => sales.filter(s => {
-    const d = toCol(new Date(s.sale_date))
-    return d >= prevCutoff && d < cutoff
-  }), [sales, cutoff, prevCutoff])
+  const fSales    = useMemo(() => sales.filter(s => inRange(toCol(new Date(s.sale_date)), dateFrom, dateTo)), [sales, dateFrom, dateTo])
+  const prevSales = useMemo(() => sales.filter(s => inRange(toCol(new Date(s.sale_date)), prevFrom, prevTo)), [sales, prevFrom, prevTo])
   const fItems    = useMemo(() => { const ids = new Set(fSales.map(s => s.id)); return saleItems.filter(i => ids.has(i.sale_id)) }, [fSales, saleItems])
   const fProfits  = useMemo(() => { const ids = new Set(fSales.map(s => s.id)); return profits.filter(p => ids.has(p.sale_id)) }, [fSales, profits])
-  // Gastos: e.date puede venir como "YYYY-MM-DD" (tipo date) o
-  // como "YYYY-MM-DDT00:00:00+00:00" (tipo timestamptz).
-  // Normalizamos siempre con .slice(0,10) antes de parsear.
-  const fExp = useMemo(() => expenses.filter(e => {
-    const d = new Date(e.date.slice(0, 10) + "T12:00:00")
-    return d >= cutoff
-  }), [expenses, cutoff])
+  // Gastos: e.date puede venir como "YYYY-MM-DD" (date) o timestamptz.
+  // Normalizamos a medianoche Colombia (fecha local) para consistencia.
+  const fExp = useMemo(() => expenses.filter(e => inRange(ymdToCol(e.date.slice(0, 10)), dateFrom, dateTo)), [expenses, dateFrom, dateTo])
 
   /* ── KPIs ───────────────────────────────────────────────────────────────── */
   const rev     = fSales.reduce((s, v) => s + Number(v.total), 0)
@@ -510,6 +652,325 @@ export function ReportsDashboard({ sales, saleItems, profits, expenses, products
     return { net, roi: expT > 0 ? (net/expT)*100 : 0 }
   }, [profit, expT])
 
+  /* ── Reposición: modelo analítico ABC/XYZ ───────────────────────────────── */
+  // Capas:
+  //  1) ABC por margen acumulado (Pareto 80/15/5)
+  //  2) XYZ por CV de ventas semanales
+  //  3) Pronóstico = media móvil ponderada 4 semanas × (1 + tendencia acotada)
+  //  4) Stock seguridad = Z × σ × √leadTime
+  //  5) Sugerencia = demanda × (lead + cobertura_clase) + SS − stock
+  //  6) Priorización por margen en riesgo (no por unidades)
+  //  7) Ventas perdidas estimadas + detección de sobrestock
+  const reposicion = useMemo(() => {
+    // Mapa sale_id → fecha Colombia (evita scan O(N²))
+    const saleDate: Record<string, string> = {}
+    fSales.forEach(s => { saleDate[s.id] = colDateStr(s.sale_date) })
+
+    // Arreglo de fechas YYYY-MM-DD en orden dentro del rango
+    const rangeDates: string[] = []
+    for (let i = 0; i < days; i++) {
+      const d = new Date(dateFrom); d.setUTCDate(d.getUTCDate() + i)
+      rangeDates.push(colToYmd(d))
+    }
+
+    // Serie de ventas por producto (diaria + agregados + última venta)
+    type Serie = { vendidas: number; ingreso: number; diario: Record<string, number>; ultimaVenta: string | null }
+    const porProd: Record<string, Serie> = {}
+    fItems.forEach(i => {
+      const d = saleDate[i.sale_id]
+      if (!d) return
+      if (!porProd[i.product_id]) porProd[i.product_id] = { vendidas: 0, ingreso: 0, diario: {}, ultimaVenta: null }
+      const s = porProd[i.product_id]
+      s.vendidas += i.quantity
+      s.ingreso  += Number(i.subtotal)
+      s.diario[d] = (s.diario[d] || 0) + i.quantity
+      if (!s.ultimaVenta || d > s.ultimaVenta) s.ultimaVenta = d
+    })
+
+    // Stock, último costo y proveedor por producto
+    const stockPorProd:       Record<string, number> = {}
+    const ultimoCostoPorProd: Record<string, number> = {}
+    const proveedorPorProd:   Record<string, { id: string; name: string } | null> = {}
+    batches.forEach(b => {
+      if (b.remaining_quantity > 0) stockPorProd[b.product_id] = (stockPorProd[b.product_id] || 0) + b.remaining_quantity
+      if (ultimoCostoPorProd[b.product_id] === undefined) ultimoCostoPorProd[b.product_id] = Number(b.purchase_price)
+      if (proveedorPorProd[b.product_id] === undefined) {
+        proveedorPorProd[b.product_id] = b.suppliers ? { id: b.suppliers.id, name: b.suppliers.name } : null
+      }
+    })
+
+    // Desv. estándar poblacional (suficiente para CV — evita NaN si n<2)
+    const stddev = (arr: number[]): number => {
+      if (arr.length < 2) return 0
+      const mean = arr.reduce((a, b) => a + b, 0) / arr.length
+      const v    = arr.reduce((a, b) => a + (b - mean) ** 2, 0) / arr.length
+      return Math.sqrt(v)
+    }
+    // Pendiente relativa (slope / ȳ) — proporción de cambio por periodo
+    const slopePct = (arr: number[]): number => {
+      if (arr.length < 2) return 0
+      const n    = arr.length
+      const xBar = (n - 1) / 2
+      const yBar = arr.reduce((a, b) => a + b, 0) / n
+      if (yBar === 0) return 0
+      let num = 0, den = 0
+      for (let i = 0; i < n; i++) { num += (i - xBar) * (arr[i] - yBar); den += (i - xBar) ** 2 }
+      if (den === 0) return 0
+      return (num / den) / yBar
+    }
+
+    // Procesar cada producto (métricas independientes de clase)
+    const base = products.map(p => {
+      const serie    = porProd[p.id]
+      const stock    = stockPorProd[p.id] || 0
+      const costoUnit = ultimoCostoPorProd[p.id] ?? 0
+
+      const vendidas   = serie?.vendidas || 0
+      const ingreso    = serie?.ingreso  || 0
+      const precioProm = vendidas > 0 ? ingreso / vendidas : Number(p.sale_price || 0)
+      const margenUnit = Math.max(0, precioProm - costoUnit)
+      const margenTotal = margenUnit * vendidas
+
+      // Serie diaria completa (0s incluidos) y agregados semanales
+      const serieDiaria = rangeDates.map(d => serie?.diario[d] || 0)
+      const sigmaDiaria = stddev(serieDiaria)
+      const meanDiario  = vendidas / days
+
+      const semanas: number[] = []
+      for (let i = 0; i < serieDiaria.length; i += 7) {
+        semanas.push(serieDiaria.slice(i, i + 7).reduce((a, b) => a + b, 0))
+      }
+      const cv    = meanDiario > 0 ? sigmaDiaria / meanDiario : 0
+      const slope = semanas.length >= 2 ? slopePct(semanas) : 0
+      const slopeClamp = Math.max(-0.30, Math.min(0.30, slope))
+
+      // Media móvil ponderada (4/3/2/1) sobre últimas 4 semanas, /7 → uds/día
+      const last4 = semanas.slice(-4)
+      const pesos = [1, 2, 3, 4].slice(-last4.length)
+      let demBase = meanDiario
+      if (last4.length >= 1) {
+        const num = last4.reduce((a, b, i) => a + b * pesos[i], 0)
+        const den = pesos.reduce((a, b) => a + b, 0)
+        demBase = (num / den) / 7
+      }
+      // Tendencia solo si hay historia suficiente
+      const demandaDiaria = days >= REPO_CFG.minHistoriaSimple ? demBase * (1 + slopeClamp) : meanDiario
+
+      // Patrón XYZ
+      let patron: Patron
+      if (days < REPO_CFG.minHistoriaSimple || vendidas < 3) patron = "Y"  // historia insuficiente → neutral
+      else if (cv < 0.5) patron = "X"
+      else if (cv < 1)   patron = "Y"
+      else               patron = "Z"
+
+      const tendencia: Tendencia = slope > 0.10 ? "up" : slope < -0.10 ? "down" : "flat"
+      const diasRestantes = demandaDiaria > 0 ? stock / demandaDiaria : Infinity
+
+      // Ventas perdidas (heurística conservadora): si stock=0 y hubo ventas,
+      // aproximamos "días sin stock" como días desde la última venta hasta dateTo
+      let diasSinStock = 0
+      if (stock === 0 && serie?.ultimaVenta) {
+        diasSinStock = Math.max(0, daysBetween(ymdToCol(serie.ultimaVenta), dateTo) - 1)
+      }
+      const velPrevia         = (days - diasSinStock) > 0 ? vendidas / Math.max(1, days - diasSinStock) : 0
+      const ventasPerdidasUds = Math.round(diasSinStock * velPrevia)
+      const dineroPerdido     = ventasPerdidasUds * margenUnit
+
+      return {
+        id: p.id,
+        name: p.name,
+        categoria: p.categories?.name || "Sin categoría",
+        stock, vendidas, ingreso,
+        margenUnit, margenTotal,
+        demandaDiaria, demandaBase: demBase,
+        sigmaDiaria, cv, slope,
+        patron, tendencia,
+        diasRestantes,
+        costoUnit, precioProm,
+        proveedor: p.suppliers
+          ? { id: p.suppliers.id, name: p.suppliers.name }
+          : proveedorPorProd[p.id] || null,
+        diasSinStock, ventasPerdidasUds, dineroPerdido,
+        tieneHistoria: vendidas > 0,
+      }
+    })
+
+    // ABC por margen acumulado (Pareto 80/15/5)
+    const conMargen = base.filter(f => f.margenTotal > 0).sort((a, b) => b.margenTotal - a.margenTotal)
+    const margenTotalGlobal = conMargen.reduce((s, f) => s + f.margenTotal, 0)
+    const claseMap: Record<string, Clase> = {}
+    let acum = 0
+    conMargen.forEach(f => {
+      acum += f.margenTotal
+      const pct = margenTotalGlobal > 0 ? acum / margenTotalGlobal : 1
+      claseMap[f.id] = pct <= 0.80 ? "A" : pct <= 0.95 ? "B" : "C"
+    })
+
+    // Capa dependiente de clase: cobertura, SS, ROP, sugerencia y estado
+    const completas = base.map(f => {
+      const clase: Clase = f.tieneHistoria ? (claseMap[f.id] || "C") : "C"
+      const cobertura    = REPO_CFG.cobertura[clase]
+      const Z            = REPO_CFG.Z[clase]
+      const SS           = Math.max(0, Z * f.sigmaDiaria * Math.sqrt(REPO_CFG.leadDias))
+      const ROP          = f.demandaDiaria * REPO_CFG.leadDias + SS
+      const sugerido     = Math.max(0, Math.ceil(f.demandaDiaria * (REPO_CFG.leadDias + cobertura) + SS - f.stock))
+      const costoEst     = sugerido * f.costoUnit
+      const margenEnRiesgoDiario = f.margenUnit * f.demandaDiaria
+
+      // Detección de sobrestock (dormido)
+      const sinVentaDias = f.tieneHistoria ? 0 : days
+      const sobrestock   = f.diasRestantes > REPO_CFG.sobrestockDiasCobertura
+                        || (sinVentaDias >= REPO_CFG.sobrestockDiasSinVenta && f.stock > 0)
+
+      let estado: Estado
+      if (sobrestock)                                         estado = "DORMIDO"
+      else if (f.stock === 0 && f.tieneHistoria)              estado = "AGOTADO"
+      else if (f.diasRestantes <= REPO_CFG.leadDias + 2)      estado = "CRITICO"
+      else if (f.diasRestantes <= cobertura / 2)              estado = "BAJO"
+      else                                                    estado = "OK"
+
+      return { ...f, clase, cobertura, SS, ROP, sugerido, costoEst, margenEnRiesgoDiario, estado }
+    })
+
+    // Bloques ordenados
+    const agotados = completas.filter(f => f.estado === "AGOTADO").sort((a, b) => b.margenEnRiesgoDiario - a.margenEnRiesgoDiario)
+    const criticos = completas.filter(f => f.estado === "CRITICO").sort((a, b) => a.diasRestantes - b.diasRestantes)
+    const bajos    = completas.filter(f => f.estado === "BAJO").sort((a, b) => a.diasRestantes - b.diasRestantes)
+    const dormidos = completas
+      .filter(f => f.estado === "DORMIDO" && f.stock > 0)
+      .map(f => ({ ...f, capitalDormido: f.stock * f.costoUnit }))
+      .sort((a, b) => b.capitalDormido - a.capitalDormido)
+    const ventasPerdidas = completas
+      .filter(f => f.ventasPerdidasUds > 0)
+      .sort((a, b) => b.dineroPerdido - a.dineroPerdido)
+
+    // Orden de compra agrupada por proveedor (priorizada por margen en riesgo)
+    const conSugerencia = completas.filter(f => f.sugerido > 0 && f.estado !== "DORMIDO")
+    const porProveedor: Record<string, { provId: string | null; provName: string; items: typeof completas; subtotal: number }> = {}
+    conSugerencia.forEach(f => {
+      const key = f.proveedor?.id || "SIN_PROV"
+      if (!porProveedor[key]) {
+        porProveedor[key] = {
+          provId:   f.proveedor?.id || null,
+          provName: f.proveedor?.name || "Sin proveedor",
+          items:    [],
+          subtotal: 0,
+        }
+      }
+      porProveedor[key].items.push(f)
+      porProveedor[key].subtotal += f.costoEst
+    })
+    const ordenGrupos = Object.values(porProveedor)
+      .map(g => ({ ...g, items: g.items.sort((a, b) => b.margenEnRiesgoDiario - a.margenEnRiesgoDiario) }))
+      .sort((a, b) => b.subtotal - a.subtotal)
+
+    const totalOrden   = ordenGrupos.reduce((s, g) => s + g.subtotal, 0)
+    const unidadesOrden = conSugerencia.reduce((s, f) => s + f.sugerido, 0)
+
+    // Matriz ABC × XYZ (solo productos con historia)
+    const matriz: Record<Clase, Record<Patron, { count: number; margen: number }>> = {
+      A: { X: { count: 0, margen: 0 }, Y: { count: 0, margen: 0 }, Z: { count: 0, margen: 0 } },
+      B: { X: { count: 0, margen: 0 }, Y: { count: 0, margen: 0 }, Z: { count: 0, margen: 0 } },
+      C: { X: { count: 0, margen: 0 }, Y: { count: 0, margen: 0 }, Z: { count: 0, margen: 0 } },
+    }
+    completas.forEach(f => {
+      if (!f.tieneHistoria) return
+      matriz[f.clase][f.patron].count++
+      matriz[f.clase][f.patron].margen += f.margenTotal
+    })
+
+    // Histograma de cobertura (SKUs con stock y con historia)
+    const bucketsLbl = ["0-7d", "8-15d", "16-30d", "31-60d", "61-90d", ">90d"]
+    const histograma = bucketsLbl.map(l => ({ bucket: l, count: 0 }))
+    completas.forEach(f => {
+      if (!f.tieneHistoria || f.stock === 0) return
+      const d = f.diasRestantes
+      if (!isFinite(d)) return
+      if      (d <=  7) histograma[0].count++
+      else if (d <= 15) histograma[1].count++
+      else if (d <= 30) histograma[2].count++
+      else if (d <= 60) histograma[3].count++
+      else if (d <= 90) histograma[4].count++
+      else              histograma[5].count++
+    })
+
+    // KPIs agregados
+    const dineroEnRiesgo = agotados.reduce((s, f) => s + f.dineroPerdido, 0)
+      + criticos.reduce((s, f) => s + f.margenUnit * Math.max(0, REPO_CFG.leadDias - f.diasRestantes) * f.demandaDiaria, 0)
+    const capitalDormidoTotal = dormidos.reduce((s, f) => s + f.capitalDormido, 0)
+
+    return {
+      agotados, criticos, bajos, dormidos, ventasPerdidas,
+      ordenGrupos, totalOrden, unidadesOrden,
+      matriz, histograma, margenTotalGlobal,
+      dineroEnRiesgo, capitalDormidoTotal,
+      completas,
+    }
+  }, [products, batches, fItems, fSales, days, dateFrom, dateTo])
+
+  const descargarOrdenExcel = () => {
+    // Hoja 1 — "Orden": limpia, para enviar/imprimir
+    const rowsOrden: any[] = []
+    reposicion.ordenGrupos.forEach(g => {
+      g.items.forEach(it => {
+        rowsOrden.push({
+          Proveedor: g.provName,
+          Producto: it.name,
+          "Cantidad sugerida": it.sugerido,
+          "Costo unit.": it.costoUnit,
+          "Costo total": it.costoEst,
+        })
+      })
+      rowsOrden.push({
+        Proveedor: `Subtotal ${g.provName}`,
+        Producto: "",
+        "Cantidad sugerida": g.items.reduce((s, i) => s + i.sugerido, 0),
+        "Costo unit.": "",
+        "Costo total": g.subtotal,
+      })
+      rowsOrden.push({})
+    })
+    rowsOrden.push({
+      Proveedor: "TOTAL ORDEN",
+      Producto: "",
+      "Cantidad sugerida": reposicion.unidadesOrden,
+      "Costo unit.": "",
+      "Costo total": reposicion.totalOrden,
+    })
+
+    // Hoja 2 — "Análisis": técnica, con todas las variables del modelo
+    const rowsAnalisis = reposicion.completas
+      .filter(f => f.sugerido > 0)
+      .sort((a, b) => b.margenEnRiesgoDiario - a.margenEnRiesgoDiario)
+      .map(f => ({
+        Producto:              f.name,
+        Categoría:             f.categoria,
+        Proveedor:             f.proveedor?.name || "Sin proveedor",
+        Clase:                 `${f.clase} · ${f.clase === "A" ? "Clave" : f.clase === "B" ? "Normal" : "Marginal"}`,
+        Patrón:                `${f.patron} · ${f.patron === "X" ? "Estable" : f.patron === "Y" ? "Variable" : "Errático"}`,
+        Tendencia:             f.tendencia === "up" ? "Subiendo" : f.tendencia === "down" ? "Bajando" : "Estable",
+        Estado:                f.estado,
+        "Stock actual":        f.stock,
+        "Vendidas (período)":  f.vendidas,
+        "Velocidad (uds/día)": Number(f.demandaDiaria.toFixed(2)),
+        "Días restantes":      isFinite(f.diasRestantes) ? Math.floor(f.diasRestantes) : "∞",
+        "Cobertura objetivo":  f.cobertura,
+        "Stock seguridad":     Math.round(f.SS),
+        "Punto reorden":       Math.round(f.ROP),
+        "Cantidad sugerida":   f.sugerido,
+        "Costo unit.":         f.costoUnit,
+        "Costo total":         f.costoEst,
+        "Margen unit.":        Number(f.margenUnit.toFixed(0)),
+        "Margen en riesgo/día": Number(f.margenEnRiesgoDiario.toFixed(0)),
+      }))
+
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rowsOrden),    "Orden")
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(rowsAnalisis), "Análisis")
+    const hoy = new Date().toISOString().slice(0, 10)
+    XLSX.writeFile(wb, `orden-compra-${hoy}.xlsx`)
+  }
+
   /* ── Desglose cartera: efectivo vs crédito ──────────────────────────────── */
   const cartera = useMemo(() => {
     const sumaAbonos = (debt: any) =>
@@ -565,9 +1026,7 @@ export function ReportsDashboard({ sales, saleItems, profits, expenses, products
   /* ── Resumen totalizado ─────────────────────────────────────────────────── */
   // Ganancia real = ganancia bruta (de ventas) - gastos operativos del período
   const gananciaReal = profit - expT
-  // Saldo = ingresos cobrados - costo de ventas - gastos operativos
   const costoVentas  = rev - profit
-  const saldo        = rev - costoVentas - expT  // = gananciaReal
 
   // ─── RENDER ───────────────────────────────────────────────────────────────
   return (
@@ -579,14 +1038,35 @@ export function ReportsDashboard({ sales, saleItems, profits, expenses, products
         <div className="rd-page-hd">
           <div>
             <h1 className="rd-title"><span className="rd-dot" aria-hidden />Centro de Reportes</h1>
-            <p className="rd-sub">Análisis gerencial · {fSales.length} ventas en los últimos {days} días</p>
+            <p className="rd-sub">
+              {fSales.length} ventas · {dateFrom.toLocaleDateString("es-CO", { day:"numeric", month:"short" })} → {dateTo.toLocaleDateString("es-CO", { day:"numeric", month:"short", year:"numeric" })} ({days} {days===1?"día":"días"})
+            </p>
           </div>
           <div className="rd-period">
-            {PERIOD.map(o => (
-              <button key={o.days} className={`rd-pbtn${days===o.days?" on":""}`} onClick={() => setDays(o.days)}>
-                {o.label}
-              </button>
-            ))}
+            <div className="rd-period-presets">
+              {PRESETS.map(p => (
+                <button key={p.label} className="rd-pbtn" onClick={() => { const [f, t] = p.range(); setDateFrom(f); setDateTo(t) }}>
+                  {p.label}
+                </button>
+              ))}
+            </div>
+            <div className="rd-period-range">
+              <label>Desde</label>
+              <input
+                type="date"
+                value={colToYmd(dateFrom)}
+                max={colToYmd(dateTo)}
+                onChange={e => { if (e.target.value) setDateFrom(ymdToCol(e.target.value)) }}
+              />
+              <label>Hasta</label>
+              <input
+                type="date"
+                value={colToYmd(dateTo)}
+                min={colToYmd(dateFrom)}
+                max={colToYmd(colombiaMidnight(0))}
+                onChange={e => { if (e.target.value) setDateTo(ymdToCol(e.target.value)) }}
+              />
+            </div>
           </div>
         </div>
 
@@ -622,9 +1102,7 @@ export function ReportsDashboard({ sales, saleItems, profits, expenses, products
                 { dot: S.Ganancia, lbl: "Ganancia bruta",      note: `Margen promedio: ${PCT(margin)}`,                       val: COP(profit),        cls: profit >= 0 ? "pos" : "neg" },
                 { dot: S.Gastos,   lbl: "Gastos operativos",   note: `${PCT(rev ? (expT/rev)*100 : 0)} sobre ingresos`,       val: COP(expT),          cls: "exp" },
                 { dot: gananciaReal >= 0 ? "#16a34a" : "#dc2626",
-                                   lbl: "Ganancia real",       note: "Ganancia bruta − Gastos operativos",                    val: COP(gananciaReal),  cls: gananciaReal >= 0 ? "pos" : "neg" },
-                { dot: saldo >= 0 ? "#16a34a" : "#dc2626",
-                                   lbl: "Saldo neto",          note: `Ingresos − Costos (${COP(costoVentas)}) − Gastos`,     val: COP(saldo),         cls: saldo >= 0 ? "pos" : "neg" },
+                                   lbl: "Ganancia real",       note: `Ganancia bruta − Gastos · Costo vendido: ${COP(costoVentas)}`, val: COP(gananciaReal),  cls: gananciaReal >= 0 ? "pos" : "neg" },
               ].map((r, i) => (
                 <div key={i} className={`rd-res-row${i >= 3 ? " total" : ""}`}>
                   <div className="rd-res-left">
@@ -808,9 +1286,8 @@ export function ReportsDashboard({ sales, saleItems, profits, expenses, products
 
                   <div style={{ height: 1, background: "var(--border)", margin: "14px 0 12px" }} />
 
-                  {/* Ingresos vs Costos */}
+                  {/* Composición de ingresos (% sobre ingresos brutos) */}
                   {[
-                    { label: "Ingresos brutos",    value: rev,           pct: 100,                               cls: "" },
                     { label: "Costo de ventas",     value: rev - profit,  pct: rev ? ((rev-profit)/rev)*100 : 0,  cls: "danger" },
                     { label: "Ganancia bruta",       value: profit,        pct: rev ? (profit/rev)*100 : 0,        cls: "ok" },
                     { label: "Gastos operativos",    value: expT,          pct: rev ? (expT/rev)*100 : 0,          cls: "warn" },
@@ -837,9 +1314,9 @@ export function ReportsDashboard({ sales, saleItems, profits, expenses, products
                   <div className="rd-empty"><div className="rd-empty-ico"><TrendingUp/></div><p className="rd-empty-t">Sin datos de rentabilidad</p></div>
                 ) : (
                   <ResponsiveContainer width="100%" height={210}>
-                    <AreaChart data={fProfits
-                      .map(p => ({ date: new Date(p.created_at.slice(0,10)).toLocaleDateString("es-CO", { month:"short", day:"numeric" }), margin: Number(p.profit_margin) }))
-                      .sort((a,b) => a.date.localeCompare(b.date))}>
+                    <AreaChart data={[...fProfits]
+                      .sort((a,b) => a.created_at.localeCompare(b.created_at))
+                      .map(p => ({ date: new Date(p.created_at.slice(0,10)).toLocaleDateString("es-CO", { month:"short", day:"numeric" }), margin: Number(p.profit_margin) }))}>
                       <defs>
                         <linearGradient id="gM" x1="0" y1="0" x2="0" y2="1">
                           <stop offset="5%"  stopColor={C[0]} stopOpacity={.18}/>
@@ -967,12 +1444,319 @@ export function ReportsDashboard({ sales, saleItems, profits, expenses, products
           </div>
         )}
 
+        {/* ════════════ TAB REPOSICIÓN ════════════════════════════════════ */}
+        {tab === "reposicion" && (
+          <div>
+            {/* ═══ SECCIÓN 1 — Acción inmediata ═══════════════════════════ */}
+            <h3 className="rd-repo-section-title"><span className="num">1</span>Acción inmediata</h3>
+            <div className="rd-g3" style={{ marginBottom: 14 }}>
+              <Kpi
+                title="Productos agotados"
+                value={`${reposicion.agotados.length}`}
+                sub="se venden y están en 0"
+                icon={AlertTriangle} inv
+              />
+              <Kpi
+                title="En riesgo esta semana"
+                value={`${reposicion.criticos.length}`}
+                sub={`llegarán tarde · lead ${REPO_CFG.leadDias}d`}
+                icon={Clock} inv
+              />
+              <Kpi
+                title="Dinero en riesgo"
+                value={`$${SHORT(reposicion.dineroEnRiesgo)}`}
+                sub="margen que dejas de ganar"
+                icon={TrendingDown} inv
+              />
+            </div>
+
+            <div className="rd-card">
+              <CardHd
+                icon={AlertTriangle}
+                title="Comprar YA"
+                sub="Priorizado por dinero en riesgo · clic en una fila para ver por qué"
+              />
+              <div className="rd-scroll">
+                <table className="rd-table">
+                  <thead>
+                    <tr>
+                      {["Producto", "Clase", "Patrón", "Tendencia", "Stock", "Vendido", "Sugerido", "Costo est.", "Proveedor", ""].map(h => (
+                        <th key={h}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {reposicion.agotados.length === 0 && reposicion.criticos.length === 0 ? (
+                      <tr><td colSpan={10} style={{ padding: 36, textAlign: "center", color: "rgba(26,26,24,.4)", fontSize: 12 }}>Nada urgente: sin agotados ni críticos.</td></tr>
+                    ) : [...reposicion.agotados, ...reposicion.criticos].map((f) => {
+                      const exp    = filaExpandida === f.id
+                      const esAgot = f.estado === "AGOTADO"
+                      const rowBg  = esAgot ? "rgba(220,38,38,.025)" : "rgba(217,119,6,.025)"
+                      return (
+                        <Fragment key={f.id}>
+                          <tr
+                            style={{ background: rowBg, cursor: "pointer" }}
+                            onClick={() => setFilaExpandida(exp ? null : f.id)}
+                          >
+                            <td style={{ fontWeight: 500 }}>
+                              <span className={`rd-badge ${esAgot ? "danger" : "warn"}`} style={{ marginRight: 6 }}>
+                                {esAgot ? "Agotado" : "Crítico"}
+                              </span>
+                              {f.name}
+                            </td>
+                            <td><span className="rd-repo-tag">{CLASE_LABEL[f.clase]}</span></td>
+                            <td><span className="rd-repo-tag">{PATRON_LABEL[f.patron]}</span></td>
+                            <td>
+                              <span className={`rd-repo-tag ${f.tendencia === "up" ? "up" : f.tendencia === "down" ? "down" : ""}`}>
+                                {TENDENCIA_LABEL[f.tendencia]}
+                              </span>
+                            </td>
+                            <td className="muted">{f.stock}</td>
+                            <td className="muted">{f.vendidas} uds</td>
+                            <td style={{ fontWeight: 700 }}>{f.sugerido}</td>
+                            <td><span className="rd-money">{COP(f.costoEst)}</span></td>
+                            <td className="muted">{f.proveedor?.name || "—"}</td>
+                            <td>{exp ? <ChevronDown size={12} /> : <ChevronRight size={12} />}</td>
+                          </tr>
+                          {exp && (
+                            <tr>
+                              <td colSpan={10} style={{ background: "rgba(26,26,24,.02)", padding: "12px 16px" }}>
+                                <p className="rd-explain">{explicarSugerencia(f)}</p>
+                              </td>
+                            </tr>
+                          )}
+                        </Fragment>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            {/* ═══ SECCIÓN 2 — Orden de compra ═══════════════════════════ */}
+            <h3 className="rd-repo-section-title" style={{ marginTop: 24 }}>
+              <span className="num">2</span>Orden de compra sugerida
+            </h3>
+            <div className="rd-card">
+              <div className="rd-card-hd" style={{ justifyContent: "space-between" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <div className="rd-card-ico" aria-hidden><ClipboardList /></div>
+                  <div>
+                    <p className="rd-card-title">Agrupada por proveedor</p>
+                    <p className="rd-card-sub">
+                      Cobertura por clase · {CLASE_LABEL.A}: {REPO_CFG.cobertura.A}d · {CLASE_LABEL.B}: {REPO_CFG.cobertura.B}d · {CLASE_LABEL.C}: {REPO_CFG.cobertura.C}d · + lead {REPO_CFG.leadDias}d
+                    </p>
+                  </div>
+                </div>
+                <button
+                  className="rd-pbtn on"
+                  style={{ display: "inline-flex", alignItems: "center", gap: 6 }}
+                  onClick={descargarOrdenExcel}
+                  disabled={reposicion.ordenGrupos.length === 0}
+                >
+                  <Download size={12} /> Descargar Excel
+                </button>
+              </div>
+              <div className="rd-card-body">
+                {reposicion.ordenGrupos.length === 0 ? (
+                  <div className="rd-empty">
+                    <div className="rd-empty-ico"><ShoppingBag /></div>
+                    <p className="rd-empty-t">No hay productos que reponer</p>
+                    <p className="rd-empty-s">Todo el inventario tiene cobertura suficiente</p>
+                  </div>
+                ) : reposicion.ordenGrupos.map((g, gi) => (
+                  <div key={gi} style={{ marginBottom: 18 }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 0", borderBottom: "1px solid var(--border)", marginBottom: 8 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                        <Truck size={14} style={{ color: "var(--p)" }} />
+                        <span style={{ fontWeight: 600, fontSize: 13 }}>{g.provName}</span>
+                        <span style={{ fontSize: 10, color: "var(--muted)" }}>
+                          {g.items.length} productos · {g.items.reduce((s, i) => s + i.sugerido, 0)} uds
+                        </span>
+                      </div>
+                      <span className="rd-money" style={{ fontWeight: 600 }}>{COP(g.subtotal)}</span>
+                    </div>
+                    <div className="rd-scroll">
+                      <table className="rd-table">
+                        <thead>
+                          <tr>{["Producto", "Clase", "Stock", "Vendidas", "Días rest.", "Sugerido", "Costo unit.", "Costo est."].map(h => <th key={h}>{h}</th>)}</tr>
+                        </thead>
+                        <tbody>
+                          {g.items.map((it, ii) => (
+                            <tr key={ii}>
+                              <td style={{ fontWeight: 500 }}>{it.name}</td>
+                              <td><span className="rd-repo-tag">{CLASE_LABEL[it.clase]}</span></td>
+                              <td className="muted">{it.stock}</td>
+                              <td className="muted">{it.vendidas}</td>
+                              <td className="muted">{isFinite(it.diasRestantes) ? `${Math.floor(it.diasRestantes)}d` : "—"}</td>
+                              <td style={{ fontWeight: 700 }}>{it.sugerido}</td>
+                              <td className="muted">{it.costoUnit > 0 ? COP(it.costoUnit) : "—"}</td>
+                              <td><span className="rd-money">{COP(it.costoEst)}</span></td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ))}
+
+                {reposicion.ordenGrupos.length > 0 && (
+                  <div style={{ display: "flex", justifyContent: "space-between", padding: "12px 0 0", borderTop: "2px solid var(--border)", marginTop: 4 }}>
+                    <span style={{ fontWeight: 700, fontSize: 13 }}>TOTAL ORDEN ({reposicion.unidadesOrden} uds)</span>
+                    <span className="rd-money" style={{ fontSize: 16, fontWeight: 700, color: "var(--p)" }}>{COP(reposicion.totalOrden)}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* ═══ SECCIÓN 3 — Diagnóstico de portafolio ═════════════════ */}
+            <h3 className="rd-repo-section-title" style={{ marginTop: 24 }}>
+              <span className="num">3</span>Diagnóstico de portafolio
+            </h3>
+
+            <div className="rd-card">
+              <CardHd
+                icon={BarChart2}
+                title="Matriz ABC × Patrón de demanda"
+                sub="Cada celda: # productos · % del margen que generan"
+              />
+              <div className="rd-card-body">
+                <div className="rd-matrix">
+                  <div className="rd-matrix-hd" />
+                  <div className="rd-matrix-hd">{PATRON_LABEL.X}</div>
+                  <div className="rd-matrix-hd">{PATRON_LABEL.Y}</div>
+                  <div className="rd-matrix-hd">{PATRON_LABEL.Z}</div>
+                  {(["A", "B", "C"] as Clase[]).flatMap(c => [
+                    <div className="rd-matrix-hd" key={`h-${c}`}>{CLASE_LABEL[c]}</div>,
+                    ...(["X", "Y", "Z"] as Patron[]).map(p => {
+                      const cell = reposicion.matriz[c][p]
+                      const pct  = reposicion.margenTotalGlobal > 0 ? (cell.margen / reposicion.margenTotalGlobal) * 100 : 0
+                      return (
+                        <div className="rd-matrix-cell" key={`${c}-${p}`}>
+                          <div className="rd-matrix-cnt">{cell.count}</div>
+                          <div className="rd-matrix-pct">{pct.toFixed(0)}% margen</div>
+                        </div>
+                      )
+                    }),
+                  ])}
+                </div>
+                <div className="rd-matrix-legend">
+                  <div><strong>{CLASE_LABEL.A}</strong> · 80% del margen · cobertura {REPO_CFG.cobertura.A}d · servicio 98%</div>
+                  <div><strong>{PATRON_LABEL.X}</strong> · demanda predecible · menor stock de seguridad</div>
+                  <div><strong>{CLASE_LABEL.B}</strong> · 15% del margen · cobertura {REPO_CFG.cobertura.B}d · servicio 95%</div>
+                  <div><strong>{PATRON_LABEL.Y}</strong> · variabilidad moderada</div>
+                  <div><strong>{CLASE_LABEL.C}</strong> · 5% del margen · cobertura {REPO_CFG.cobertura.C}d · servicio 90%</div>
+                  <div><strong>{PATRON_LABEL.Z}</strong> · demanda errática · pedir poquito y seguido</div>
+                </div>
+              </div>
+            </div>
+
+            <div className="rd-g2">
+              <div className="rd-card" style={{ margin: 0 }}>
+                <CardHd icon={AlertTriangle} title="Ventas perdidas" sub="Dinero que se escapó por agotarse" />
+                <div className="rd-card-body">
+                  {reposicion.ventasPerdidas.length === 0 ? (
+                    <div className="rd-empty"><p className="rd-empty-t">Sin ventas perdidas detectadas</p></div>
+                  ) : (
+                    <>
+                      <p style={{ margin: "0 0 10px", fontSize: 12 }}>
+                        Total estimado: <strong className="rd-money">{COP(reposicion.ventasPerdidas.reduce((s, f) => s + f.dineroPerdido, 0))}</strong>
+                      </p>
+                      <div className="rd-nm-grid">
+                        {reposicion.ventasPerdidas.slice(0, 10).map((f, i) => (
+                          <div key={i} className="rd-nm-item">
+                            <div>
+                              <p className="rd-nm-name">{f.name}</p>
+                              <p className="rd-nm-meta">{f.diasSinStock}d sin stock · {f.ventasPerdidasUds} uds perdidas</p>
+                            </div>
+                            <span className="rd-money">{COP(f.dineroPerdido)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+
+              <div className="rd-card" style={{ margin: 0 }}>
+                <CardHd icon={Package} title="Capital dormido" sub="Sobrestock o sin venta en 60+ días" />
+                <div className="rd-card-body">
+                  {reposicion.dormidos.length === 0 ? (
+                    <div className="rd-empty"><p className="rd-empty-t">Sin capital dormido</p></div>
+                  ) : (
+                    <>
+                      <p style={{ margin: "0 0 10px", fontSize: 12 }}>
+                        Total inmovilizado: <strong className="rd-money">{COP(reposicion.capitalDormidoTotal)}</strong>
+                      </p>
+                      <div className="rd-nm-grid">
+                        {reposicion.dormidos.slice(0, 10).map((f, i) => (
+                          <div key={i} className="rd-nm-item">
+                            <div>
+                              <p className="rd-nm-name">{f.name}</p>
+                              <p className="rd-nm-meta">
+                                {f.stock} uds · {isFinite(f.diasRestantes) ? `${Math.floor(f.diasRestantes)}d cobertura` : "sin venta en el periodo"}
+                              </p>
+                            </div>
+                            <span className="rd-money">{COP(f.capitalDormido)}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="rd-card">
+              <CardHd icon={BarChart2} title="Distribución de cobertura" sub="Cuántos productos te duran X días de stock" />
+              <div className="rd-card-body">
+                <ResponsiveContainer width="100%" height={200}>
+                  <BarChart data={reposicion.histograma}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(26,26,24,.06)" />
+                    <XAxis dataKey="bucket" tick={{ fontSize: 10, fill: "rgba(26,26,24,.4)" }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 10, fill: "rgba(26,26,24,.4)" }} axisLine={false} tickLine={false} allowDecimals={false} />
+                    <Tooltip content={<Tt />} />
+                    <Bar dataKey="count" name="Productos" radius={[2, 2, 0, 0]}>
+                      {reposicion.histograma.map((_, i) => (
+                        <Cell key={i} fill={i <= 1 ? "#dc2626" : i === 2 ? "#d97706" : i <= 4 ? "#16a34a" : "#9ca3af"} />
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+                <p style={{ fontSize: 10, color: "var(--muted)", marginTop: 8 }}>
+                  Ideal: concentración en 16–60 días. Mucho en 0–7 = subabastecido · mucho en +90 = sobrestock.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ════════════ TAB DECISIONES ════════════════════════════════════ */}
         {tab === "decisiones" && (
           <div>
             <div className="rd-card">
               <CardHd icon={Zap} title="Recomendaciones para el negocio" sub="Generadas automáticamente con los datos del período"/>
               <div className="rd-card-body">
+
+                {reposicion.agotados.length > 0 && (
+                  <div className="rd-alert danger">
+                    <ShoppingBag size={15} style={{ color:"#dc2626" }}/>
+                    <div>
+                      <p className="rd-alert-title">🛒 Productos vendidos sin stock</p>
+                      <p className="rd-alert-body">
+                        {reposicion.agotados.length} productos que vendiste en el rango seleccionado ({days} días) están agotados. Costo estimado de reposición: <strong>{COP(reposicion.agotados.reduce((s,f) => s+f.costoEst, 0))}</strong>
+                      </p>
+                      <div className="rd-tags">
+                        {reposicion.agotados.slice(0,5).map((f,i) => (
+                          <span key={i} className="rd-tag danger">{f.name} ({f.vendidas}u vendidas)</span>
+                        ))}
+                      </div>
+                      <p className="rd-alert-hint">
+                        → Revisa la pestaña <button style={{ background:"none", border:"none", color:"var(--p)", cursor:"pointer", padding:0, fontWeight:600, fontSize:"inherit", fontFamily:"inherit" }} onClick={() => setTab("reposicion")}>Reposición</button> para ver la orden de compra sugerida
+                      </p>
+                    </div>
+                  </div>
+                )}
 
                 {stale.filter(b => b.urgency==="alta").length > 0 && (
                   <div className="rd-alert danger">

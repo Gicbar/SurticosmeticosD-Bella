@@ -52,15 +52,14 @@ export default async function ReportsPage() {
 
     supabase
       .from("products")
-      .select("id, name, sale_price, min_stock, category_id, categories(name)")
+      .select("id, name, sale_price, min_stock, category_id, supplier_id, categories(name), suppliers(id, name)")
       .eq("company_id", companyId),
 
     supabase
       .from("purchase_batches")
-      .select("id, product_id, quantity, purchase_price, purchase_date, remaining_quantity, products(name)")
+      .select("id, product_id, quantity, purchase_price, purchase_date, remaining_quantity, supplier_id, products(name), suppliers(id, name)")
       .eq("company_id", companyId)
-      .gt("remaining_quantity", 0)
-      .order("purchase_date", { ascending: true }),
+      .order("purchase_date", { ascending: false }),
   ])
   
   return (

@@ -39,9 +39,6 @@ export async function getUserPermissions() {
   ])
 
   
-    console.log('Llegoooo')
-    
-    console.log(userCompany?.company_id)
 
   return {
     ...permissions,

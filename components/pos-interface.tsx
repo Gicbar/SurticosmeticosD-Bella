@@ -332,6 +332,14 @@ type Product = { id: string; name: string; barcode: string | null; sale_price: n
 type KitPreview = {
   id: string; code: number; name: string
   items: { product_id: string; name: string; quantity: number; unit_price_in_kit: number }[]
+  // Datos extras de pedidos del catálogo
+  is_catalog_order?: boolean
+  catalog_status?: "PENDIENTE" | "RECLAMADO" | "EXPIRADO" | null
+  client_name?: string | null
+  client_phone?: string | null
+  expires_at?: string | null
+  reclaimed_at?: string | null
+  cancellation_reason?: string | null
 }
 type Client  = { id: string; name: string }
 
@@ -400,6 +408,8 @@ export function POSInterface({ companyId }: POSInterfaceProps) {
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([])
   const [kitPreview, setKitPreview]             = useState<KitPreview | null>(null)
   const [loadingKit, setLoadingKit]             = useState(false)
+  // Si el carrito proviene de un pedido del catálogo, lo marcamos como RECLAMADO al cobrar
+  const [activeCatalogOrderId, setActiveCatalogOrderId] = useState<string | null>(null)
 
   useEffect(() => {
     ;(async () => {
@@ -436,7 +446,7 @@ export function POSInterface({ companyId }: POSInterfaceProps) {
     return null
   }
 
-  // Buscar kit por código numérico
+  // Buscar kit por código numérico — incluye también pedidos del catálogo
   const lookupKit = async (codeStr: string) => {
     const codeNum = parseInt(codeStr)
     if (isNaN(codeNum) || codeNum <= 0) return null
@@ -444,7 +454,9 @@ export function POSInterface({ companyId }: POSInterfaceProps) {
     const { data } = await supabase
       .from("product_kits")
       .select(`
-        id, code, name,
+        id, code, name, is_active,
+        is_catalog_order, catalog_status, client_name, client_phone,
+        expires_at, reclaimed_at, cancellation_reason,
         product_kit_items (
           product_id, quantity, unit_price_in_kit,
           products ( name )
@@ -452,13 +464,21 @@ export function POSInterface({ companyId }: POSInterfaceProps) {
       `)
       .eq("company_id", companyId)
       .eq("code", codeNum)
-      .eq("is_active", true)
       .single()
     if (!data) return null
+    // Para kits "del negocio", respetamos el flag is_active
+    if (!data.is_catalog_order && !data.is_active) return null
     return {
-      id:    data.id,
-      code:  data.code,
-      name:  data.name,
+      id:               data.id,
+      code:             data.code,
+      name:             data.name,
+      is_catalog_order:    data.is_catalog_order,
+      catalog_status:      data.catalog_status,
+      client_name:         data.client_name,
+      client_phone:        data.client_phone,
+      expires_at:          data.expires_at,
+      reclaimed_at:        data.reclaimed_at,
+      cancellation_reason: data.cancellation_reason,
       items: data.product_kit_items.map((i: any) => ({
         product_id:        i.product_id,
         name:              i.products?.name ?? "—",
@@ -477,12 +497,44 @@ export function POSInterface({ companyId }: POSInterfaceProps) {
     const product = products.find(p => p.barcode === raw)
     if (product) { addToCart(product); setBarcodeInput(""); return }
 
-    // 2) Si es numérico puro, buscar como código de kit
+    // 2) Si es numérico puro, buscar como código de kit (o pedido del catálogo)
     if (/^\d+$/.test(raw)) {
       setLoadingKit(true)
       const kit = await lookupKit(raw)
       setLoadingKit(false)
       if (kit) {
+        // Validar estados de pedidos del catálogo antes de mostrarlo
+        if (kit.is_catalog_order) {
+          if (kit.catalog_status === "RECLAMADO") {
+            const f = kit.reclaimed_at
+              ? new Date(kit.reclaimed_at).toLocaleString("es-CO", { timeZone: "America/Bogota" })
+              : ""
+            showError("Pedido ya cobrado", `Este pedido del catálogo fue cobrado el ${f}.`)
+            setBarcodeInput("")
+            return
+          }
+          // Pedido invalidado por cancelación de campaña → bloquear con mensaje específico
+          if (kit.catalog_status === "EXPIRADO" && kit.cancellation_reason) {
+            showError(
+              "Pedido no válido",
+              `${kit.cancellation_reason}. El cliente debe generar un nuevo pedido en el catálogo.`
+            )
+            setBarcodeInput("")
+            return
+          }
+          // Vencimiento normal por fecha
+          if (kit.catalog_status === "EXPIRADO" ||
+              (kit.expires_at && new Date(kit.expires_at) < new Date())) {
+            const f = kit.expires_at
+              ? new Date(kit.expires_at).toLocaleString("es-CO", { timeZone: "America/Bogota" })
+              : ""
+            showWarning(
+              "Pedido vencido",
+              `Este pedido venció el ${f}. Puedes cargarlo igualmente; revisa con el cliente si aceptan precios actuales.`
+            )
+            // Permitimos cargarlo: el cajero decide
+          }
+        }
         setKitPreview(kit)
         setBarcodeInput("")
         return
@@ -512,12 +564,17 @@ export function POSInterface({ companyId }: POSInterfaceProps) {
             quantity:   item.quantity,
             unit_price: item.unit_price_in_kit,
             subtotal:   item.unit_price_in_kit * item.quantity,
-            fromKit:    kit.name,   // marcar origen del kit
+            fromKit:    kit.name,
           } as any)
         }
       }
       return next
     })
+    // Si es un pedido del catálogo PENDIENTE, lo marcamos como activo para
+    // que al completar la venta se actualice catalog_status='RECLAMADO'.
+    if (kit.is_catalog_order && kit.catalog_status === "PENDIENTE") {
+      setActiveCatalogOrderId(kit.id)
+    }
     setKitPreview(null)
   }
 
@@ -634,11 +691,24 @@ export function POSInterface({ companyId }: POSInterfaceProps) {
         if (debtErr) throw debtErr
       }
 
+      // ── Si la venta venía de un pedido del catálogo, marcarlo como RECLAMADO
+      if (activeCatalogOrderId) {
+        const { error: claimErr } = await supabase.rpc("rpc_marcar_pedido_reclamado", {
+          p_kit_id:  activeCatalogOrderId,
+          p_sale_id: sale.id,
+        })
+        if (claimErr) {
+          // No bloqueamos la venta si esto falla — solo lo registramos
+          console.error("No se pudo marcar el pedido como reclamado:", claimErr)
+        }
+      }
+
       // ── Reset y feedback ──────────────────────────────────────────────────
       setCart([])
       setSelectedClient("")
       setPaymentMethod("efectivo")
       setIsCredit(false)
+      setActiveCatalogOrderId(null)
 
       const msg = isCredit
         ? `Deuda de ${fmt(total)} registrada para el cliente`
@@ -699,25 +769,50 @@ export function POSInterface({ companyId }: POSInterfaceProps) {
 
                 {/* Kit preview — aparece cuando se detecta un kit por código */}
                 {kitPreview && (
-                  <div className="pos-kit-item" style={{ marginTop: 4 }}>
+                  <div className="pos-kit-item" style={{
+                    marginTop: 4,
+                    flexWrap: kitPreview.is_catalog_order ? "wrap" : undefined,
+                    background: kitPreview.is_catalog_order
+                      ? "rgba(22,163,74,.07)" : "var(--pos-p10)",
+                  }}>
                     <div className="pos-kit-info">
-                      <p className="pos-kit-name">
+                      <p className="pos-kit-name" style={{
+                        color: kitPreview.is_catalog_order ? "#16a34a" : undefined,
+                      }}>
                         <Layers size={12} style={{verticalAlign:"middle",marginRight:5}} aria-hidden />
-                        Kit #{kitPreview.code} — {kitPreview.name}
+                        {kitPreview.is_catalog_order
+                          ? `Pedido del catálogo #${kitPreview.code}`
+                          : `Kit #${kitPreview.code} — ${kitPreview.name}`}
                       </p>
                       <p className="pos-kit-detail">
                         {kitPreview.items.map(i =>
                           `${i.name} ×${i.quantity}`
                         ).join(" · ")}
                       </p>
+                      {kitPreview.is_catalog_order && (
+                        <p className="pos-kit-detail" style={{ marginTop: 4, color: "#16a34a", fontWeight: 600 }}>
+                          {kitPreview.client_name || kitPreview.client_phone
+                            ? `Cliente: ${[kitPreview.client_name, kitPreview.client_phone].filter(Boolean).join(" · ")} · `
+                            : ""}
+                          {kitPreview.expires_at && (
+                            <>Vence: {new Date(kitPreview.expires_at).toLocaleDateString("es-CO", { timeZone: "America/Bogota" })}</>
+                          )}
+                          {kitPreview.catalog_status && kitPreview.catalog_status !== "PENDIENTE" && (
+                            <> · Estado: {kitPreview.catalog_status}</>
+                          )}
+                        </p>
+                      )}
                     </div>
                     <button
                       type="button"
                       className="pos-kit-load-btn"
                       onClick={() => addKitToCart(kitPreview)}
+                      style={kitPreview.is_catalog_order
+                        ? { background: "#16a34a" }
+                        : undefined}
                     >
                       <Plus size={11} aria-hidden />
-                      Cargar kit
+                      {kitPreview.is_catalog_order ? "Cargar pedido" : "Cargar kit"}
                     </button>
                     <button
                       type="button"
@@ -771,6 +866,16 @@ export function POSInterface({ companyId }: POSInterfaceProps) {
                     marginLeft: cart.length > 0 ? 6 : "auto",
                   }}>
                     A crédito
+                  </span>
+                )}
+                {/* Badge pedido del catálogo activo */}
+                {activeCatalogOrderId && (
+                  <span className="pos-hd-badge" style={{
+                    background: "rgba(22,163,74,.10)", color: "#16a34a",
+                    border: "1px solid rgba(22,163,74,.25)",
+                    marginLeft: 6,
+                  }}>
+                    Pedido catálogo
                   </span>
                 )}
               </div>

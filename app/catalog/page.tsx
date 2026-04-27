@@ -32,7 +32,7 @@ export default async function CatalogPage() {
 
   const [{ data: products }, { data: categories }] = await Promise.all([
     supabase
-      .from("public_products")
+      .from("public_products_with_offers")
       .select("*")
       .eq("company_id", company.id)
       .order("id", { ascending: false }),

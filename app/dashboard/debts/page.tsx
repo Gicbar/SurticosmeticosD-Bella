@@ -28,8 +28,7 @@ const PAGE_CSS = `
 
 export default async function DebtsPage() {
   const permissions = await getUserPermissions()
-  // Proteger: requiere permiso de ventas (ajusta al permiso que corresponda)
-  if (!permissions?.permissions?.ventas) redirect("/dashboard")
+  if (!permissions?.permissions?.creditos) redirect("/dashboard")
   const companyId = permissions.company_id
   if (!companyId) redirect("/auth/sin-empresa")
 

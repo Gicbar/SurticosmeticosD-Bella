@@ -131,6 +131,7 @@ export default async function KitsPage() {
       product_kit_items ( id, quantity, unit_price_in_kit )
     `)
     .eq("company_id", companyId)
+    .eq("is_catalog_order", false)
     .order("code", { ascending: true })
 
   const all      = kits || []

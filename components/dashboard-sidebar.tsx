@@ -11,6 +11,7 @@ import { getCompanyInitials } from "@/lib/theme"
 import {
   LayoutDashboard, Package, ShoppingCart, Users, TrendingUp, Receipt, CreditCard,
   Settings, Truck, FolderTree, DollarSign, PiggyBank, BarChart2, X, Menu,Megaphone,Layers,
+  ClipboardList,
 } from "lucide-react"
 
 const SIDEBAR_CSS = `
@@ -198,31 +199,45 @@ const SIDEBAR_CSS = `
 interface UserPermissions {
   ventas: boolean; productos: boolean; categorias: boolean; inventario: boolean;
   rentabilidad: boolean; clientes: boolean; proveedores: boolean;
-  gastos: boolean; creditos: boolean; configuracion: boolean; campanias:boolean;
-  kits: boolean
+  gastos: boolean; creditos: boolean; configuracion: boolean; campanias: boolean;
+  kits: boolean; pedidos_catalogo: boolean; reportes: boolean;
   [key: string]: boolean
 }
 
+// ─── Estructura del menú ──────────────────────────────────────────────────────
+// Refleja los grupos de permisos definidos en lib/permissions.ts:
+//   • Principal  — pantallas operativas del día a día
+//   • Operación  — registro y análisis de la actividad comercial
+//   • Catálogo   — maestros del negocio
+//   • Gestión    — finanzas, clientes y promociones
+//   • Sistema    — configuración (solo admin/configuracion)
+// "Panel General" siempre visible (key: null).
+
 const mainNav = [
-  { name: "Panel General",  href: "/dashboard",         icon: LayoutDashboard, key: null },
-  { name: "Punto de Venta", href: "/dashboard/pos",     icon: ShoppingCart,    key: "ventas" },
-  { name: "Ventas",         href: "/dashboard/sales",   icon: Receipt,         key: "ventas" },
-  { name: "Reportes",       href: "/dashboard/reports", icon: BarChart2,       key: "reportes" },
-  { name: "Campaña Descuentos",       href: "/dashboard/campanias", icon: Megaphone,     key: "campanias" },
+  { name: "Panel General",   href: "/dashboard",        icon: LayoutDashboard, key: null },
+  { name: "Punto de Venta",  href: "/dashboard/pos",    icon: ShoppingCart,    key: "ventas" },
+]
+const opNav = [
+  { name: "Ventas",                href: "/dashboard/sales",              icon: Receipt,        key: "ventas" },
+  { name: "Reportes",              href: "/dashboard/reports",            icon: BarChart2,      key: "reportes" },
+  { name: "Campañas Descuento",    href: "/dashboard/campanias",          icon: Megaphone,      key: "campanias" },
+  { name: "Pedidos del Catálogo",  href: "/dashboard/pedidos-catalogo",   icon: ClipboardList,  key: "pedidos_catalogo" },
 ]
 const catalogNav = [
   { name: "Productos",   href: "/dashboard/products",   icon: Package,    key: "productos" },
   { name: "Categorías",  href: "/dashboard/categories", icon: FolderTree, key: "categorias" },
   { name: "Inventario",  href: "/dashboard/inventory",  icon: TrendingUp, key: "inventario" },
   { name: "Proveedores", href: "/dashboard/suppliers",  icon: Truck,      key: "proveedores" },
+  { name: "Kits Promoción",  href: "/dashboard/kits",   icon: Layers,     key: "kits" },
 ]
 const mgmtNav = [
-  { name: "Rentabilidad", href: "/dashboard/profits",  icon: PiggyBank,  key: "rentabilidad" },
   { name: "Clientes",     href: "/dashboard/clients",  icon: Users,      key: "clientes" },
-  { name: "Gastos",       href: "/dashboard/expenses", icon: DollarSign, key: "gastos" },
   { name: "Créditos",     href: "/dashboard/debts",    icon: CreditCard, key: "creditos" },
-  { name: "Kit Promoción",     href: "/dashboard/kits",    icon: Layers, key: "kits" },
-  { name: "Configuración",href: "/dashboard/settings", icon: Settings,   key: "configuracion" },
+  { name: "Gastos",       href: "/dashboard/expenses", icon: DollarSign, key: "gastos" },
+  { name: "Rentabilidad", href: "/dashboard/profits",  icon: PiggyBank,  key: "rentabilidad" },
+]
+const systemNav = [
+  { name: "Configuración", href: "/dashboard/settings", icon: Settings, key: "configuracion" },
 ]
 
 export function DashboardSidebar() {
@@ -354,56 +369,38 @@ export function DashboardSidebar() {
 
         {/* Nav */}
         <nav className="sb-nav" aria-label="Navegación principal">
-          <p className="sb-section-label">Principal</p>
-          {mainNav.map(item => {
-            if (!can(item.key)) return null
-            const isActive = pathname === item.href
-            return (
-              <Link key={item.href} href={item.href}
-                className={cn("sb-item", isActive && "active")}
-                onClick={close}
-                aria-current={isActive ? "page" : undefined}>
-                <item.icon className="sb-icon" strokeWidth={1.4} aria-hidden="true" />
-                {item.name}
-              </Link>
-            )
-          })}
+          {(() => {
+            const sections: Array<{ label: string; items: typeof mainNav }> = [
+              { label: "Principal", items: mainNav },
+              { label: "Operación", items: opNav },
+              { label: "Catálogo",  items: catalogNav },
+              { label: "Gestión",   items: mgmtNav },
+              { label: "Sistema",   items: systemNav },
+            ]
 
-          {catalogNav.some(i => can(i.key)) && <>
-            <div className="sb-sep" />
-            <p className="sb-section-label">Catálogo</p>
-            {catalogNav.map(item => {
-              if (!can(item.key)) return null
-              const isActive = pathname === item.href
+            return sections.map((sec, idx) => {
+              const visible = sec.items.filter(i => can(i.key))
+              if (visible.length === 0) return null
               return (
-                <Link key={item.href} href={item.href}
-                  className={cn("sb-item", isActive && "active")}
-                  onClick={close}
-                  aria-current={isActive ? "page" : undefined}>
-                  <item.icon className="sb-icon" strokeWidth={1.4} aria-hidden="true" />
-                  {item.name}
-                </Link>
+                <div key={sec.label}>
+                  {idx > 0 && <div className="sb-sep" />}
+                  <p className="sb-section-label">{sec.label}</p>
+                  {visible.map(item => {
+                    const isActive = pathname === item.href
+                    return (
+                      <Link key={item.href} href={item.href}
+                        className={cn("sb-item", isActive && "active")}
+                        onClick={close}
+                        aria-current={isActive ? "page" : undefined}>
+                        <item.icon className="sb-icon" strokeWidth={1.4} aria-hidden="true" />
+                        {item.name}
+                      </Link>
+                    )
+                  })}
+                </div>
               )
-            })}
-          </>}
-
-          {mgmtNav.some(i => can(i.key)) && <>
-            <div className="sb-sep" />
-            <p className="sb-section-label">Gestión</p>
-            {mgmtNav.map(item => {
-              if (!can(item.key)) return null
-              const isActive = pathname === item.href
-              return (
-                <Link key={item.href} href={item.href}
-                  className={cn("sb-item", isActive && "active")}
-                  onClick={close}
-                  aria-current={isActive ? "page" : undefined}>
-                  <item.icon className="sb-icon" strokeWidth={1.4} aria-hidden="true" />
-                  {item.name}
-                </Link>
-              )
-            })}
-          </>}
+            })
+          })()}
         </nav>
 
         <div className="sb-ft">

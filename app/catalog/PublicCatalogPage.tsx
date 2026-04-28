@@ -180,15 +180,16 @@ const CATALOG_CSS = `
   @media (min-width: 1024px) { .cat-company-name { font-size: 52px; max-width: 720px; } }
 
   .cat-company-sub {
-    font-size: 10px; letter-spacing: .42em; text-transform: uppercase;
+    font-size: 8px; letter-spacing: .28em; text-transform: uppercase;
     color: rgba(var(--primary-rgb,152,76,168), .72);
-    margin: 7px 0 0; font-weight: 600;
-    display: flex; align-items: center; gap: 10px;
+    margin: 5px 0 0; font-weight: 600;
+    display: flex; align-items: center; gap: 6px;
+    white-space: nowrap;
   }
   .cat-company-sub::before,
   .cat-company-sub::after {
     content: '';
-    height: 1px; flex: 0 0 28px;
+    height: 1px; flex: 0 0 14px;
     background: linear-gradient(
       90deg,
       transparent 0%,
@@ -196,6 +197,10 @@ const CATALOG_CSS = `
       transparent 100%
     );
     display: inline-block;
+  }
+  @media (min-width: 420px) {
+    .cat-company-sub { font-size: 9px; letter-spacing: .34em; gap: 8px; }
+    .cat-company-sub::before, .cat-company-sub::after { flex-basis: 20px; }
   }
   @media (min-width: 640px) {
     .cat-company-sub { font-size: 12px; letter-spacing: .5em; margin-top: 9px; gap: 14px; }
@@ -361,7 +366,9 @@ const CATALOG_CSS = `
   /* ── Tarjetas de garantía / trust ───────────────────────────── */
   .cat-trust {
     background: white;
+    display: none;
   }
+  @media (min-width: 768px) { .cat-trust { display: block; } }
   .cat-trust-inner {
     max-width: 1400px; margin: 0 auto;
     padding: 0 16px 14px;

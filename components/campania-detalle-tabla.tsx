@@ -1,12 +1,13 @@
 "use client"
 
-import { useState, useCallback } from "react"
+import { useState, useCallback, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { showConfirm, showSuccess, showError } from "@/lib/sweetalert"
 import {
   Package, Zap, CheckCircle, Send, Ban,
-  AlertTriangle, Info, TrendingDown, ChevronDown, ChevronUp
+  AlertTriangle, Info, TrendingDown, ChevronDown, ChevronUp,
+  Search, X
 } from "lucide-react"
 
 const CSS = `
@@ -188,6 +189,63 @@ table.cdt-tbl { width:100%; border-collapse:collapse; min-width:860px; }
 }
 .cdt-toggle-btn:hover { background:rgba(26,26,24,.04); }
 .cdt-toggle-btn svg { width:12px; height:12px; }
+
+/* ── Filtros de productos ───────────────────────────────────── */
+.cdt-filters {
+  display:flex; flex-wrap:wrap; gap:8px; align-items:center;
+  padding:10px 13px; border-bottom:1px solid var(--border);
+  background:rgba(26,26,24,.015);
+}
+.cdt-search {
+  position:relative; flex:1 1 220px; min-width:180px;
+}
+.cdt-search input {
+  width:100%; height:32px; padding:0 30px 0 30px;
+  border:1px solid var(--border); background:#fff;
+  font-family:'DM Sans',sans-serif; font-size:12px; color:var(--txt);
+  outline:none; transition:border-color .14s;
+}
+.cdt-search input:focus { border-color:var(--p); }
+.cdt-search-ico {
+  position:absolute; top:50%; left:9px; transform:translateY(-50%);
+  width:13px; height:13px; color:var(--muted); pointer-events:none;
+}
+.cdt-search-clear {
+  position:absolute; top:50%; right:7px; transform:translateY(-50%);
+  width:18px; height:18px; border:none; background:transparent;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer; color:var(--muted);
+}
+.cdt-search-clear:hover { color:var(--danger); }
+.cdt-search-clear svg { width:11px; height:11px; }
+
+.cdt-select {
+  height:32px; padding:0 26px 0 10px;
+  border:1px solid var(--border); background:#fff;
+  font-family:'DM Sans',sans-serif; font-size:11px; color:var(--txt);
+  outline:none; transition:border-color .14s;
+  cursor:pointer; min-width:140px;
+  -webkit-appearance:none; appearance:none;
+  background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-repeat:no-repeat; background-position:right 9px center;
+}
+.cdt-select:focus { border-color:var(--p); }
+
+.cdt-filters-info {
+  font-size:10px; color:var(--muted); letter-spacing:.04em;
+  margin-left:auto;
+}
+.cdt-filters-info strong { color:var(--txt); font-weight:600; }
+
+@media(max-width:560px){
+  .cdt-filters-info { width:100%; text-align:right; margin-left:0; }
+}
+
+/* Empty filtrado */
+.cdt-no-match {
+  padding:30px 20px; text-align:center;
+  font-size:12px; color:var(--muted);
+}
 
 /* Empty state */
 .cdt-empty {
@@ -424,6 +482,39 @@ export function CampaniaDetallTabla({
   const [loadingAction, setLA]    = useState(false)
   const [showInelegibles, setShowI] = useState(false)
 
+  // ── Filtros de productos ──────────────────────────────────────
+  const [search, setSearch]         = useState("")
+  const [filtroCategoria, setFCat]  = useState<string>("")
+  const [filtroDescuento, setFDes]  = useState<string>("") // "", "con", "sin"
+
+  // Categorías únicas (de elegibles + inelegibles)
+  const categorias = useMemo(() => {
+    const set = new Set<string>()
+    for (const d of [...detalles, ...inelegibles]) {
+      const c = d.products?.categories?.name
+      if (c) set.add(c)
+    }
+    return Array.from(set).sort((a, b) => a.localeCompare(b, "es"))
+  }, [detalles, inelegibles])
+
+  const matchProducto = useCallback((d: Detalle) => {
+    const q = search.trim().toLowerCase()
+    if (q) {
+      const name    = d.products?.name?.toLowerCase() || ""
+      const barcode = d.products?.barcode?.toLowerCase() || ""
+      if (!name.includes(q) && !barcode.includes(q)) return false
+    }
+    if (filtroCategoria && d.products?.categories?.name !== filtroCategoria) return false
+    if (filtroDescuento === "con" && !(d.porcentaje_descuento_aprobado > 0)) return false
+    if (filtroDescuento === "sin" && d.porcentaje_descuento_aprobado > 0) return false
+    return true
+  }, [search, filtroCategoria, filtroDescuento])
+
+  const detallesFiltrados   = useMemo(() => detalles.filter(matchProducto), [detalles, matchProducto])
+  const inelegiblesFiltrados= useMemo(() => inelegibles.filter(matchProducto), [inelegibles, matchProducto])
+  const hayFiltros          = search.trim() !== "" || filtroCategoria !== "" || filtroDescuento !== ""
+  const limpiarFiltros      = () => { setSearch(""); setFCat(""); setFDes("") }
+
   // Tabla editable solo en estado CALCULADA
   const editable = campania.estado === "CALCULADA"
 
@@ -598,6 +689,69 @@ export function CampaniaDetallTabla({
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <div className="cdt">
 
+        {/* Barra de filtros */}
+        <div className="cdt-filters">
+          <div className="cdt-search">
+            <Search className="cdt-search-ico" aria-hidden />
+            <input
+              type="text"
+              placeholder="Buscar por nombre o código de barras…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              aria-label="Buscar producto"
+            />
+            {search && (
+              <button
+                className="cdt-search-clear"
+                onClick={() => setSearch("")}
+                aria-label="Limpiar búsqueda"
+                type="button"
+              >
+                <X aria-hidden />
+              </button>
+            )}
+          </div>
+
+          {categorias.length > 0 && (
+            <select
+              className="cdt-select"
+              value={filtroCategoria}
+              onChange={e => setFCat(e.target.value)}
+              aria-label="Filtrar por categoría"
+            >
+              <option value="">Todas las categorías</option>
+              {categorias.map(c => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          )}
+
+          <select
+            className="cdt-select"
+            value={filtroDescuento}
+            onChange={e => setFDes(e.target.value)}
+            aria-label="Filtrar por descuento"
+          >
+            <option value="">Todos los descuentos</option>
+            <option value="con">Con descuento aplicado</option>
+            <option value="sin">Sin descuento</option>
+          </select>
+
+          {hayFiltros && (
+            <button className="cdt-btn-outline" onClick={limpiarFiltros} type="button" style={{ height:32, padding:"0 12px", fontSize:11 }}>
+              <X size={12} />
+              Limpiar
+            </button>
+          )}
+
+          <div className="cdt-filters-info">
+            <strong>{detallesFiltrados.length}</strong> de {detalles.length} elegibles
+            {inelegibles.length > 0 && (
+              <> · <strong>{inelegiblesFiltrados.length}</strong> de {inelegibles.length} inelegibles</>
+            )}
+          </div>
+        </div>
+
         <div className="cdt-scroll">
           <table className="cdt-tbl">
             <thead>
@@ -617,8 +771,8 @@ export function CampaniaDetallTabla({
               </tr>
             </thead>
             <tbody>
-              {/* Lotes elegibles */}
-              {detalles.map(d => (
+              {/* Lotes elegibles filtrados */}
+              {detallesFiltrados.map(d => (
                 <DetalleRow
                   key={d.id}
                   detalle={d}
@@ -628,6 +782,11 @@ export function CampaniaDetallTabla({
               ))}
             </tbody>
           </table>
+          {detallesFiltrados.length === 0 && detalles.length > 0 && (
+            <div className="cdt-no-match">
+              Ningún producto elegible coincide con los filtros aplicados.
+            </div>
+          )}
         </div>
 
         {/* Sección inelegibles colapsable */}
@@ -640,7 +799,7 @@ export function CampaniaDetallTabla({
             >
               {showInelegibles ? <ChevronUp aria-hidden /> : <ChevronDown aria-hidden />}
               <AlertTriangle size={11} aria-hidden />
-              {inelegibles.length} lote{inelegibles.length !== 1 ? "s" : ""} sin margen suficiente
+              {inelegiblesFiltrados.length} de {inelegibles.length} lote{inelegibles.length !== 1 ? "s" : ""} sin margen suficiente
               <span style={{ marginLeft:"auto", fontSize:9, opacity:.6 }}>
                 {showInelegibles ? "Ocultar" : "Ver detalle"}
               </span>
@@ -650,7 +809,7 @@ export function CampaniaDetallTabla({
               <div className="cdt-scroll" style={{ borderTop:"1px solid var(--border)" }}>
                 <table className="cdt-tbl">
                   <tbody>
-                    {inelegibles.map(d => (
+                    {inelegiblesFiltrados.map(d => (
                       <DetalleRow
                         key={d.id}
                         detalle={d}
@@ -660,6 +819,11 @@ export function CampaniaDetallTabla({
                     ))}
                   </tbody>
                 </table>
+                {inelegiblesFiltrados.length === 0 && (
+                  <div className="cdt-no-match">
+                    Ningún inelegible coincide con los filtros.
+                  </div>
+                )}
               </div>
             )}
           </>

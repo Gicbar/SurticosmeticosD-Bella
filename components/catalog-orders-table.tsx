@@ -7,6 +7,7 @@ type OrderItem = {
   id: string
   quantity: number
   unit_price_in_kit: number
+  products?: { id: string; name: string; barcode: string | null } | null
 }
 
 type CatalogOrder = {
@@ -130,10 +131,22 @@ table.cot-tbl { width:100%; border-collapse:collapse; min-width:780px; }
   margin-top:14px; border-top:1px solid var(--border); padding-top:12px;
 }
 .cot-item-row {
-  display:flex; justify-content:space-between; padding:7px 0; font-size:12px;
+  display:flex; justify-content:space-between; align-items:flex-start;
+  gap:10px; padding:8px 0; font-size:12px;
   border-bottom:1px dashed var(--border);
 }
 .cot-item-row:last-child { border-bottom:none; }
+.cot-item-info { display:flex; flex-direction:column; gap:2px; min-width:0; flex:1; }
+.cot-item-name {
+  font-weight:500; color:var(--txt); line-height:1.3;
+  word-break:break-word;
+}
+.cot-item-meta { font-size:10px; color:var(--muted); letter-spacing:.04em; }
+.cot-item-amount {
+  font-family:'Cormorant Garamond',serif;
+  font-weight:500; color:var(--p); white-space:nowrap;
+  font-size:13px;
+}
 `
 
 const STATUS_TABS = [
@@ -334,12 +347,24 @@ export function CatalogOrdersTable({ orders }: Props) {
                   <p style={{ fontSize: 10, fontWeight: 700, letterSpacing: ".18em", textTransform: "uppercase", color: "var(--muted)", marginBottom: 8 }}>
                     Productos
                   </p>
-                  {detail.product_kit_items.map((it, idx) => (
-                    <div key={it.id || idx} className="cot-item-row">
-                      <span>× {it.quantity}</span>
-                      <span style={{ fontWeight: 500 }}>{COP(Number(it.unit_price_in_kit) * it.quantity)}</span>
-                    </div>
-                  ))}
+                  {detail.product_kit_items.map((it, idx) => {
+                    const nombre   = it.products?.name || "Producto eliminado"
+                    const barcode  = it.products?.barcode
+                    const unit     = Number(it.unit_price_in_kit)
+                    const subtotal = unit * it.quantity
+                    return (
+                      <div key={it.id || idx} className="cot-item-row">
+                        <div className="cot-item-info">
+                          <span className="cot-item-name">{nombre}</span>
+                          <span className="cot-item-meta">
+                            × {it.quantity} · {COP(unit)} c/u
+                            {barcode ? ` · ${barcode}` : ""}
+                          </span>
+                        </div>
+                        <span className="cot-item-amount">{COP(subtotal)}</span>
+                      </div>
+                    )
+                  })}
                 </div>
               </div>
             </div>

@@ -1,11 +1,12 @@
 "use client"
 
+import { useState, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { showConfirm, showSuccess, showError } from "@/lib/sweetalert"
 import {
   Eye, XCircle, Megaphone, CalendarRange,
-  CheckCircle, Zap, Send, Ban
+  CheckCircle, Zap, Send, Ban, EyeOff
 } from "lucide-react"
 import Link from "next/link"
 
@@ -111,6 +112,26 @@ table.ct2-tbl { width:100%; border-collapse:collapse; min-width:700px; }
 .ct2-empty-ico { width:44px; height:44px; background:var(--p10); display:flex; align-items:center; justify-content:center; border-radius:50%; }
 .ct2-empty-ico svg { color:var(--p); opacity:.3; width:18px; height:18px; }
 .ct2-empty-t { font-size:13px; font-weight:500; color:var(--txt); margin:0; }
+
+/* ── Toolbar de filtros (canceladas) ─────────────────────────── */
+.ct2-tb {
+  display:flex; align-items:center; justify-content:space-between;
+  gap:10px; padding:10px 13px; flex-wrap:wrap;
+  border-bottom:1px solid var(--border); background:rgba(26,26,24,.015);
+}
+.ct2-tb-info { font-size:11px; color:var(--muted); }
+.ct2-tb-info strong { color:var(--txt); font-weight:600; }
+.ct2-tb-toggle {
+  display:inline-flex; align-items:center; gap:6px;
+  padding:6px 11px; height:30px;
+  border:1px solid var(--border); background:#fff;
+  font-family:'DM Sans',sans-serif; font-size:10px; font-weight:600;
+  letter-spacing:.06em; text-transform:uppercase; color:var(--muted);
+  cursor:pointer; transition:all .14s; white-space:nowrap;
+}
+.ct2-tb-toggle:hover { border-color:var(--p); color:var(--p); }
+.ct2-tb-toggle.on { background:var(--p10); border-color:var(--p); color:var(--p); }
+.ct2-tb-toggle svg { width:12px; height:12px; }
 `
 
 type Campania = {
@@ -161,6 +182,19 @@ export function CampaniasTable({ campanias, companyId }: {
 }) {
   void companyId
   const router = useRouter()
+  const [mostrarCanceladas, setMostrarCanceladas] = useState(false)
+
+  const canceladasCount = useMemo(
+    () => campanias.filter(c => c.estado === "CANCELADA").length,
+    [campanias]
+  )
+
+  const visibles = useMemo(
+    () => mostrarCanceladas
+      ? campanias
+      : campanias.filter(c => c.estado !== "CANCELADA"),
+    [campanias, mostrarCanceladas]
+  )
 
   const handleCancelar = async (id: string, nombre: string) => {
     const ok = await showConfirm(
@@ -195,6 +229,35 @@ export function CampaniasTable({ campanias, companyId }: {
     <>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <div className="ct2">
+
+        {/* Toolbar — toggle canceladas */}
+        {canceladasCount > 0 && (
+          <div className="ct2-tb">
+            <div className="ct2-tb-info">
+              Mostrando <strong>{visibles.length}</strong> de {campanias.length} campañas
+              {!mostrarCanceladas && (
+                <> · {canceladasCount} cancelada{canceladasCount !== 1 ? "s" : ""} oculta{canceladasCount !== 1 ? "s" : ""}</>
+              )}
+            </div>
+            <button
+              className={`ct2-tb-toggle ${mostrarCanceladas ? "on" : ""}`}
+              onClick={() => setMostrarCanceladas(v => !v)}
+              aria-pressed={mostrarCanceladas}
+            >
+              {mostrarCanceladas
+                ? <><EyeOff aria-hidden /> Ocultar canceladas</>
+                : <><Eye aria-hidden /> Ver canceladas ({canceladasCount})</>
+              }
+            </button>
+          </div>
+        )}
+
+        {visibles.length === 0 ? (
+          <div className="ct2-empty">
+            <div className="ct2-empty-ico"><Megaphone /></div>
+            <p className="ct2-empty-t">No hay campañas activas</p>
+          </div>
+        ) : (
         <div className="ct2-scroll">
           <table className="ct2-tbl">
             <thead>
@@ -207,7 +270,7 @@ export function CampaniasTable({ campanias, companyId }: {
               </tr>
             </thead>
             <tbody>
-              {campanias.map(c => (
+              {visibles.map(c => (
                 <tr key={c.id}>
 
                   {/* Nombre */}
@@ -309,6 +372,7 @@ export function CampaniasTable({ campanias, companyId }: {
             </tbody>
           </table>
         </div>
+        )}
       </div>
     </>
   )

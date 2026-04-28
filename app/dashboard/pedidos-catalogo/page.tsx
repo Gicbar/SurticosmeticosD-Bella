@@ -127,7 +127,10 @@ export default async function PedidosCatalogoPage() {
     .select(`
       id, code, catalog_status, client_name, client_phone,
       expires_at, reclaimed_at, sale_id, frozen_total, created_at,
-      product_kit_items ( id, quantity, unit_price_in_kit )
+      product_kit_items (
+        id, quantity, unit_price_in_kit,
+        products ( id, name, barcode )
+      )
     `)
     .eq("company_id", companyId)
     .eq("is_catalog_order", true)

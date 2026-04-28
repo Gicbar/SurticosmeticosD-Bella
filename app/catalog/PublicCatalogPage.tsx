@@ -4,7 +4,8 @@ import { useState, useEffect, useRef } from "react"
 import { useSearchParams } from "next/navigation"
 import {
   Search, X, ShoppingBag, Plus, Minus,
-  Sparkles, ArrowRight, Package, Heart, Tag, AlertTriangle, Clock, Check
+  Sparkles, ArrowRight, Package, Heart, Tag, AlertTriangle, Clock, Check,
+  AlertCircle, CheckCircle2, Info
 } from "lucide-react"
 import { createPublicClient } from "@/lib/supabase/public-client"
 
@@ -771,6 +772,103 @@ const CATALOG_CSS = `
   .cat-scroll::-webkit-scrollbar { width: 4px; }
   .cat-scroll::-webkit-scrollbar-track { background: transparent; }
   .cat-scroll::-webkit-scrollbar-thumb { background: var(--primary, #984ca8); opacity: .4; border-radius: 99px; }
+
+  /* ── Toasts (notificaciones) ─────────────────────────────────── */
+  .cat-toasts {
+    position: fixed;
+    top: calc(env(safe-area-inset-top, 0px) + 10px);
+    left: 0; right: 0;
+    z-index: 1000;
+    display: flex; flex-direction: column; align-items: center;
+    gap: 8px;
+    padding: 0 12px;
+    pointer-events: none;
+  }
+  .cat-toast {
+    pointer-events: auto;
+    display: flex; align-items: flex-start; gap: 10px;
+    width: 100%; max-width: 460px;
+    padding: 12px 12px 14px;
+    background: #fff;
+    border-radius: 12px;
+    box-shadow: 0 10px 32px rgba(26,26,24,.18), 0 0 0 1px rgba(26,26,24,.05);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px; line-height: 1.4; color: #1a1a18;
+    position: relative; overflow: hidden;
+    animation: catToastIn .3s cubic-bezier(.2,.8,.2,1.05);
+    border-left: 3px solid transparent;
+  }
+  @keyframes catToastIn {
+    from { opacity: 0; transform: translateY(-14px) scale(.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  .cat-toast.leaving { animation: catToastOut .25s ease forwards; }
+  @keyframes catToastOut {
+    from { opacity: 1; transform: translateY(0) scale(1); }
+    to   { opacity: 0; transform: translateY(-14px) scale(.97); }
+  }
+  .cat-toast.error   { border-left-color: #dc2626; }
+  .cat-toast.success { border-left-color: #16a34a; }
+  .cat-toast.info    { border-left-color: var(--primary, #984ca8); }
+
+  .cat-toast-ico {
+    flex-shrink: 0; width: 30px; height: 30px;
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 8px;
+  }
+  .cat-toast.error   .cat-toast-ico { background: rgba(220,38,38,.10); color: #dc2626; }
+  .cat-toast.success .cat-toast-ico { background: rgba(22,163,74,.10); color: #16a34a; }
+  .cat-toast.info    .cat-toast-ico { background: var(--p10, rgba(152,76,168,.10)); color: var(--primary, #984ca8); }
+
+  .cat-toast-body { flex: 1; min-width: 0; padding-top: 4px; }
+  .cat-toast-title {
+    font-weight: 600; font-size: 12px; line-height: 1.2;
+    margin: 0 0 3px; color: #1a1a18;
+    letter-spacing: .01em;
+  }
+  .cat-toast-msg {
+    font-size: 12.5px; line-height: 1.4; color: rgba(26,26,24,.72);
+    margin: 0;
+    word-break: break-word;
+  }
+
+  .cat-toast-close {
+    flex-shrink: 0; width: 26px; height: 26px;
+    background: transparent; border: none; cursor: pointer;
+    color: rgba(26,26,24,.4);
+    display: flex; align-items: center; justify-content: center;
+    border-radius: 6px; padding: 0;
+    transition: background .15s, color .15s;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .cat-toast-close:hover,
+  .cat-toast-close:active { color: #1a1a18; background: rgba(26,26,24,.06); }
+
+  .cat-toast-bar {
+    position: absolute; left: 0; bottom: 0; height: 2px;
+    width: 100%;
+    transform-origin: left center;
+    animation: catToastBar 4s linear forwards;
+    opacity: .35;
+  }
+  .cat-toast.error   .cat-toast-bar { background: #dc2626; }
+  .cat-toast.success .cat-toast-bar { background: #16a34a; }
+  .cat-toast.info    .cat-toast-bar { background: var(--primary, #984ca8); }
+  @keyframes catToastBar {
+    from { transform: scaleX(1); }
+    to   { transform: scaleX(0); }
+  }
+
+  @media (max-width: 480px) {
+    .cat-toasts { padding: 0 10px; gap: 7px; }
+    .cat-toast  { padding: 10px 11px 12px; gap: 9px; font-size: 12.5px; }
+    .cat-toast-ico { width: 28px; height: 28px; }
+    .cat-toast-title { font-size: 11.5px; }
+    .cat-toast-msg   { font-size: 12px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .cat-toast, .cat-toast-bar { animation: none; }
+  }
 `
 
 // ─── Componente principal ─────────────────────────────────────────────────────
@@ -787,6 +885,17 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
   const [showProductModal, setShowProductModal]   = useState(false)
   const [addedId, setAddedId]                     = useState<string | null>(null)
   const [scrolled, setScrolled]                   = useState(false)
+
+  // ── Toasts (notificaciones in-app, mobile-friendly) ─────────────
+  type ToastKind = "error" | "success" | "info"
+  type Toast = { id: number; kind: ToastKind; title?: string; message: string }
+  const [toasts, setToasts] = useState<Toast[]>([])
+  const dismissToast = (id: number) => setToasts((arr) => arr.filter((t) => t.id !== id))
+  const pushToast = (kind: ToastKind, message: string, title?: string) => {
+    const id = Date.now() + Math.random()
+    setToasts((arr) => [...arr.slice(-2), { id, kind, title, message }])
+    setTimeout(() => dismissToast(id), 4000)
+  }
 
   // Datos del cliente para el pedido (opcionales pero útiles para que el cajero identifique)
   const [clientName, setClientName]               = useState("")
@@ -839,6 +948,7 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
     })
     setAddedId(product.id)
     setTimeout(() => setAddedId(null), 800)
+    pushToast("success", product.name, "Añadido al carrito")
   }
 
   const removeFromCart = (productId: string) => {
@@ -911,26 +1021,38 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
         return `• ${i.name} × ${i.quantity} — ${subt}`
       }).join("\n")
 
+      // Emojis vía escape Unicode \u{...} para garantizar codificación UTF-8
+      // correcta sin depender del encoding del editor/transporte. Algunos
+      // navegadores/intent de Android pierden los bytes de emojis literales
+      // al pasar la URL a WhatsApp y los muestran como "�".
+      const E = {
+        clip:  "\u{1F4CB}",        // 📋
+        heart: "\u{1F49A}",        // 💚
+        user:  "\u{1F464}",        // 👤
+        cal:   "\u{1F4C5}",        // 📅
+        warn:  "\u{26A0}\u{FE0F}", // ⚠️
+      }
+
       const ahorroLine = getTotalSavings() > 0
-        ? `\n💚 Ahorras: *${formatCOP(getTotalSavings())}*`
+        ? `\n${E.heart} Ahorras: *${formatCOP(getTotalSavings())}*`
         : ""
 
       const datosCliente = (clientName.trim() || clientPhone.trim())
-        ? `\n👤 Cliente: ${[clientName.trim(), clientPhone.trim()].filter(Boolean).join(" · ")}`
+        ? `\n${E.user} Cliente: ${[clientName.trim(), clientPhone.trim()].filter(Boolean).join(" · ")}`
         : ""
 
       const fechaVence = formatDate(expiresAt.slice(0, 10))
 
       const mensaje =
         `Hola, quiero hacer un pedido en *${company.name}*.\n` +
-        `\n📋 *Código de pedido:* #${code}\n` +
+        `\n${E.clip} *Código de pedido:* #${code}\n` +
         `\n${lineas}\n` +
         `\n*Total:* ${formatCOP(frozenTotal)}` +
         ahorroLine +
         datosCliente +
-        `\n\n📅 *Disponible hasta:* ${fechaVence}` +
+        `\n\n${E.cal} *Disponible hasta:* ${fechaVence}` +
         `\n\nPasaré al punto físico con este código *#${code}* para hacer efectivo el pedido y aprovechar el descuento.` +
-        `\n\n⚠️ Entiendo que los productos están sujetos a disponibilidad y pueden agotarse antes de mi visita.`
+        `\n\n${E.warn} Entiendo que los productos están sujetos a disponibilidad y pueden agotarse antes de mi visita.`
 
       const waHref = `https://wa.me/${(company.phone || "").replace(/[^\d]/g, "")}?text=${encodeURIComponent(mensaje)}`
 
@@ -945,8 +1067,22 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
       setCart([])
       setShowCart(false)
     } catch (err: any) {
-      const msg = err?.message || "Error al crear el pedido. Intenta de nuevo."
-      alert(msg)
+      const raw = err?.message || ""
+      // Sanitizar mensajes que revelan inventario al cliente.
+      // Backend devuelve, por ejemplo:
+      //   Stock insuficiente para "Producto X" (disponible: 1, solicitado: 2)
+      // Lo convertimos en un texto amistoso sin exponer cantidades.
+      const stockMatch = raw.match(/Stock insuficiente para\s+"([^"]+)"/i)
+      let title = "No se pudo crear el pedido"
+      let msg   = raw || "Error al crear el pedido. Intenta de nuevo."
+      if (stockMatch) {
+        title = "Disponibilidad limitada"
+        msg   = `Lo sentimos, no podemos completar el pedido para "${stockMatch[1]}" con la cantidad solicitada en este momento. Por favor reduce la cantidad o vuelve a intentarlo más tarde.`
+      } else if (/oferta para .* ya no/i.test(raw) || /precio de .* cambió/i.test(raw)) {
+        title = "Catálogo actualizado"
+        msg   = "Algunos precios u ofertas cambiaron. Recarga el catálogo para ver la información más reciente."
+      }
+      pushToast("error", msg, title)
     } finally {
       setSubmitting(false)
     }
@@ -963,6 +1099,37 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: CATALOG_CSS }} />
+
+      {/* ══ TOASTS (notificaciones in-app, responsive) ═════════════════════ */}
+      {toasts.length > 0 && (
+        <div className="cat-toasts" role="region" aria-live="polite" aria-label="Notificaciones">
+          {toasts.map((t) => {
+            const Icon = t.kind === "error" ? AlertCircle
+                       : t.kind === "success" ? CheckCircle2
+                       : Info
+            return (
+              <div key={t.id} className={`cat-toast ${t.kind}`} role="status">
+                <div className="cat-toast-ico" aria-hidden>
+                  <Icon size={16} strokeWidth={2.2} />
+                </div>
+                <div className="cat-toast-body">
+                  {t.title && <p className="cat-toast-title">{t.title}</p>}
+                  <p className="cat-toast-msg">{t.message}</p>
+                </div>
+                <button
+                  type="button"
+                  className="cat-toast-close"
+                  onClick={() => dismissToast(t.id)}
+                  aria-label="Cerrar notificación"
+                >
+                  <X size={14} strokeWidth={2} />
+                </button>
+                <span className="cat-toast-bar" aria-hidden />
+              </div>
+            )
+          })}
+        </div>
+      )}
 
       <div className="cat-root">
 
@@ -1153,9 +1320,6 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
                       </>
                     )}
 
-                    {product.total_inventario > 0 && product.total_inventario <= 1 && !product.has_offer && (
-                      <div className="cat-stock-badge">Últimas {product.total_inventario}</div>
-                    )}
 
                     <button
                       className="cat-add-desktop"
@@ -1472,11 +1636,6 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
                   <X size={14} strokeWidth={1.5} />
                 </button>
 
-                {selectedProduct.total_inventario > 0 && selectedProduct.total_inventario <= 3 && (
-                  <div className="cat-stock-badge" style={{ bottom: 12, top: "auto" }}>
-                    Últimas {selectedProduct.total_inventario} unidades
-                  </div>
-                )}
               </div>
 
               <div className="cat-modal-body">
@@ -1504,7 +1663,7 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
                     fontSize: 11, fontWeight: 600, marginBottom: 14,
                   }}>
                     <Clock size={11} />
-                    Oferta válida hasta {formatDate(selectedProduct.offer_end)}
+                    Oferta válida hasta {formatDate(selectedProduct.offer_end)} o hasta agotar existencias
                   </div>
                 )}
 
@@ -1539,11 +1698,6 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
                   </button>
                 </div>
 
-                {selectedProduct.total_inventario > 3 && (
-                  <p style={{ fontSize: 11, color: "rgba(26,26,24,.38)", marginTop: 14, letterSpacing: ".04em" }}>
-                    {selectedProduct.total_inventario} unidades disponibles
-                  </p>
-                )}
               </div>
             </div>
           </div>
@@ -1574,12 +1728,12 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
                   <div className="cat-warn-box" style={{ marginTop: 14 }}>
                     <AlertTriangle size={13} strokeWidth={2} />
                     <span>
-                      <strong>Atención:</strong> hay productos con stock limitado.
+                      <strong>Atención:</strong> algunos productos tienen disponibilidad limitada.
                       Te recomendamos visitar el punto físico cuanto antes:
                       <br />
                       {orderResult.warnings.map((w, i) => (
                         <span key={i}>
-                          • {w.name} (quedan {w.available}, pediste {w.requested})<br />
+                          • {w.name}<br />
                         </span>
                       ))}
                     </span>

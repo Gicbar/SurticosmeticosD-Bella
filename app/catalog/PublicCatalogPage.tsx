@@ -5,7 +5,8 @@ import { useSearchParams } from "next/navigation"
 import {
   Search, X, ShoppingBag, Plus, Minus,
   Sparkles, ArrowRight, Package, Heart, Tag, AlertTriangle, Clock, Check,
-  AlertCircle, CheckCircle2, Info
+  AlertCircle, CheckCircle2, Info,
+  Award, Truck, ShieldCheck, Headphones
 } from "lucide-react"
 import { createPublicClient } from "@/lib/supabase/public-client"
 
@@ -167,29 +168,43 @@ const CATALOG_CSS = `
   @media (min-width: 640px) { .cat-logo { width: 60px; height: 60px; border-radius: 14px; } }
 
   .cat-company-name {
-    font-size: 19px; font-weight: 500; line-height: 1.05; letter-spacing: -.005em;
+    font-size: 24px; font-weight: 500; line-height: 1.02; letter-spacing: -.01em;
     white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    max-width: min(200px, 52vw);
+    max-width: min(220px, 56vw);
     color: var(--primary, #984ca8);
     margin: 0;
   }
-  @media (min-width: 420px) { .cat-company-name { font-size: 23px; max-width: min(280px, 60vw); } }
-  @media (min-width: 480px) { .cat-company-name { font-size: 27px; max-width: 340px; } }
-  @media (min-width: 640px) { .cat-company-name { font-size: 32px; } }
+  @media (min-width: 420px) { .cat-company-name { font-size: 30px; max-width: min(320px, 62vw); } }
+  @media (min-width: 480px) { .cat-company-name { font-size: 36px; max-width: 420px; } }
+  @media (min-width: 640px) { .cat-company-name { font-size: 44px; max-width: 560px; } }
+  @media (min-width: 1024px) { .cat-company-name { font-size: 52px; max-width: 720px; } }
 
   .cat-company-sub {
-    font-size: 9px; letter-spacing: .28em; text-transform: uppercase;
-    color: rgba(var(--primary-rgb,152,76,168), .58);
-    margin: 4px 0 0; font-weight: 500;
-    display: flex; align-items: center; gap: 7px;
+    font-size: 10px; letter-spacing: .42em; text-transform: uppercase;
+    color: rgba(var(--primary-rgb,152,76,168), .72);
+    margin: 7px 0 0; font-weight: 600;
+    display: flex; align-items: center; gap: 10px;
   }
-  .cat-company-sub::before {
+  .cat-company-sub::before,
+  .cat-company-sub::after {
     content: '';
-    width: 16px; height: 1px;
-    background: rgba(var(--primary-rgb,152,76,168), .45);
+    height: 1px; flex: 0 0 28px;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      rgba(var(--primary-rgb,152,76,168), .55) 50%,
+      transparent 100%
+    );
     display: inline-block;
   }
-  @media (min-width: 640px) { .cat-company-sub { font-size: 10px; } }
+  @media (min-width: 640px) {
+    .cat-company-sub { font-size: 12px; letter-spacing: .5em; margin-top: 9px; gap: 14px; }
+    .cat-company-sub::before, .cat-company-sub::after { flex-basis: 44px; }
+  }
+  @media (min-width: 1024px) {
+    .cat-company-sub { font-size: 13px; }
+    .cat-company-sub::before, .cat-company-sub::after { flex-basis: 60px; }
+  }
 
   .cat-header-right {
     display: flex; align-items: center; gap: 10px; flex-shrink: 0;
@@ -225,47 +240,8 @@ const CATALOG_CSS = `
     display: flex; align-items: center; justify-content: center;
   }
 
-  /* ── Sección intro ───────────────────────────────────────────── */
-  .cat-intro {
-    background: var(--secondary, #f3edf7);
-    border-bottom: 1px solid rgba(var(--primary-rgb,152,76,168), .12);
-  }
-  .cat-intro-inner {
-    max-width: 1400px; margin: 0 auto;
-    padding: 22px 16px 20px;
-    display: flex; align-items: flex-end; justify-content: space-between;
-    gap: 14px; flex-wrap: wrap;
-  }
-  @media (min-width: 640px) { .cat-intro-inner { padding: 36px 28px 28px; } }
-
-  .cat-intro-eyebrow {
-    font-size: 9px; letter-spacing: .28em; text-transform: uppercase;
-    color: var(--primary, #984ca8); margin-bottom: 10px; font-weight: 600;
-    display: flex; align-items: center; gap: 8px;
-  }
-  .cat-intro-eyebrow::before {
-    content: '';
-    width: 20px; height: 1.5px;
-    background: var(--primary, #984ca8);
-    display: inline-block;
-  }
-
-  .cat-intro-count {
-    text-align: right;
-  }
-  .cat-intro-num {
-    font-family: 'Cormorant Garamond', Georgia, serif;
-    font-size: 30px; font-weight: 300; color: var(--primary, #984ca8);
-    line-height: 1; margin: 0;
-  }
-  .cat-intro-num-label {
-    font-size: 9px; letter-spacing: .2em; text-transform: uppercase;
-    color: rgba(var(--primary-rgb,152,76,168), .55); margin-top: 5px;
-  }
-
   /* Banner OFERTAS — visible si hay productos en oferta */
   .cat-offer-banner {
-    margin-top: 16px;
     padding: 11px 14px;
     background: var(--offer-bg);
     border-left: 3px solid var(--offer);
@@ -276,35 +252,43 @@ const CATALOG_CSS = `
   .cat-offer-banner strong { font-weight: 700; }
   .cat-offer-banner svg { flex-shrink: 0; }
 
-  .cat-divider-color {
-    height: 2px; max-width: 1400px; margin: 0 auto;
-    background: linear-gradient(
-      90deg,
-      transparent 0%,
-      rgba(var(--primary-rgb,152,76,168), .4) 50%,
-      transparent 100%
-    );
+  /* Banner OFERTAS sutil dentro de filtros sticky */
+  .cat-offer-strip {
+    padding: 6px 14px;
+    background: var(--offer-bg, #fff5e6);
+    color: var(--offer, #c47200);
+    font-size: 11px; font-weight: 500;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    border-bottom: 1px solid rgba(196,114,0,.18);
+    line-height: 1.3;
   }
+  .cat-offer-strip strong { font-weight: 700; }
+  .cat-offer-strip svg { flex-shrink: 0; }
+  @media (min-width: 640px) { .cat-offer-strip { font-size: 12px; padding: 7px 18px; } }
 
   /* ── Filtros ────────────────────────────────────────────────── */
   .cat-filters {
     background: white;
     border-bottom: 1px solid rgba(26,26,24,.07);
     position: sticky; top: 72px; z-index: 50;
+    box-shadow: 0 1px 0 rgba(26,26,24,.02);
   }
   @media (min-width: 640px) { .cat-filters { top: 88px; } }
 
   .cat-filters-inner {
     max-width: 1400px; margin: 0 auto;
-    padding: 14px 16px 12px;
+    padding: 10px 16px 8px;
   }
   @media (min-width: 640px) { .cat-filters-inner { padding: 18px 28px 14px; } }
 
   .cat-search-row {
     position: relative;
     border-bottom: 1px solid rgba(26,26,24,.06);
-    padding-bottom: 12px; margin-bottom: 12px;
+    padding-bottom: 8px; margin-bottom: 8px;
     display: flex; align-items: center; gap: 8px;
+  }
+  @media (min-width: 640px) {
+    .cat-search-row { padding-bottom: 12px; margin-bottom: 12px; }
   }
 
   .cat-input {
@@ -337,15 +321,81 @@ const CATALOG_CSS = `
     cursor: pointer;
     transition: all .18s;
     white-space: nowrap;
+    font-family: inherit;
+    -webkit-appearance: none;
+    appearance: none;
+    -webkit-tap-highlight-color: transparent;
   }
   .cat-chip:hover {
     border-color: rgba(var(--primary-rgb,152,76,168), .40);
     color: var(--primary, #984ca8);
   }
-  .cat-chip-active {
-    background: var(--primary, #984ca8);
+  .cat-chip.cat-chip-active,
+  button.cat-chip.cat-chip-active {
+    background: var(--primary, #984ca8) !important;
+    color: #ffffff !important;
+    border-color: var(--primary, #984ca8) !important;
+    -webkit-text-fill-color: #ffffff !important;
+    font-weight: 600;
+    box-shadow: 0 2px 8px rgba(var(--primary-rgb,152,76,168), .25);
+  }
+
+  /* Chip especial de ofertas */
+  .cat-chip-offer {
+    color: var(--offer, #c47200);
+    border-color: rgba(196,114,0,.35);
+    background: var(--offer-bg, #fff5e6);
+    font-weight: 600;
+    display: inline-flex; align-items: center; gap: 5px;
+  }
+  .cat-chip-offer:hover {
+    border-color: var(--offer, #c47200);
+    color: var(--offer, #c47200);
+  }
+  .cat-chip-offer.cat-chip-active {
+    background: var(--offer, #c47200);
     color: white;
-    border-color: var(--primary, #984ca8);
+    border-color: var(--offer, #c47200);
+  }
+
+  /* ── Tarjetas de garantía / trust ───────────────────────────── */
+  .cat-trust {
+    background: white;
+  }
+  .cat-trust-inner {
+    max-width: 1400px; margin: 0 auto;
+    padding: 0 16px 14px;
+  }
+  @media (min-width: 640px) { .cat-trust-inner { padding: 0 28px 18px; } }
+
+  .cat-trust-grid {
+    display: grid; gap: 10px;
+    grid-template-columns: repeat(2, 1fr);
+    background: rgba(var(--primary-rgb,152,76,168), .05);
+    border: 1px solid rgba(var(--primary-rgb,152,76,168), .10);
+    border-radius: 14px;
+    padding: 14px 16px;
+  }
+  @media (min-width: 900px) {
+    .cat-trust-grid { grid-template-columns: repeat(4, 1fr); gap: 16px; padding: 16px 22px; }
+  }
+  .cat-trust-item {
+    display: flex; align-items: center; gap: 12px; min-width: 0;
+  }
+  .cat-trust-icon {
+    width: 38px; height: 38px; border-radius: 10px;
+    display: inline-flex; align-items: center; justify-content: center;
+    background: rgba(var(--primary-rgb,152,76,168), .10);
+    color: var(--primary, #984ca8);
+    flex-shrink: 0;
+  }
+  .cat-trust-title {
+    font-size: 13px; font-weight: 600; color: #1a1a18; margin: 0;
+    line-height: 1.2;
+  }
+  .cat-trust-sub {
+    font-size: 11px; color: rgba(26,26,24,.55);
+    margin: 3px 0 0; line-height: 1.2;
   }
 
   /* ── Grid productos ─────────────────────────────────────────── */
@@ -967,7 +1017,10 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
 
   const filtered = products.filter((p) => {
     const matchSearch   = p.name.toLowerCase().includes(search.toLowerCase())
-    const matchCategory = selectedCategory === "all" || p.category_name === selectedCategory
+    const matchCategory =
+      selectedCategory === "all"     ? true :
+      selectedCategory === "__offers" ? p.has_offer :
+      p.category_name === selectedCategory
     return matchSearch && matchCategory
   })
 
@@ -1170,44 +1223,17 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
           </div>
         </header>
 
-        {/* ══ INTRO ════════════════════════════════════════════════════════════ */}
-        <div className="cat-intro">
-          <div className="cat-intro-inner">
-            <div>
-              <p className="cat-intro-eyebrow">Colección completa</p>
-              <h1 className="cat-serif" style={{
-                fontSize: "clamp(20px, 3.8vw, 38px)", fontWeight: 300,
-                lineHeight: 1.15, color: "#1a1a18", margin: 0,
-              }}>
-                Belleza que{" "}
-                <em style={{ fontStyle: "italic", color: "var(--primary, #984ca8)", opacity: .7 }}>transforma</em>
-              </h1>
-            </div>
-            <div className="cat-intro-count">
-              <p className="cat-intro-num">{String(products.length).padStart(2, "0")}</p>
-              <p className="cat-intro-num-label">referencias</p>
-            </div>
-          </div>
-
-          {/* Banner de ofertas vigentes */}
-          {offerCount > 0 && (
-            <div style={{ maxWidth: 1400, margin: "0 auto", padding: "0 16px 22px" }}>
-              <div className="cat-offer-banner">
-                <Tag size={14} strokeWidth={2} />
-                <span>
-                  <strong>{offerCount} {offerCount === 1 ? "producto" : "productos"} en oferta</strong>
-                  {" — "}
-                  ¡aprovecha los descuentos por tiempo limitado!
-                </span>
-              </div>
-            </div>
-          )}
-
-          <div className="cat-divider-color" />
-        </div>
-
         {/* ══ FILTROS ══════════════════════════════════════════════════════════ */}
         <div className="cat-filters">
+          {offerCount > 0 && (
+            <div className="cat-offer-strip">
+              <Tag size={12} strokeWidth={2} />
+              <span>
+                <strong>{offerCount} {offerCount === 1 ? "producto" : "productos"} en oferta</strong>
+                {" — "}aprovecha los descuentos
+              </span>
+            </div>
+          )}
           <div className="cat-filters-inner">
 
             <div className="cat-search-row">
@@ -1239,6 +1265,16 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
               >
                 Todo
               </button>
+              {offerCount > 0 && (
+                <button
+                  className={`cat-chip cat-chip-offer${selectedCategory === "__offers" ? " cat-chip-active" : ""}`}
+                  onClick={() => setSelectedCategory("__offers")}
+                  aria-label="Solo ofertas"
+                >
+                  <Tag size={11} strokeWidth={2} />
+                  Ofertas ({offerCount})
+                </button>
+              )}
               {categories.map((c) => (
                 <button
                   key={c.name}
@@ -1261,6 +1297,42 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
                   <X size={11} /> Limpiar
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+
+        {/* ══ TARJETAS DE GARANTÍA ════════════════════════════════════════════ */}
+        <div className="cat-trust">
+          <div className="cat-trust-inner">
+            <div className="cat-trust-grid">
+              <div className="cat-trust-item">
+                <span className="cat-trust-icon"><Award size={20} strokeWidth={1.6} /></span>
+                <div style={{ minWidth: 0 }}>
+                  <p className="cat-trust-title">Productos 100% originales</p>
+                  <p className="cat-trust-sub">Garantía de autenticidad</p>
+                </div>
+              </div>
+              <div className="cat-trust-item">
+                <span className="cat-trust-icon"><Truck size={20} strokeWidth={1.6} /></span>
+                <div style={{ minWidth: 0 }}>
+                  <p className="cat-trust-title">Envíos rápidos</p>
+                  <p className="cat-trust-sub">A todo el país</p>
+                </div>
+              </div>
+              <div className="cat-trust-item">
+                <span className="cat-trust-icon"><ShieldCheck size={20} strokeWidth={1.6} /></span>
+                <div style={{ minWidth: 0 }}>
+                  <p className="cat-trust-title">Compra segura</p>
+                  <p className="cat-trust-sub">Tus datos protegidos</p>
+                </div>
+              </div>
+              <div className="cat-trust-item">
+                <span className="cat-trust-icon"><Headphones size={20} strokeWidth={1.6} /></span>
+                <div style={{ minWidth: 0 }}>
+                  <p className="cat-trust-title">Atención personalizada</p>
+                  <p className="cat-trust-sub">Estamos para ayudarte</p>
+                </div>
+              </div>
             </div>
           </div>
         </div>

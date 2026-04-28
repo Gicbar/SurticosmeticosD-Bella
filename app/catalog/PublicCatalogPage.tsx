@@ -310,10 +310,45 @@ const CATALOG_CSS = `
   .cat-input:focus { border-bottom-color: var(--primary, #984ca8); }
 
   .cat-chips-row {
-    display: flex; gap: 8px; overflow-x: auto;
-    padding-bottom: 4px; -webkit-overflow-scrolling: touch;
+    display: flex; gap: 8px;
+    overflow-x: auto;
+    overflow-y: hidden;
+    flex-wrap: nowrap;
+    padding: 2px 24px 6px 2px;
+    margin: 0 -16px;
+    padding-left: 16px;
+    -webkit-overflow-scrolling: touch;
+    scroll-snap-type: x proximity;
+    scrollbar-width: thin;
+    scrollbar-color: rgba(var(--primary-rgb,152,76,168), .35) transparent;
+    mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      #000 14px,
+      #000 calc(100% - 24px),
+      transparent 100%
+    );
+    -webkit-mask-image: linear-gradient(
+      to right,
+      transparent 0,
+      #000 14px,
+      #000 calc(100% - 24px),
+      transparent 100%
+    );
   }
-  .cat-chips-row::-webkit-scrollbar { display: none; }
+  @media (min-width: 640px) {
+    .cat-chips-row { margin: 0 -28px; padding-left: 28px; padding-right: 36px; }
+  }
+  .cat-chips-row > .cat-chip { scroll-snap-align: start; }
+  .cat-chips-row::-webkit-scrollbar { height: 4px; }
+  .cat-chips-row::-webkit-scrollbar-track { background: transparent; }
+  .cat-chips-row::-webkit-scrollbar-thumb {
+    background: rgba(var(--primary-rgb,152,76,168), .25);
+    border-radius: 4px;
+  }
+  .cat-chips-row::-webkit-scrollbar-thumb:hover {
+    background: rgba(var(--primary-rgb,152,76,168), .50);
+  }
 
   .cat-chip {
     flex-shrink: 0;

@@ -46,7 +46,7 @@ const HEADER_CSS = `
   .hdr-root {
     font-family: 'DM Sans', sans-serif;
     position: sticky; top: 0; z-index: 100;
-    height: 52px;
+    height: 72px;
     display: flex; align-items: center; justify-content: space-between;
     padding: 0 24px 0 56px;
     /* Fondo 100% opaco — color sólido del tema, sin transparencias */
@@ -55,6 +55,15 @@ const HEADER_CSS = `
     transition: box-shadow 0.2s;
   }
   @media (min-width: 769px) { .hdr-root { padding: 0 28px; } }
+
+  /* Franja de 3px arriba — continúa visualmente con la del sidebar */
+  .hdr-root::before {
+    content: '';
+    position: absolute;
+    top: 0; left: 0; right: 0; height: 3px;
+    background: var(--primary, #984ca8);
+    opacity: 0.65;
+  }
   .hdr-root.hdr-scrolled {
     box-shadow:
       0 2px 0 rgba(var(--primary-rgb,152,76,168), 0.35),

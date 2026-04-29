@@ -71,7 +71,9 @@ const SIDEBAR_CSS = `
 
   /* ── Header ────────────────────────────────────────────────────────── */
   .sb-hd {
-    padding: 22px 18px 20px;
+    height: 72px;
+    padding: 0 18px;
+    display: flex; align-items: center;
     flex-shrink: 0; position: relative;
 
     /* Color sólido del tema — 100% opaco */
@@ -90,15 +92,19 @@ const SIDEBAR_CSS = `
 
   .sb-logo-link { display: flex; align-items: center; gap: 14px; text-decoration: none; }
 
-  /* Logo más grande */
+  /* Logo — mismo estilo que el catálogo público (bordes redondos + sombras suaves) */
   .sb-logo-mark {
     width: 44px; height: 44px;
     background: var(--sb-p);
+    border-radius: 11px;
     flex-shrink: 0;
     display: flex; align-items: center; justify-content: center;
     overflow: hidden;
-    /* Sombra con el color primario */
-    box-shadow: 0 4px 16px rgba(var(--primary-rgb,152,76,168), 0.40);
+    position: relative;
+    box-shadow:
+      0 4px 14px rgba(var(--primary-rgb,152,76,168), 0.28),
+      0 0 0 1px rgba(var(--primary-rgb,152,76,168), 0.15),
+      inset 0 1px 0 rgba(255,255,255,0.18);
   }
 
   .sb-serif { font-family: 'Cormorant Garamond', Georgia, serif; }
@@ -116,7 +122,8 @@ const SIDEBAR_CSS = `
   }
 
   .sb-close-btn {
-    position: absolute; top: 18px; right: 14px;
+    position: absolute; top: 50%; right: 14px;
+    transform: translateY(-50%);
     background: none; border: none; cursor: pointer;
     color: var(--sb-muted); padding: 4px;
     display: none; align-items: center; justify-content: center;

@@ -487,6 +487,26 @@ export function CampaniaDetallTabla({
   const [filtroCategoria, setFCat]  = useState<string>("")
   const [filtroDescuento, setFDes]  = useState<string>("") // "", "con", "sin"
 
+  // Overrides locales: pct guardado en BD que aún no se ha refrescado en props.
+  // Sin esto, al desmontar/remontar una fila por cambio de filtro, el useState
+  // interno de DetalleRow se reinicializa al valor original del prop y "pierde"
+  // el descuento aplicado.
+  const [pctOverrides, setPctOverrides] = useState<Record<string, number>>({})
+
+  const aplicarOverride = useCallback((d: Detalle): Detalle => {
+    const ov = pctOverrides[d.id]
+    return ov === undefined ? d : { ...d, porcentaje_descuento_aprobado: ov }
+  }, [pctOverrides])
+
+  const detallesConOverride = useMemo(
+    () => detalles.map(aplicarOverride),
+    [detalles, aplicarOverride]
+  )
+  const inelegiblesConOverride = useMemo(
+    () => inelegibles.map(aplicarOverride),
+    [inelegibles, aplicarOverride]
+  )
+
   // Categorías únicas (de elegibles + inelegibles)
   const categorias = useMemo(() => {
     const set = new Set<string>()
@@ -510,8 +530,8 @@ export function CampaniaDetallTabla({
     return true
   }, [search, filtroCategoria, filtroDescuento])
 
-  const detallesFiltrados   = useMemo(() => detalles.filter(matchProducto), [detalles, matchProducto])
-  const inelegiblesFiltrados= useMemo(() => inelegibles.filter(matchProducto), [inelegibles, matchProducto])
+  const detallesFiltrados   = useMemo(() => detallesConOverride.filter(matchProducto), [detallesConOverride, matchProducto])
+  const inelegiblesFiltrados= useMemo(() => inelegiblesConOverride.filter(matchProducto), [inelegiblesConOverride, matchProducto])
   const hayFiltros          = search.trim() !== "" || filtroCategoria !== "" || filtroDescuento !== ""
   const limpiarFiltros      = () => { setSearch(""); setFCat(""); setFDes("") }
 
@@ -604,7 +624,11 @@ export function CampaniaDetallTabla({
 
   // No hacemos refresh tras cada edición de slider: el propio componente fila
   // muestra el nuevo estado y evita un re-render completo de la página.
-  const handleGuardado = useCallback(() => {}, [])
+  // Pero sí guardamos un override por id para que, si la fila se desmonta y
+  // se vuelve a montar (por cambio de filtro), conserve el pct guardado.
+  const handleGuardado = useCallback((id: string, pct: number) => {
+    setPctOverrides(prev => ({ ...prev, [id]: pct }))
+  }, [])
 
   // ── MODO TOOLBAR (botones de acción) ─────────────────────────────────────
   if (accionPendiente !== "tabla") {

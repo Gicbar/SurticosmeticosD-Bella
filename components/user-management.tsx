@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/client"
 import { showError, showSuccess } from "@/lib/sweetalert"
 import {
   Users, Shield, ChevronDown, Check, RefreshCw,
-  CheckCircle2, XCircle,
+  CheckCircle2, XCircle, Building2,
   ShoppingCart, BarChart2, Megaphone, Package, FolderTree, TrendingUp, Truck,
   PiggyBank, DollarSign, CreditCard, Layers, ClipboardList, Settings, Sparkles,
   ListChecks, Eraser,
@@ -249,12 +249,16 @@ const ROLE_CLS: Record<Role, string> = {
 }
 
 type AppUser = {
-  id:          string
-  user_id:     string
-  email:       string
-  role:        Role
-  permissions: Record<string, boolean>
+  id:           string
+  user_id:      string
+  email:        string
+  role:         Role
+  permissions:  Record<string, boolean>
+  company_id:   string | null
+  company_name: string | null
 }
+
+type Company = { id: string; name: string }
 
 // ── RoleSelect ────────────────────────────────────────────────────────────────
 function RoleSelect({ value, onChange, disabled }: {
@@ -294,23 +298,99 @@ function RoleSelect({ value, onChange, disabled }: {
   )
 }
 
+// ── CompanySelect ─────────────────────────────────────────────────────────────
+function CompanySelect({ value, companies, onChange, disabled }: {
+  value: string | null
+  companies: Company[]
+  onChange: (v: string) => void
+  disabled?: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    const id = setTimeout(() => document.addEventListener("mousedown", h), 10)
+    return () => { clearTimeout(id); document.removeEventListener("mousedown", h) }
+  }, [open])
+
+  const current = companies.find(c => c.id === value)
+  const label = current?.name || (value ? "Empresa desconocida" : "— Sin empresa asignada —")
+
+  return (
+    <div className="um-sel" ref={ref} style={{ maxWidth: 320 }}>
+      <button type="button" className="um-sel-btn"
+        onClick={() => !disabled && setOpen(o => !o)}
+        disabled={disabled} aria-haspopup="listbox" aria-expanded={open}>
+        {label}
+      </button>
+      <ChevronDown className={`um-sel-chev${open ? " open" : ""}`} aria-hidden />
+      {open && (
+        <div className="um-sel-dd" role="listbox" style={{ maxHeight: 240, overflowY: "auto" }}>
+          {companies.length === 0 && (
+            <div className="um-sel-opt" style={{ color: "var(--muted)", cursor: "default" }}>
+              No hay empresas disponibles
+            </div>
+          )}
+          {companies.map(c => (
+            <div key={c.id}
+              className={`um-sel-opt${value === c.id ? " s" : ""}`}
+              role="option" aria-selected={value === c.id}
+              onClick={() => { onChange(c.id); setOpen(false) }}>
+              {c.name}
+              {value === c.id && <Check aria-hidden />}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ── Componente principal ──────────────────────────────────────────────────────
 export function UserManagement() {
-  const [users, setUsers]       = useState<AppUser[]>([])
-  const [loading, setLoading]   = useState(true)
-  const [saving, setSaving]     = useState<string | null>(null)
-  const [expanded, setExpanded] = useState<string | null>(null)
-  const [search, setSearch]     = useState("")
-  const [drafts, setDrafts]     = useState<Record<string, { role: Role; permissions: Record<PermissionKey, boolean> }>>({})
+  const [users, setUsers]         = useState<AppUser[]>([])
+  const [companies, setCompanies] = useState<Company[]>([])
+  const [loading, setLoading]     = useState(true)
+  const [saving, setSaving]       = useState<string | null>(null)
+  const [expanded, setExpanded]   = useState<string | null>(null)
+  const [search, setSearch]       = useState("")
+  const [drafts, setDrafts]       = useState<Record<string, { role: Role; permissions: Record<PermissionKey, boolean>; company_id: string | null }>>({})
 
   const load = async () => {
     setLoading(true)
-    const { data, error } = await createClient()
-      .from("user_permissions_with_email")
-      .select("id, user_id, email, role, permissions")
-      .order("email")
-    if (error) showError(error.message)
-    else setUsers((data || []) as AppUser[])
+    const supabase = createClient()
+    const [permsRes, compsRes, ucRes] = await Promise.all([
+      supabase.from("user_permissions_with_email")
+        .select("id, user_id, email, role, permissions").order("email"),
+      supabase.from("companies").select("id, name").order("name"),
+      supabase.from("user_companies").select("user_id, company_id"),
+    ])
+
+    if (permsRes.error) { showError(permsRes.error.message); setLoading(false); return }
+    if (compsRes.error) { showError(compsRes.error.message); setLoading(false); return }
+    if (ucRes.error)    { showError(ucRes.error.message);    setLoading(false); return }
+
+    const compsList = (compsRes.data || []) as Company[]
+    const compsById = new Map(compsList.map(c => [c.id, c]))
+    const ucByUser  = new Map(((ucRes.data || []) as Array<{ user_id: string; company_id: string }>)
+      .map(r => [r.user_id, r.company_id]))
+
+    const merged: AppUser[] = (permsRes.data || []).map((u: any) => {
+      const cid = ucByUser.get(u.user_id) || null
+      return {
+        id:           u.id,
+        user_id:      u.user_id,
+        email:        u.email,
+        role:         u.role,
+        permissions:  u.permissions,
+        company_id:   cid,
+        company_name: cid ? (compsById.get(cid)?.name || null) : null,
+      }
+    })
+
+    setCompanies(compsList)
+    setUsers(merged)
     setLoading(false)
   }
 
@@ -325,6 +405,7 @@ export function UserManagement() {
         [u.id]: {
           role: (u.role as Role) || "vendedor",
           permissions: normalizePermissions(u.permissions),
+          company_id: u.company_id,
         },
       }))
     }
@@ -332,6 +413,9 @@ export function UserManagement() {
 
   const setDraftRole = (id: string, role: Role) =>
     setDrafts(d => ({ ...d, [id]: { ...d[id], role } }))
+
+  const setDraftCompany = (id: string, company_id: string) =>
+    setDrafts(d => ({ ...d, [id]: { ...d[id], company_id } }))
 
   const togglePerm = (id: string, key: PermissionKey) =>
     setDrafts(d => ({
@@ -361,7 +445,7 @@ export function UserManagement() {
   const applyRoleTemplate = (id: string, role: Role) =>
     setDrafts(d => ({
       ...d,
-      [id]: { role, permissions: defaultPermissionsForRole(role) },
+      [id]: { ...d[id], role, permissions: defaultPermissionsForRole(role) },
     }))
 
   const cancelDraft = (id: string) => {
@@ -377,14 +461,57 @@ export function UserManagement() {
     if (!draft) return
     setSaving(u.id)
     try {
-      const { error } = await createClient()
+      const supabase = createClient()
+
+      const { error: permErr } = await supabase
         .from("user_permissions")
         .update({ role: draft.role, permissions: draft.permissions })
         .eq("id", u.id)
-      if (error) throw error
-      await showSuccess(`Permisos de ${u.email} actualizados`)
+      if (permErr) throw permErr
+
+      const companyChanged = draft.company_id && draft.company_id !== u.company_id
+      if (companyChanged) {
+        const { data: existing, error: selErr } = await supabase
+          .from("user_companies")
+          .select("id")
+          .eq("user_id", u.user_id)
+          .maybeSingle()
+        if (selErr) throw selErr
+
+        if (existing) {
+          const { error: ucErr } = await supabase
+            .from("user_companies")
+            .update({ company_id: draft.company_id, role: draft.role })
+            .eq("id", existing.id)
+          if (ucErr) throw ucErr
+        } else {
+          const { error: ucErr } = await supabase
+            .from("user_companies")
+            .insert({ user_id: u.user_id, company_id: draft.company_id, role: draft.role })
+          if (ucErr) throw ucErr
+        }
+      } else if (u.company_id && draft.role !== u.role) {
+        // Mantener role en sincronía con la asignación existente.
+        await supabase
+          .from("user_companies")
+          .update({ role: draft.role })
+          .eq("user_id", u.user_id)
+      }
+
+      await showSuccess(`Datos de ${u.email} actualizados`)
+
+      const newCompanyName = draft.company_id
+        ? (companies.find(c => c.id === draft.company_id)?.name || null)
+        : u.company_name
+
       setUsers(us => us.map(x => x.id === u.id
-        ? { ...x, role: draft.role, permissions: draft.permissions }
+        ? {
+            ...x,
+            role: draft.role,
+            permissions: draft.permissions,
+            company_id: draft.company_id ?? x.company_id,
+            company_name: newCompanyName,
+          }
         : x
       ))
       setExpanded(null)
@@ -420,7 +547,7 @@ export function UserManagement() {
       <div className="um">
         <div className="um-header">
           <span className="um-count">
-            {users.length} usuario{users.length !== 1 ? "s" : ""} en esta empresa
+            {users.length} usuario{users.length !== 1 ? "s" : ""} · {companies.length} empresa{companies.length !== 1 ? "s" : ""}
           </span>
           <input
             className="um-search"
@@ -464,6 +591,10 @@ export function UserManagement() {
                         <span className="um-pcount">
                           {activePermsCount} / {totalPerms} permisos
                         </span>
+                        <span className="um-pcount" style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
+                          <Building2 style={{ width: 9, height: 9 }} aria-hidden />
+                          {u.company_name || "Sin empresa"}
+                        </span>
                       </div>
                     </div>
                     <ChevronDown className={`um-expand-ico${isOpen ? " open" : ""}`} aria-hidden />
@@ -471,6 +602,19 @@ export function UserManagement() {
 
                   {isOpen && draft && (
                     <div className="um-panel">
+
+                      {/* Sección 0: Empresa asignada */}
+                      <div className="um-panel-section">
+                        <div className="um-panel-title">
+                          <Building2 aria-hidden /> Empresa asignada
+                        </div>
+                        <CompanySelect
+                          value={draft.company_id}
+                          companies={companies}
+                          onChange={v => setDraftCompany(u.id, v)}
+                          disabled={isSaving}
+                        />
+                      </div>
 
                       {/* Sección 1: Rol + plantillas */}
                       <div className="um-panel-section">

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useCallback, useMemo } from "react"
+import { useState, useCallback, useMemo, useRef, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { showConfirm, showSuccess, showError } from "@/lib/sweetalert"
@@ -299,40 +299,81 @@ function DetalleRow({
   editable: boolean
   onGuardado: (id: string, pct: number, resultado: any) => void
 }) {
+  const formatPct = (n: number) => (n % 1 === 0 ? String(n) : n.toFixed(1))
+
   const [pct, setPct]           = useState(detalle.porcentaje_descuento_aprobado)
+  const [pctInput, setPctInput] = useState<string>(formatPct(detalle.porcentaje_descuento_aprobado))
   const [saving, setSaving]     = useState(false)
+  const inputFocusedRef         = useRef(false)
   const maxPct = Number(detalle.porcentaje_maximo_permitido)
   const prod   = detalle.products
 
   const precioConDescuento = detalle.precio_venta_actual * (1 - pct / 100)
   const margenLocal        = ((precioConDescuento - detalle.precio_compra) / precioConDescuento) * 100
 
+  // Reflejar pct en el input cuando cambia desde fuera (slider) y el campo no
+  // está siendo editado. Si está enfocado lo dejamos para no estorbar al usuario.
+  useEffect(() => {
+    if (!inputFocusedRef.current) setPctInput(formatPct(pct))
+  }, [pct])
+
   const handleChange = (val: number) => {
     const clamped = Math.min(Math.max(0, val), maxPct)
     setPct(clamped)
   }
 
-  const handleBlur = async () => {
-    // Auto-guardar al soltar el slider o al perder foco del input
-    if (pct === detalle.porcentaje_descuento_aprobado) return
+  const persist = async (newPct: number) => {
+    if (newPct === detalle.porcentaje_descuento_aprobado) return
     setSaving(true)
     try {
       const supabase = createClient()
       const { data, error } = await supabase.rpc("rpc_actualizar_descuento_detalle", {
         p_detalle_id:           detalle.id,
-        p_porcentaje_descuento: pct,
+        p_porcentaje_descuento: newPct,
       })
       if (error) {
         showError(error.message || "Error al guardar descuento")
-        setPct(detalle.porcentaje_descuento_aprobado)  // revertir
+        setPct(detalle.porcentaje_descuento_aprobado)
+        setPctInput(formatPct(detalle.porcentaje_descuento_aprobado))
       } else {
-        onGuardado(detalle.id, pct, data)
+        onGuardado(detalle.id, newPct, data)
       }
     } catch (e: any) {
-      showError(e.message); setPct(detalle.porcentaje_descuento_aprobado)
+      showError(e.message)
+      setPct(detalle.porcentaje_descuento_aprobado)
+      setPctInput(formatPct(detalle.porcentaje_descuento_aprobado))
     } finally {
       setSaving(false)
     }
+  }
+
+  // Slider: persiste el pct ya cuajado en estado al soltarlo
+  const handleSliderEnd = () => persist(pct)
+
+  // Input numérico: permite borrar y escribir libremente; valida en blur
+  const handleInputChange = (raw: string) => {
+    // Aceptamos vacío, dígitos y un único punto/coma decimal
+    const sanitized = raw.replace(",", ".").replace(/[^0-9.]/g, "")
+    setPctInput(sanitized)
+    if (sanitized === "" || sanitized === ".") return
+    const n = parseFloat(sanitized)
+    if (!isNaN(n)) handleChange(n)
+  }
+
+  const handleInputFocus = (e: React.FocusEvent<HTMLInputElement>) => {
+    inputFocusedRef.current = true
+    // Selecciona todo para que el primer dígito tipiado reemplace el valor
+    // (evita que quede "05" al estar el cursor después del 0).
+    e.target.select()
+  }
+
+  const handleInputBlur = async () => {
+    inputFocusedRef.current = false
+    const n = parseFloat(pctInput)
+    const clamped = isNaN(n) ? 0 : Math.min(Math.max(0, n), maxPct)
+    setPct(clamped)
+    setPctInput(formatPct(clamped))
+    await persist(clamped)
   }
 
   const sliderPct = maxPct > 0 ? `${(pct / maxPct) * 100}%` : "0%"
@@ -397,19 +438,20 @@ function DetalleRow({
                 value={pct}
                 style={{ "--val": sliderPct } as any}
                 onChange={e => handleChange(parseFloat(e.target.value))}
-                onMouseUp={handleBlur}
-                onTouchEnd={handleBlur}
+                onMouseUp={handleSliderEnd}
+                onTouchEnd={handleSliderEnd}
                 disabled={!editable || saving}
                 aria-label="Porcentaje de descuento"
                 aria-valuemin={0} aria-valuemax={maxPct} aria-valuenow={pct}
               />
               <input
-                type="number"
+                type="text"
+                inputMode="decimal"
                 className="cdt-pct-input"
-                min={0} max={maxPct} step={0.5}
-                value={pct}
-                onChange={e => handleChange(parseFloat(e.target.value) || 0)}
-                onBlur={handleBlur}
+                value={pctInput}
+                onChange={e => handleInputChange(e.target.value)}
+                onFocus={handleInputFocus}
+                onBlur={handleInputBlur}
                 disabled={!editable || saving}
                 aria-label="Valor de descuento"
               />
@@ -486,6 +528,7 @@ export function CampaniaDetallTabla({
   const [search, setSearch]         = useState("")
   const [filtroCategoria, setFCat]  = useState<string>("")
   const [filtroDescuento, setFDes]  = useState<string>("") // "", "con", "sin"
+  const [filtroPct, setFPct]        = useState<string>("") // "" o pct exacto (string con 1 decimal)
 
   // Overrides locales: pct guardado en BD que aún no se ha refrescado en props.
   // Sin esto, al desmontar/remontar una fila por cambio de filtro, el useState
@@ -517,6 +560,21 @@ export function CampaniaDetallTabla({
     return Array.from(set).sort((a, b) => a.localeCompare(b, "es"))
   }, [detalles, inelegibles])
 
+  // Porcentajes de descuento aplicados (>0), agrupados a 1 decimal,
+  // contando ocurrencias para mostrar "(N)" en cada opción del select.
+  const pctsAplicados = useMemo(() => {
+    const map = new Map<string, number>()
+    for (const d of [...detallesConOverride, ...inelegiblesConOverride]) {
+      const p = Number(d.porcentaje_descuento_aprobado)
+      if (!(p > 0)) continue
+      const key = p.toFixed(1)
+      map.set(key, (map.get(key) ?? 0) + 1)
+    }
+    return Array.from(map.entries())
+      .map(([key, count]) => ({ key, value: Number(key), count }))
+      .sort((a, b) => b.value - a.value)
+  }, [detallesConOverride, inelegiblesConOverride])
+
   const matchProducto = useCallback((d: Detalle) => {
     const q = search.trim().toLowerCase()
     if (q) {
@@ -527,13 +585,17 @@ export function CampaniaDetallTabla({
     if (filtroCategoria && d.products?.categories?.name !== filtroCategoria) return false
     if (filtroDescuento === "con" && !(d.porcentaje_descuento_aprobado > 0)) return false
     if (filtroDescuento === "sin" && d.porcentaje_descuento_aprobado > 0) return false
+    if (filtroPct !== "") {
+      const pAprobado = Number(d.porcentaje_descuento_aprobado).toFixed(1)
+      if (pAprobado !== filtroPct) return false
+    }
     return true
-  }, [search, filtroCategoria, filtroDescuento])
+  }, [search, filtroCategoria, filtroDescuento, filtroPct])
 
   const detallesFiltrados   = useMemo(() => detallesConOverride.filter(matchProducto), [detallesConOverride, matchProducto])
   const inelegiblesFiltrados= useMemo(() => inelegiblesConOverride.filter(matchProducto), [inelegiblesConOverride, matchProducto])
-  const hayFiltros          = search.trim() !== "" || filtroCategoria !== "" || filtroDescuento !== ""
-  const limpiarFiltros      = () => { setSearch(""); setFCat(""); setFDes("") }
+  const hayFiltros          = search.trim() !== "" || filtroCategoria !== "" || filtroDescuento !== "" || filtroPct !== ""
+  const limpiarFiltros      = () => { setSearch(""); setFCat(""); setFDes(""); setFPct("") }
 
   // Tabla editable solo en estado CALCULADA
   const editable = campania.estado === "CALCULADA"
@@ -760,6 +822,23 @@ export function CampaniaDetallTabla({
             <option value="con">Con descuento aplicado</option>
             <option value="sin">Sin descuento</option>
           </select>
+
+          {pctsAplicados.length > 0 && (
+            <select
+              className="cdt-select"
+              value={filtroPct}
+              onChange={e => setFPct(e.target.value)}
+              aria-label="Filtrar por porcentaje de descuento"
+              title="Filtra los lotes con un porcentaje de descuento idéntico"
+            >
+              <option value="">Cualquier porcentaje</option>
+              {pctsAplicados.map(p => (
+                <option key={p.key} value={p.key}>
+                  {p.value % 1 === 0 ? p.value.toFixed(0) : p.value.toFixed(1)}% ({p.count})
+                </option>
+              ))}
+            </select>
+          )}
 
           {hayFiltros && (
             <button className="cdt-btn-outline" onClick={limpiarFiltros} type="button" style={{ height:32, padding:"0 12px", fontSize:11 }}>

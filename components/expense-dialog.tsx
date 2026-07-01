@@ -205,9 +205,10 @@ export function ExpenseDialog({
 
   useEffect(() => {
     if (!open) return
-    createClient().from("categories_expense").select("id, name").order("name")
+    createClient().from("categories_expense").select("id, name")
+      .eq("company_id", companyId).order("name")
       .then(({ data }) => setCategories(data || []))
-  }, [open])
+  }, [open, companyId])
 
   const closeModal = () => setOpen(false)
 

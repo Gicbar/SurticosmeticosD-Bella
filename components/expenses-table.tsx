@@ -100,6 +100,7 @@ export function ExpensesTable({ expenses, companyId }: { expenses: Expense[]; co
 
   useEffect(() => {
     createClient().from("categories_expense").select("id, name")
+      .eq("company_id", companyId)
       .then(({ data }) => {
         if (data) {
           const m: Record<number, string> = {}
@@ -107,7 +108,7 @@ export function ExpensesTable({ expenses, companyId }: { expenses: Expense[]; co
           setCatMap(m)
         }
       })
-  }, [])
+  }, [companyId])
 
   const handleDelete = async (id: string) => {
     const ok = await showConfirm("¿Eliminar este gasto?", "Esta acción es irreversible")

@@ -6,7 +6,7 @@ import { CompanySettingsForm } from "@/components/CompanySettingsForm"
 import {
   ShieldCheck, User, Settings, Mail, Key, Calendar, Lock, Building2, CheckCircle2, XCircle,
   ShoppingCart, BarChart2, Megaphone, Package, FolderTree, TrendingUp, Truck,
-  PiggyBank, Users, DollarSign, CreditCard, Layers, ClipboardList,
+  PiggyBank, Users, DollarSign, CreditCard, Layers, ClipboardList, CalendarCheck,
 } from "lucide-react"
 import { redirect } from "next/navigation"
 import {
@@ -16,7 +16,7 @@ import {
 
 const ICONS: Record<string, any> = {
   ShoppingCart, BarChart2, Megaphone, Package, FolderTree, TrendingUp, Truck,
-  PiggyBank, Users, DollarSign, CreditCard, Layers, ClipboardList, Settings,
+  PiggyBank, Users, DollarSign, CreditCard, Layers, ClipboardList, Settings, CalendarCheck,
 }
 
 const ROLE_CONFIG: Record<string, { label: string; cls: string }> = {

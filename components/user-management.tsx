@@ -8,7 +8,7 @@ import {
   CheckCircle2, XCircle, Building2,
   ShoppingCart, BarChart2, Megaphone, Package, FolderTree, TrendingUp, Truck,
   PiggyBank, DollarSign, CreditCard, Layers, ClipboardList, Settings, Sparkles,
-  ListChecks, Eraser,
+  ListChecks, Eraser, CalendarCheck,
 } from "lucide-react"
 import {
   PERMISSIONS_BY_GROUP, GROUP_LABELS, PERMISSION_KEYS, ROLE_LABELS,
@@ -19,7 +19,7 @@ import {
 // ── Mapeo de iconos lucide por nombre (los importamos arriba para tree-shaking)
 const ICONS: Record<string, any> = {
   ShoppingCart, BarChart2, Megaphone, Package, FolderTree, TrendingUp, Truck,
-  PiggyBank, Users, DollarSign, CreditCard, Layers, ClipboardList, Settings,
+  PiggyBank, Users, DollarSign, CreditCard, Layers, ClipboardList, Settings, CalendarCheck,
 }
 
 // ── CSS ───────────────────────────────────────────────────────────────────────

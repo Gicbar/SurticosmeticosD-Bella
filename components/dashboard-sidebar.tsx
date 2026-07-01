@@ -11,7 +11,7 @@ import { getCompanyInitials } from "@/lib/theme"
 import {
   LayoutDashboard, Package, ShoppingCart, Users, TrendingUp, Receipt, CreditCard,
   Settings, Truck, FolderTree, DollarSign, PiggyBank, BarChart2, X, Menu,Megaphone,Layers,
-  ClipboardList,
+  ClipboardList, CalendarCheck,
 } from "lucide-react"
 
 const SIDEBAR_CSS = `
@@ -206,7 +206,7 @@ const SIDEBAR_CSS = `
 interface UserPermissions {
   ventas: boolean; productos: boolean; categorias: boolean; inventario: boolean;
   rentabilidad: boolean; clientes: boolean; proveedores: boolean;
-  gastos: boolean; creditos: boolean; configuracion: boolean; campanias: boolean;
+  gastos: boolean; creditos: boolean; cierres: boolean; configuracion: boolean; campanias: boolean;
   kits: boolean; pedidos_catalogo: boolean; reportes: boolean;
   [key: string]: boolean
 }
@@ -242,6 +242,7 @@ const mgmtNav = [
   { name: "Créditos",     href: "/dashboard/debts",    icon: CreditCard, key: "creditos" },
   { name: "Gastos",       href: "/dashboard/expenses", icon: DollarSign, key: "gastos" },
   { name: "Rentabilidad", href: "/dashboard/profits",  icon: PiggyBank,  key: "rentabilidad" },
+  { name: "Cierre de Mes", href: "/dashboard/cierres", icon: CalendarCheck, key: "cierres" },
 ]
 const systemNav = [
   { name: "Configuración", href: "/dashboard/settings", icon: Settings, key: "configuracion" },

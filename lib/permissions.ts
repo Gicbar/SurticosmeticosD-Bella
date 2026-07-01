@@ -17,6 +17,7 @@ export type PermissionKey =
   | "clientes"
   | "gastos"
   | "creditos"
+  | "cierres"
   | "kits"
   | "pedidos_catalogo"
   | "configuracion"
@@ -66,6 +67,7 @@ export const PERMISSIONS: PermissionDef[] = [
   { key: "creditos",          group: "gestion",   label: "Créditos / Deudas",    hint: "Deudas pendientes de cobro a clientes",                      path: "/dashboard/debts",              icon: "CreditCard" },
   { key: "gastos",            group: "gestion",   label: "Gastos",               hint: "Registro y reporte de gastos del negocio",                   path: "/dashboard/expenses",           icon: "DollarSign" },
   { key: "rentabilidad",      group: "gestion",   label: "Rentabilidad",         hint: "Costos, márgenes y utilidad por venta",                      path: "/dashboard/profits",            icon: "PiggyBank" },
+  { key: "cierres",           group: "gestion",   label: "Cierre de Mes",        hint: "Cruce de ingresos y gastos con saldo que arrastra al mes siguiente", path: "/dashboard/cierres",   icon: "CalendarCheck" },
 
   // Sistema — configuración
   { key: "configuracion",     group: "sistema",   label: "Configuración",        hint: "Información de la empresa, usuarios y permisos",             path: "/dashboard/settings",           icon: "Settings" },

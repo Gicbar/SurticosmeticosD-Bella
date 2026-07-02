@@ -235,8 +235,32 @@ export function ExpenseDialog({
     }
     setLoading(true)
     try {
-      const { data: { user } } = await createClient().auth.getUser()
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
       if (!user) { showError("Usuario no autenticado"); return }
+
+      // Regla: no registrar, mover ni editar gastos en un mes ya cerrado.
+      // Se valida el mes DESTINO (nueva fecha) y, al editar, también el ORIGINAL.
+      const [ty, tm] = form.date.split("-").map(Number)          // mes destino (Colombia)
+      const meses: { anio: number; mes: number }[] = [{ anio: ty, mes: tm }]
+      if (expense) {
+        const [oy, om] = isoToColDateStr(expense.date).split("-").map(Number)  // mes original
+        if (oy !== ty || om !== tm) meses.push({ anio: oy, mes: om })
+      }
+      const { data: cerrados } = await supabase
+        .from("cierres_mensuales")
+        .select("anio, mes")
+        .eq("company_id", companyId)
+        .or(meses.map(c => `and(anio.eq.${c.anio},mes.eq.${c.mes})`).join(","))
+      if (cerrados && cerrados.length > 0) {
+        const c = cerrados[0]
+        showError(
+          `El mes ${String(c.mes).padStart(2, "0")}/${c.anio} ya está cerrado. ` +
+          `No puedes registrar, mover ni editar gastos en un mes cerrado.`,
+          "Mes cerrado",
+        )
+        return
+      }
 
       const payload = {
         description: form.description.trim(),
@@ -249,8 +273,8 @@ export function ExpenseDialog({
       }
 
       const { error } = expense
-        ? await createClient().from("expenses").update(payload).eq("id", expense.id).eq("company_id", companyId)
-        : await createClient().from("expenses").insert(payload)
+        ? await supabase.from("expenses").update(payload).eq("id", expense.id).eq("company_id", companyId)
+        : await supabase.from("expenses").insert(payload)
 
       if (error) throw error
       closeModal()

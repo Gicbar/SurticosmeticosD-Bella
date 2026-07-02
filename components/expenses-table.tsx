@@ -67,7 +67,7 @@ table.et-tbl { width:100%; border-collapse:collapse; min-width:640px; }
 .et-empty-t { font-size:13px; font-weight:500; color:var(--txt); margin:0; }
 `
 
-type Expense = { id:string; description:string; amount:number; category:string|null; date:string }
+type Expense = { id:string; description:string; amount:number; category:string|null; date:string; forma_pago?:string|null }
 
 // Muestra fecha y hora en zona Colombia usando Intl (sin librerías externas)
 const FMT = (iso: string): { fecha: string; hora: string } => {
@@ -110,11 +110,26 @@ export function ExpensesTable({ expenses, companyId }: { expenses: Expense[]; co
       })
   }, [companyId])
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (e: Expense) => {
+    // Regla: no eliminar gastos de un mes ya cerrado.
+    const COL_MS = 5 * 60 * 60 * 1000
+    const [y, m] = new Date(new Date(e.date).getTime() - COL_MS)
+      .toISOString().slice(0, 10).split("-").map(Number)
+    const supabase = createClient()
+    const { data: cerrado } = await supabase.from("cierres_mensuales")
+      .select("id").eq("company_id", companyId).eq("anio", y).eq("mes", m).maybeSingle()
+    if (cerrado) {
+      showError(
+        `El mes ${String(m).padStart(2, "0")}/${y} ya está cerrado. No puedes eliminar gastos de un mes cerrado.`,
+        "Mes cerrado",
+      )
+      return
+    }
+
     const ok = await showConfirm("¿Eliminar este gasto?", "Esta acción es irreversible")
     if (!ok) return
-    const { error } = await createClient().from("expenses")
-      .delete().eq("id", id).eq("company_id", companyId)
+    const { error } = await supabase.from("expenses")
+      .delete().eq("id", e.id).eq("company_id", companyId)
     if (error) showError(error.message, "Error al eliminar")
     else { await showSuccess("Gasto eliminado"); router.refresh() }
   }
@@ -190,7 +205,7 @@ export function ExpensesTable({ expenses, companyId }: { expenses: Expense[]; co
                             <Edit aria-hidden />
                           </button>
                         </ExpenseDialog>
-                        <button className="et-btn del" onClick={() => handleDelete(e.id)} aria-label="Eliminar gasto">
+                        <button className="et-btn del" onClick={() => handleDelete(e)} aria-label="Eliminar gasto">
                           <Trash2 aria-hidden />
                         </button>
                       </div>

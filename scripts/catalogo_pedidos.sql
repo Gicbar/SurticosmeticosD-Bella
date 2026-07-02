@@ -23,14 +23,16 @@
 -- 1. EXTENSIÓN A product_kits
 -- ════════════════════════════════════════════════════════════════════════════
 ALTER TABLE public.product_kits
-  ADD COLUMN IF NOT EXISTS is_catalog_order boolean      NOT NULL DEFAULT false,
-  ADD COLUMN IF NOT EXISTS catalog_status   text,
-  ADD COLUMN IF NOT EXISTS client_name      text,
-  ADD COLUMN IF NOT EXISTS client_phone     text,
-  ADD COLUMN IF NOT EXISTS expires_at       timestamptz,
-  ADD COLUMN IF NOT EXISTS reclaimed_at     timestamptz,
-  ADD COLUMN IF NOT EXISTS sale_id          uuid,
-  ADD COLUMN IF NOT EXISTS frozen_total     numeric(14,2);
+  ADD COLUMN IF NOT EXISTS is_catalog_order   boolean      NOT NULL DEFAULT false,
+  ADD COLUMN IF NOT EXISTS catalog_status     text,
+  ADD COLUMN IF NOT EXISTS client_name        text,
+  ADD COLUMN IF NOT EXISTS client_phone       text,
+  ADD COLUMN IF NOT EXISTS expires_at         timestamptz,
+  ADD COLUMN IF NOT EXISTS reclaimed_at       timestamptz,
+  ADD COLUMN IF NOT EXISTS sale_id            uuid,
+  ADD COLUMN IF NOT EXISTS frozen_total       numeric(14,2),
+  ADD COLUMN IF NOT EXISTS campania_ids       uuid[]       NOT NULL DEFAULT '{}'::uuid[],
+  ADD COLUMN IF NOT EXISTS cancellation_reason text;
 
 -- Constraint: catalog_status válido cuando is_catalog_order = true
 DO $$
@@ -152,6 +154,8 @@ DECLARE
   v_stock          int;
   v_pname          text;
   v_idx            int := 0;
+  v_campania_ids   uuid[] := '{}'::uuid[];
+  v_camp_id        uuid;
 BEGIN
   -- Validaciones básicas
   IF p_company_id IS NULL THEN
@@ -195,18 +199,26 @@ BEGIN
     -- Validar precio congelado contra precio actual / oferta vigente
     -- (defensa contra manipulación del cliente).
     IF v_has_offer THEN
-      IF NOT EXISTS (
-        SELECT 1 FROM public.ofertas_virtuales o
-        WHERE o.product_id = v_pid
-          AND o.company_id = p_company_id
-          AND o.activo = true
-          AND CURRENT_DATE BETWEEN o.fecha_inicio AND o.fecha_fin
-          AND ABS(o.precio_oferta - v_unit_price) <= 0.01
-      ) THEN
+      SELECT o.campania_id INTO v_camp_id
+      FROM public.ofertas_virtuales o
+      WHERE o.product_id = v_pid
+        AND o.company_id = p_company_id
+        AND o.activo = true
+        AND CURRENT_DATE BETWEEN o.fecha_inicio AND o.fecha_fin
+        AND ABS(o.precio_oferta - v_unit_price) <= 0.01
+      LIMIT 1;
+
+      IF v_camp_id IS NULL THEN
         -- Si el cliente pretende oferta pero ya no existe, rechazamos con
         -- mensaje claro: la página debe recargar.
         RAISE EXCEPTION 'La oferta para "%" ya no está disponible. Recarga el catálogo.', v_pname;
       END IF;
+
+      -- Acumular la campaña en la lista, si no estaba
+      IF NOT (v_camp_id = ANY(v_campania_ids)) THEN
+        v_campania_ids := array_append(v_campania_ids, v_camp_id);
+      END IF;
+      v_camp_id := NULL;
     ELSE
       -- Para precio normal, debe coincidir con sale_price actual.
       IF NOT EXISTS (
@@ -274,7 +286,8 @@ BEGIN
   INSERT INTO public.product_kits(
     company_id, code, name, description, is_active,
     is_catalog_order, catalog_status,
-    client_name, client_phone, expires_at, frozen_total
+    client_name, client_phone, expires_at, frozen_total,
+    campania_ids
   ) VALUES (
     p_company_id, v_code,
     'Pedido catálogo #' || v_code,
@@ -283,7 +296,8 @@ BEGIN
     true, 'PENDIENTE',
     NULLIF(trim(coalesce(p_client_name,'')),''),
     NULLIF(trim(coalesce(p_client_phone,'')),''),
-    v_expires_at, v_total
+    v_expires_at, v_total,
+    v_campania_ids
   ) RETURNING id INTO v_kit_id;
 
   -- Insertar items con precios congelados

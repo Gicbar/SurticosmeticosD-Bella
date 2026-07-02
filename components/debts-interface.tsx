@@ -7,7 +7,12 @@ import {
   ChevronUp, CreditCard, RefreshCw, TrendingDown,
   Users, MessageSquare,
 } from "lucide-react"
-import { showSuccess, showError, showWarning, showInput } from "@/lib/sweetalert"
+import { showSuccess, showError, showWarning, showInput, showSelect } from "@/lib/sweetalert"
+
+const FORMA_PAGO_OPTS = [
+  { value: "efectivo", label: "💵 Efectivo (entra al negocio)" },
+  { value: "banco",    label: "🏦 Banco (transferencia / tarjeta)" },
+]
 
 // ── CSS ───────────────────────────────────────────────────────────────────────
 const DEBTS_CSS = `
@@ -356,12 +361,15 @@ export function DebtsInterface({ companyId }: DebtsInterfaceProps) {
     if (amount > Number(debt.remaining_amount))
       return showError(`El abono supera el saldo (${fmt(Number(debt.remaining_amount))})`, "")
 
+    const formaPago = await showSelect("¿Cómo pagó el abono?", FORMA_PAGO_OPTS, "efectivo")
+    if (formaPago === null) return
+
     setProcessing(debt.id)
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       const { error } = await supabase.rpc("register_debt_payment", {
-        p_debt_id: debt.id, p_amount: amount, p_user_id: user?.id,
+        p_debt_id: debt.id, p_amount: amount, p_user_id: user?.id, p_forma_pago: formaPago,
       })
       if (error) throw error
       await showSuccess(
@@ -378,13 +386,15 @@ export function DebtsInterface({ companyId }: DebtsInterfaceProps) {
   // ── Marcar pagada ──────────────────────────────────────────────────────────
   const handleMarkPaid = async (debt: Debt) => {
     if (Number(debt.remaining_amount) <= 0) return
+    const formaPago = await showSelect("¿Cómo pagó el saldo?", FORMA_PAGO_OPTS, "efectivo")
+    if (formaPago === null) return
     setProcessing(debt.id)
     try {
       const supabase = createClient()
       const { data: { user } } = await supabase.auth.getUser()
       const { error } = await supabase.rpc("register_debt_payment", {
         p_debt_id: debt.id, p_amount: Number(debt.remaining_amount),
-        p_notes: "Pago total", p_user_id: user?.id,
+        p_notes: "Pago total", p_user_id: user?.id, p_forma_pago: formaPago,
       })
       if (error) throw error
       await showSuccess(`Deuda de ${fmt(Number(debt.original_amount))} saldada`, "¡Pagada!")

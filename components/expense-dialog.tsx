@@ -5,7 +5,7 @@ import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { showError, showSuccess } from "@/lib/sweetalert"
-import { DollarSign, Calendar, Tag, X, ChevronDown, Check, Receipt } from "lucide-react"
+import { DollarSign, Calendar, Tag, X, ChevronDown, Check, Receipt, Wallet, Landmark } from "lucide-react"
 
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap');
@@ -66,6 +66,20 @@ const CSS = `
 
 .ed-g2 { display:grid; gap:12px; grid-template-columns:1fr 1fr; }
 @media(max-width:440px){ .ed-g2{ grid-template-columns:1fr; } }
+
+/* Segmentado forma de pago */
+.ed-seg { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.ed-seg-btn {
+  display:flex; align-items:center; justify-content:center; gap:7px;
+  height:42px; padding:0 10px; cursor:pointer;
+  border:1px solid rgba(26,26,24,.08); background:#fff;
+  font-family:'DM Sans',sans-serif; font-size:13px; color:rgba(26,26,24,.6);
+  transition:border-color .14s, background .14s, color .14s;
+}
+.ed-seg-btn svg { width:15px; height:15px; }
+.ed-seg-btn:hover:not(.on) { border-color:rgba(26,26,24,.25); }
+.ed-seg-btn.on { border-color:var(--primary,#984ca8); background:rgba(var(--primary-rgb,152,76,168),.08); color:var(--primary,#984ca8); font-weight:600; }
+.ed-seg-btn:disabled { opacity:.5; cursor:not-allowed; }
 
 /* CustomSelect */
 .ed-sel { position:relative; }
@@ -138,7 +152,7 @@ function colDateToUTCIso(dateStr: string): string {
   return new Date(Date.UTC(y, m - 1, d, 5, 0, 0)).toISOString()
 }
 
-type Expense = { id:string; description:string; amount:number; category:string|null; date:string }
+type Expense = { id:string; description:string; amount:number; category:string|null; date:string; forma_pago?:string|null }
 
 function CategorySelect({ value, onChange, options, disabled }: {
   value: string; onChange: (v:string) => void
@@ -198,6 +212,7 @@ export function ExpenseDialog({
     description: expense?.description || "",
     amount:      expense?.amount?.toString() || "",
     category:    expense?.category?.toString() || "",
+    forma_pago:  expense?.forma_pago || "efectivo",
     date:        expense?.date
       ? isoToColDateStr(expense.date)   // edición: fecha almacenada → día Colombia
       : todayColStr(),                  // nuevo: hoy en Colombia
@@ -227,6 +242,7 @@ export function ExpenseDialog({
         description: form.description.trim(),
         amount:      parseFloat(form.amount),
         category:    form.category ? parseInt(form.category) : null,
+        forma_pago:  form.forma_pago,
         date: colDateToUTCIso(form.date), // medianoche Colombia → UTC correcto
         created_by:  user.id,
         company_id:  companyId,
@@ -314,6 +330,22 @@ export function ExpenseDialog({
                     options={categories}
                     disabled={loading}
                   />
+                </div>
+
+                <div>
+                  <span className="ed-lbl ed-lbl-row"><Wallet aria-hidden />¿De dónde salió el dinero?</span>
+                  <div className="ed-seg">
+                    <button type="button" disabled={loading}
+                      className={`ed-seg-btn${form.forma_pago === "efectivo" ? " on" : ""}`}
+                      onClick={() => setForm(f => ({ ...f, forma_pago: "efectivo" }))}>
+                      <Wallet aria-hidden />Efectivo (negocio)
+                    </button>
+                    <button type="button" disabled={loading}
+                      className={`ed-seg-btn${form.forma_pago === "banco" ? " on" : ""}`}
+                      onClick={() => setForm(f => ({ ...f, forma_pago: "banco" }))}>
+                      <Landmark aria-hidden />Banco
+                    </button>
+                  </div>
                 </div>
               </div>
 

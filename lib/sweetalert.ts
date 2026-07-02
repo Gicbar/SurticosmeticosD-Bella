@@ -110,6 +110,33 @@ export const showInfo = (message: string, title = "Información") => {
   })
 }
 
+/**
+ * Muestra un selector de opciones (radio) y devuelve la clave elegida, o null si se cancela.
+ * options: [{ value, label }]. defaultValue marca la opción preseleccionada.
+ */
+export const showSelect = async (
+  title: string,
+  options: { value: string; label: string }[],
+  defaultValue?: string,
+) => {
+  const inputOptions = options.reduce<Record<string, string>>((acc, o) => {
+    acc[o.value] = o.label
+    return acc
+  }, {})
+  const result = await Swal.fire({
+    ...baseSwalConfig,
+    title,
+    input: "radio",
+    inputOptions,
+    inputValue: defaultValue ?? options[0]?.value,
+    showCancelButton: true,
+    confirmButtonText: "Aceptar",
+    cancelButtonText: "Cancelar",
+    inputValidator: (value) => (!value ? "Selecciona una opción" : null),
+  })
+  return result.isConfirmed ? (result.value as string) : null
+}
+
 export const showInput = async (title: string, placeholder: string, inputType: "text" | "number" = "text") => {
   const result = await Swal.fire({
     ...baseSwalConfig,

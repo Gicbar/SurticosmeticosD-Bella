@@ -280,6 +280,29 @@ const POS_CSS = `
   .pos-checkout-btn:hover:not(:disabled) { opacity: 0.88; }
   .pos-checkout-btn:disabled { opacity: 0.45; cursor: not-allowed; }
 
+  /* ── Panel de venta completada ── */
+  .pos-done {
+    margin-top: 8px; border: 1px solid rgba(22,163,74,.35);
+    background: rgba(22,163,74,.07); padding: 16px 16px 14px;
+    display: flex; flex-direction: column; gap: 12px; text-align: center;
+  }
+  .pos-done-badge {
+    display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+    color: #16a34a; font-size: 13px; font-weight: 700; letter-spacing: .04em;
+  }
+  .pos-done-badge svg { width: 17px; height: 17px; }
+  .pos-done-detail { font-size: 12px; color: #1a1a18; opacity: .8; margin: 0; }
+  .pos-done-detail strong { color: #16a34a; }
+  .pos-newsale-btn {
+    width: 100%; height: 52px; background: var(--pos-p);
+    border: none; cursor: pointer; color: #fff;
+    font-family: 'DM Sans', sans-serif; font-size: 13px; font-weight: 600;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    transition: opacity 0.15s;
+  }
+  .pos-newsale-btn:hover { opacity: 0.88; }
+
 
   /* ── Kit badge en carrito ── */
   .pos-kit-badge {
@@ -403,6 +426,15 @@ export function POSInterface({ companyId }: POSInterfaceProps) {
   const [paymentMethod, setPaymentMethod]       = useState("efectivo")
   const [isCredit, setIsCredit]                 = useState(false)    // ← NUEVO
   const [isProcessing, setIsProcessing]         = useState(false)
+  // Candado síncrono anti-doble-clic: setIsProcessing (estado) es asíncrono y no
+  // bloquea un segundo clic disparado durante los await previos al insert.
+  const checkoutLock                            = useRef(false)
+  // Clave de idempotencia por intento de venta: estable entre reintentos del
+  // mismo carrito; el backend la usa para no duplicar. Se limpia al terminar.
+  const ventaUidRef                             = useRef<string | null>(null)
+  // Estado terminal tras una venta exitosa: obliga a pulsar "Nueva venta" (o a
+  // agregar un producto) antes de poder registrar otra. Guarda el resumen.
+  const [saleDone, setSaleDone]                 = useState<{ total: number; change: number; isCredit: boolean } | null>(null)
   const [products, setProducts]                 = useState<Product[]>([])
   const [clients, setClients]                   = useState<Client[]>([])
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([])
@@ -546,6 +578,7 @@ export function POSInterface({ companyId }: POSInterfaceProps) {
   }
 
   const addKitToCart = (kit: KitPreview) => {
+    setSaleDone(null)   // agregar productos inicia una venta nueva
     setCart(prev => {
       let next = [...prev]
       for (const item of kit.items) {
@@ -579,6 +612,7 @@ export function POSInterface({ companyId }: POSInterfaceProps) {
   }
 
   const addToCart = (product: Product) => {
+    setSaleDone(null)   // agregar productos inicia una venta nueva
     setCart(prev => {
       const ex = prev.find(i => i.product_id === product.id)
       if (ex) return prev.map(i => i.product_id === product.id
@@ -601,127 +635,102 @@ export function POSInterface({ companyId }: POSInterfaceProps) {
   const removeFromCart = (id: string) => setCart(prev => prev.filter(i => i.product_id !== id))
   const total = cart.reduce((s, i) => s + i.subtotal, 0)
 
+  // Reinicia el POS para empezar una venta nueva (acción explícita del usuario).
+  const nuevaVenta = () => {
+    setSaleDone(null)
+    ventaUidRef.current = null   // nueva venta = nueva clave de idempotencia
+    setCart([])
+    setSelectedClient("")
+    setPaymentMethod("efectivo")
+    setIsCredit(false)
+    setActiveCatalogOrderId(null)
+    setBarcodeInput("")
+    setKitPreview(null)
+    barcodeRef.current?.focus()   // listo para escanear la siguiente venta
+  }
+
   // Toggle crédito — si activa crédito, el método de pago no aplica
   const toggleCredit = () => setIsCredit(v => !v)
 
   const handleCheckout = async () => {
+    // Candado síncrono: si ya hay una venta en curso, ignora clics repetidos.
+    // Se toma ANTES de cualquier await para cerrar la ventana de doble-clic.
+    if (checkoutLock.current) return
+    // Estado terminal: si la venta anterior ya terminó, exige "Nueva venta".
+    if (saleDone)          return
     if (!cart.length)      return showWarning("El carrito está vacío", "")
     if (!selectedClient)   return showWarning("Selecciona un cliente", "")
 
-    let amountGiven = 0, change = 0
-    // Si no es crédito y pagan en efectivo → pedir monto
-    if (!isCredit && paymentMethod === "efectivo") {
-      const input = await showInput("Pago en Efectivo", `Total: ${fmt(total)} — Ingresa el monto recibido`, "number")
-      if (input === null) return
-      amountGiven = parseFloat(input)
-      if (isNaN(amountGiven) || amountGiven < total) return showError("Monto insuficiente", "")
-      change = amountGiven - total
-    }
-
-    const stockError = await checkStock(cart)
-    if (stockError) return showWarning("Stock insuficiente", stockError)
-
+    checkoutLock.current = true
     setIsProcessing(true)
     try {
+      let amountGiven = 0, change = 0
+      // Si no es crédito y pagan en efectivo → pedir monto
+      if (!isCredit && paymentMethod === "efectivo") {
+        const input = await showInput("Pago en Efectivo", `Total: ${fmt(total)} — Ingresa el monto recibido`, "number")
+        if (input === null) return
+        amountGiven = parseFloat(input)
+        if (isNaN(amountGiven) || amountGiven < total) return showError("Monto insuficiente", "")
+        change = amountGiven - total
+      }
+
+      const stockError = await checkStock(cart)
+      if (stockError) return showWarning("Stock insuficiente", stockError)
+
       const supabase = createClient()
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) throw new Error("No autenticado")
 
-      // ── Insertar venta (con is_credit) ────────────────────────────────────
-      const { data: sale, error: saleErr } = await supabase.from("sales")
-        .insert({
-          client_id:      selectedClient,
-          total,
-          payment_method: isCredit ? "credito" : paymentMethod,
-          is_credit:      isCredit,
-          created_by:     user.id,
-          company_id:     companyId,
-        })
-        .select().single()
-      if (saleErr) throw saleErr
+      // Clave de idempotencia: se genera una vez por intento y se reutiliza en
+      // reintentos del mismo carrito, para que el backend nunca duplique.
+      if (!ventaUidRef.current) ventaUidRef.current = crypto.randomUUID()
 
-      // ── Descontar stock y registrar movimientos ───────────────────────────
-      let totalCost = 0
-      for (const item of cart) {
-        const { data: batches } = await supabase.from("purchase_batches")
-          .select("*").eq("product_id", item.product_id).eq("company_id", companyId)
-          .gt("remaining_quantity", 0).order("purchase_date", { ascending: true })
-        if (!batches?.length) throw new Error(`Sin stock: ${item.name}`)
-
-        let remaining = item.quantity
-        for (const batch of batches) {
-          if (remaining <= 0) break
-          const qty = Math.min(batch.remaining_quantity, remaining)
-          await supabase.from("purchase_batches")
-            .update({ remaining_quantity: batch.remaining_quantity - qty })
-            .eq("id", batch.id).eq("company_id", companyId)
-          await supabase.from("sale_items").insert({
-            sale_id: sale.id, product_id: item.product_id, batch_id: batch.id,
-            quantity: qty, unit_price: item.unit_price, subtotal: qty * item.unit_price,
-            company_id: companyId,
-          })
-          totalCost += qty * Number(batch.purchase_price)
-          remaining -= qty
-        }
-        if (remaining > 0) throw new Error(`Stock insuficiente: ${item.name}`)
-        await supabase.from("inventory_movements").insert({
-          product_id: item.product_id, movement_type: "salida",
-          quantity: item.quantity, reason: `Venta #${sale.id}`,
-          created_by: user.id, company_id: companyId,
-        })
-      }
-
-      // ── Rentabilidad ──────────────────────────────────────────────────────
-      const profit = total - totalCost
-      await supabase.from("sales_profit").insert({
-        sale_id: sale.id, total_cost: totalCost, total_sale: total, profit,
-        profit_margin: total > 0 ? (profit / total) * 100 : 0, company_id: companyId,
+      // ── Venta ATÓMICA (todo-o-nada) vía RPC transaccional ─────────────────
+      // El backend inserta venta + items + descuento FIFO de stock + movimientos
+      // + rentabilidad + (deuda si es crédito) + (pedido catálogo) en una sola
+      // transacción. Si algo falla, se revierte TODO: nunca queda venta parcial.
+      const { error: rpcErr } = await supabase.rpc("rpc_registrar_venta", {
+        p_company_id:       companyId,
+        p_client_id:        selectedClient,
+        p_payment_method:   paymentMethod,
+        p_is_credit:        isCredit,
+        p_items:            cart.map(i => ({
+          product_id: i.product_id, quantity: i.quantity, unit_price: i.unit_price,
+        })),
+        p_venta_uid:        ventaUidRef.current,
+        p_catalog_order_id: activeCatalogOrderId,
       })
+      if (rpcErr) throw rpcErr
 
-      // ── Si es crédito → crear deuda ───────────────────────────────────────
-      if (isCredit) {
-        const { error: debtErr } = await supabase.from("customer_debts").insert({
-          company_id:      companyId,
-          sale_id:         sale.id,
-          client_id:       selectedClient,
-          original_amount: total,
-          status:          "pending",
-          created_by:      user.id,
-        })
-        if (debtErr) throw debtErr
-      }
+      // Venta confirmada por la BD → liberamos la clave para la siguiente venta.
+      ventaUidRef.current = null
 
-      // ── Si la venta venía de un pedido del catálogo, marcarlo como RECLAMADO
-      if (activeCatalogOrderId) {
-        const { error: claimErr } = await supabase.rpc("rpc_marcar_pedido_reclamado", {
-          p_kit_id:  activeCatalogOrderId,
-          p_sale_id: sale.id,
-        })
-        if (claimErr) {
-          // No bloqueamos la venta si esto falla — solo lo registramos
-          console.error("No se pudo marcar el pedido como reclamado:", claimErr)
-        }
-      }
-
-      // ── Reset y feedback ──────────────────────────────────────────────────
+      // ── Estado terminal + feedback ────────────────────────────────────────
+      // Guardamos el resumen y limpiamos la selección: el carrito queda vacío y
+      // la única forma de registrar otra venta es pulsar "Nueva venta" (o agregar
+      // un producto). Esto evita re-registros por clics posteriores.
+      const done = { total, change, isCredit }
       setCart([])
       setSelectedClient("")
       setPaymentMethod("efectivo")
       setIsCredit(false)
       setActiveCatalogOrderId(null)
+      setSaleDone(done)
 
-      const msg = isCredit
-        ? `Deuda de ${fmt(total)} registrada para el cliente`
-        : change > 0
-          ? `Total: ${fmt(total)} | Cambio: ${fmt(change)}`
-          : `Total: ${fmt(total)}`
-      const title = isCredit ? "Venta a crédito registrada" : "¡Venta completada!"
+      const msg = done.isCredit
+        ? `Deuda de ${fmt(done.total)} registrada para el cliente`
+        : done.change > 0
+          ? `Total: ${fmt(done.total)} | Cambio: ${fmt(done.change)}`
+          : `Total: ${fmt(done.total)}`
+      const title = done.isCredit ? "Venta a crédito registrada" : "¡Venta completada!"
 
       await showSuccess(msg, title)
       router.refresh()
     } catch (err) {
       showError(err instanceof Error ? err.message : "Error al procesar", "Error")
-    } finally { setIsProcessing(false) }
+    } finally {
+      // Libera el candado y rehabilita el botón para la siguiente venta.
+      checkoutLock.current = false
+      setIsProcessing(false)
+    }
   }
 
   const payMethods = [
@@ -997,31 +1006,54 @@ export function POSInterface({ companyId }: POSInterfaceProps) {
 
                 <div className="pos-sep" />
 
-                {/* Totales */}
-                <div className="pos-totals">
-                  <div className="pos-total-row">
-                    <span className="pos-total-label">Subtotal</span>
-                    <span className="pos-total-val">{fmt(total)}</span>
+                {saleDone ? (
+                  /* Venta ya completada: estado terminal, exige "Nueva venta" */
+                  <div className="pos-done">
+                    <span className="pos-done-badge">
+                      <Check strokeWidth={2.5} />
+                      {saleDone.isCredit ? "Deuda registrada" : "Venta completada"}
+                    </span>
+                    <p className="pos-done-detail">
+                      {saleDone.isCredit
+                        ? <>Deuda de <strong>{fmt(saleDone.total)}</strong> registrada</>
+                        : saleDone.change > 0
+                          ? <>Total <strong>{fmt(saleDone.total)}</strong> · Cambio <strong>{fmt(saleDone.change)}</strong></>
+                          : <>Total <strong>{fmt(saleDone.total)}</strong></>
+                      }
+                    </p>
+                    <button className="pos-newsale-btn" onClick={nuevaVenta}>
+                      <Plus size={15} />Nueva venta
+                    </button>
                   </div>
-                  <div className={`pos-total-row main${isCredit ? " credit" : ""}`}>
-                    <span className="pos-total-label">{isCredit ? "Deuda a registrar" : "Total"}</span>
-                    <span className="pos-total-val">{fmt(total)}</span>
-                  </div>
-                </div>
+                ) : (
+                  <>
+                    {/* Totales */}
+                    <div className="pos-totals">
+                      <div className="pos-total-row">
+                        <span className="pos-total-label">Subtotal</span>
+                        <span className="pos-total-val">{fmt(total)}</span>
+                      </div>
+                      <div className={`pos-total-row main${isCredit ? " credit" : ""}`}>
+                        <span className="pos-total-label">{isCredit ? "Deuda a registrar" : "Total"}</span>
+                        <span className="pos-total-val">{fmt(total)}</span>
+                      </div>
+                    </div>
 
-                {/* Checkout */}
-                <button
-                  className={`pos-checkout-btn${isCredit ? " credit" : ""}`}
-                  onClick={handleCheckout}
-                  disabled={isProcessing || cart.length === 0}
-                >
-                  {isProcessing
-                    ? <><div className="pos-spinner" />Procesando...</>
-                    : isCredit
-                      ? <><Clock size={15} />Registrar deuda</>
-                      : <>Completar venta</>
-                  }
-                </button>
+                    {/* Checkout */}
+                    <button
+                      className={`pos-checkout-btn${isCredit ? " credit" : ""}`}
+                      onClick={handleCheckout}
+                      disabled={isProcessing || cart.length === 0}
+                    >
+                      {isProcessing
+                        ? <><div className="pos-spinner" />Procesando...</>
+                        : isCredit
+                          ? <><Clock size={15} />Registrar deuda</>
+                          : <>Completar venta</>
+                      }
+                    </button>
+                  </>
+                )}
 
               </div>
             </div>

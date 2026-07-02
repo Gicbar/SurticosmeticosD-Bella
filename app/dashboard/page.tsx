@@ -6,6 +6,7 @@ import {
 } from "lucide-react"
 import { LowStockAlert } from "@/components/low-stock-alert"
 import { RecentSales } from "@/components/recent-sales"
+import { SaldosCaja } from "@/components/saldos-caja"
 import { cn } from "@/lib/utils"
 import { redirect } from "next/navigation"
 
@@ -231,6 +232,9 @@ export default async function DashboardPage() {
             <span>HOY: <strong>{today}</strong></span>
           </div>
         </div>
+
+        {/* Caja disponible — informativo, visible para todos (incl. vendedores) */}
+        <SaldosCaja companyId={companyId} />
 
         {hasAnyPerm && (
           <div className="dash-grid">

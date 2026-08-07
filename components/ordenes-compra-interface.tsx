@@ -362,7 +362,7 @@ function NuevaOrdenModal({ companyId, onClose, onSaved }: {
       const supabase = createClient()
       const [{ data: sups }, { data: prods }] = await Promise.all([
         supabase.from("suppliers").select("id, name").eq("company_id", companyId).order("name"),
-        supabase.from("products").select("id, name").eq("company_id", companyId).order("name"),
+        supabase.from("products").select("id, name").eq("company_id", companyId).is("deleted_at", null).order("name"),
       ])
       setSuppliers(sups || [])
       setProducts(prods || [])

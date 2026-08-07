@@ -451,7 +451,7 @@ export function POSInterface({ companyId }: POSInterfaceProps) {
     ;(async () => {
       const supabase = createClient()
       const [{ data: prod }, { data: cli }] = await Promise.all([
-        supabase.from("products").select("id, name, barcode, sale_price").eq("company_id", companyId),
+        supabase.from("products").select("id, name, barcode, sale_price").eq("company_id", companyId).is("deleted_at", null),
         supabase.from("clients").select("id, name").eq("company_id", companyId),
       ])
       setProducts(prod || [])

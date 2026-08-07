@@ -103,7 +103,7 @@ export function ControlRegulatorioInterface({ companyId }: { companyId: string }
     try {
       const supabase = createClient()
       const [{ data: prods }, { data: disps }, { data: temps }] = await Promise.all([
-        supabase.from("products").select("id, name").eq("company_id", companyId).eq("es_controlado", true).order("name"),
+        supabase.from("products").select("id, name").eq("company_id", companyId).eq("es_controlado", true).is("deleted_at", null).order("name"),
         supabase.from("control_sustancias_dispensacion")
           .select("id, paciente_nombre, medico_nombre, cantidad_dispensada, fecha_dispensacion, products(name)")
           .eq("empresa_id", companyId).order("fecha_dispensacion", { ascending: false }).limit(50),

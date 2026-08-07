@@ -225,7 +225,7 @@ export function PurchaseBatchDialog({
     ;(async () => {
       const supabase = createClient()
       const [{ data: prods }, { data: sups }] = await Promise.all([
-        supabase.from("products").select("id, name, barcode").eq("company_id", companyId).order("name"),
+        supabase.from("products").select("id, name, barcode").eq("company_id", companyId).is("deleted_at", null).order("name"),
         supabase.from("suppliers").select("id, name").eq("company_id", companyId).order("name"),
       ])
       setProducts(prods || [])

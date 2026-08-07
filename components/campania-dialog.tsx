@@ -324,6 +324,7 @@ export function CampaniaDialog({
         .from("products")
         .select("id, name, barcode")
         .eq("company_id", companyId)
+        .is("deleted_at", null)
         .or(`name.ilike.%${q}%,barcode.ilike.%${q}%`)
         .order("name")
         .limit(30)

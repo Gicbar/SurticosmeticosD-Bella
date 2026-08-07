@@ -161,6 +161,7 @@ export async function LowStockAlert({ companyId }: { companyId: string }) {
       .from("products")
       .select(`id, name, min_stock, purchase_batches(remaining_quantity)`)
       .eq("company_id", companyId)
+      .is("deleted_at", null)
       .gt("min_stock", 0)
 
     if (fallbackData) {

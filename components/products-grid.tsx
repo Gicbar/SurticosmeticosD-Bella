@@ -1,7 +1,7 @@
 "use client"
 
 import { useState } from "react"
-import { Edit, Trash2, Search, Package, Sparkles } from "lucide-react"
+import { Edit, Trash2, Search, Package, Sparkles, RotateCcw, Ban } from "lucide-react"
 import Link from "next/link"
 import Image from "next/image"
 import { createClient } from "@/lib/supabase/client"
@@ -260,6 +260,31 @@ const CSS = `
 }
 .pg-btn-del svg { width:12px; height:12px; }
 
+/* ── Producto eliminado (soft delete) ───────────────────────────── */
+.pg-card.deleted { opacity: .55; filter: grayscale(.6); }
+.pg-card.deleted:hover { transform: none; }
+.pg-card.deleted .pg-img-wrap { position: relative; }
+.pg-deleted-badge {
+  position: absolute; top: 8px; left: 8px; z-index: 4;
+  display: inline-flex; align-items: center; gap: 4px;
+  background: rgba(26,26,24,.82); color: #fff;
+  font-size: 9px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;
+  padding: 4px 9px; border-radius: 99px;
+}
+.pg-deleted-badge svg { width: 10px; height: 10px; }
+
+.pg-btn-restore {
+  flex: 1; height: 34px;
+  border: 1px solid rgba(22,163,74,.30);
+  background: rgba(22,163,74,.06);
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center; gap: 5px;
+  font-family: 'DM Sans', sans-serif; font-size: 11px; font-weight: 500;
+  color: var(--ok); cursor: pointer; transition: all .16s;
+}
+.pg-btn-restore:hover { border-color: var(--ok); background: rgba(22,163,74,.12); }
+.pg-btn-restore svg { width: 11px; height: 11px; }
+
 /* ── Estado vacío ────────────────────────────────────────────── */
 .pg-empty {
   display:flex; flex-direction:column; align-items:center; gap:14px;
@@ -279,6 +304,7 @@ type Product = {
   id: string; name: string; description: string | null; barcode: string | null
   sale_price: number; min_stock: number; image_url: string | null
   current_stock: number; categories: { name: string } | null; suppliers: { name: string } | null
+  deleted_at: string | null
 }
 
 export function ProductsGrid({ products }: { products: Product[] }) {
@@ -293,11 +319,22 @@ export function ProductsGrid({ products }: { products: Product[] }) {
   })
 
   const handleDelete = async (id: string, name: string) => {
-    const ok = await showConfirm(`¿Eliminar "${name}"?`, "Esta acción no se puede deshacer")
+    const ok = await showConfirm(
+      `¿Eliminar "${name}"?`,
+      "El producto ya no se podrá vender ni se mostrará en el catálogo público, pero su historial de ventas se conserva. Puedes restaurarlo después."
+    )
     if (!ok) return
-    const { error } = await createClient().from("products").delete().eq("id", id)
+    const { error } = await createClient().from("products").update({ deleted_at: new Date().toISOString() }).eq("id", id)
     if (error) showError(error.message, "Error al eliminar")
     else { await showSuccess("Producto eliminado", ""); router.refresh() }
+  }
+
+  const handleRestore = async (id: string, name: string) => {
+    const ok = await showConfirm(`¿Restaurar "${name}"?`, "Volverá a estar disponible para venta y visible en el catálogo público.")
+    if (!ok) return
+    const { error } = await createClient().from("products").update({ deleted_at: null }).eq("id", id)
+    if (error) showError(error.message, "Error al restaurar")
+    else { await showSuccess("Producto restaurado", ""); router.refresh() }
   }
 
   const stockClass = (cur: number, min: number) => cur === 0 ? "out" : cur <= min ? "low" : "ok"
@@ -323,10 +360,13 @@ export function ProductsGrid({ products }: { products: Product[] }) {
         {filtered.length > 0 ? (
           <div className="pg-grid">
             {filtered.map(p => (
-              <div key={p.id} className="pg-card">
+              <div key={p.id} className={`pg-card${p.deleted_at ? " deleted" : ""}`}>
 
                 {/* Imagen */}
                 <div className="pg-img-wrap">
+                  {p.deleted_at && (
+                    <span className="pg-deleted-badge"><Ban aria-hidden />Eliminado</span>
+                  )}
                   {p.image_url ? (
                     <Image
                       src={p.image_url} alt={p.name} fill
@@ -378,16 +418,24 @@ export function ProductsGrid({ products }: { products: Product[] }) {
 
                   {/* Acciones */}
                   <div className="pg-actions">
-                    <Link href={`/dashboard/products/${p.id}/edit`} className="pg-btn-edit">
-                      <Edit aria-hidden /> Editar
-                    </Link>
-                    <button
-                      className="pg-btn-del"
-                      onClick={() => handleDelete(p.id, p.name)}
-                      aria-label={`Eliminar ${p.name}`}
-                    >
-                      <Trash2 aria-hidden />
-                    </button>
+                    {p.deleted_at ? (
+                      <button className="pg-btn-restore" onClick={() => handleRestore(p.id, p.name)}>
+                        <RotateCcw aria-hidden /> Restaurar
+                      </button>
+                    ) : (
+                      <>
+                        <Link href={`/dashboard/products/${p.id}/edit`} className="pg-btn-edit">
+                          <Edit aria-hidden /> Editar
+                        </Link>
+                        <button
+                          className="pg-btn-del"
+                          onClick={() => handleDelete(p.id, p.name)}
+                          aria-label={`Eliminar ${p.name}`}
+                        >
+                          <Trash2 aria-hidden />
+                        </button>
+                      </>
+                    )}
                   </div>
                 </div>
 

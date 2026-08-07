@@ -1,10 +1,55 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { showError, showSuccess } from "@/lib/sweetalert"
-import { Phone, Mail, MapPin, Building2, User, ArrowLeft } from "lucide-react"
+import { Phone, Mail, MapPin, Building2, User, ArrowLeft, IdCard, ChevronDown, Check } from "lucide-react"
+
+const TIPO_DOCUMENTO_OPTS = [
+  { id: "",    name: "Sin especificar" },
+  { id: "CC",  name: "Cédula de ciudadanía" },
+  { id: "NIT", name: "NIT" },
+  { id: "CE",  name: "Cédula de extranjería" },
+  { id: "PAS", name: "Pasaporte" },
+  { id: "TI",  name: "Tarjeta de identidad" },
+  { id: "RC",  name: "Registro civil" },
+  { id: "DE",  name: "Documento de identificación extranjero" },
+]
+
+function DocTypeSelect({ value, onChange, disabled }: {
+  value: string; onChange: (v: string) => void; disabled?: boolean
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const h = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false) }
+    const id = setTimeout(() => document.addEventListener("mousedown", h), 10)
+    return () => { clearTimeout(id); document.removeEventListener("mousedown", h) }
+  }, [open])
+  const sel = TIPO_DOCUMENTO_OPTS.find(o => o.id === value)
+  return (
+    <div style={{ position: "relative" }} ref={ref}>
+      <button type="button" className="sf-inp" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", cursor: "pointer" }}
+        disabled={disabled} onClick={() => !disabled && setOpen(o => !o)} aria-haspopup="listbox" aria-expanded={open}>
+        <span>{sel?.name ?? "Selecciona"}</span>
+        <ChevronDown size={13} style={{ transform: open ? "rotate(180deg)" : "none", transition: "transform .14s" }} aria-hidden />
+      </button>
+      {open && (
+        <div style={{ position: "absolute", top: "calc(100% + 3px)", left: 0, right: 0, background: "#fff", border: "1px solid rgba(26,26,24,.08)", boxShadow: "0 8px 24px rgba(26,26,24,.10)", zIndex: 600, maxHeight: 200, overflowY: "auto" }} role="listbox">
+          {TIPO_DOCUMENTO_OPTS.map(o => (
+            <div key={o.id} role="option" aria-selected={value === o.id}
+              style={{ padding: "10px 13px", fontSize: 13, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "space-between", color: value === o.id ? "var(--primary,#984ca8)" : "#1a1a18" }}
+              onClick={() => { onChange(o.id); setOpen(false) }}>
+              {o.name}{value === o.id && <Check size={11} aria-hidden />}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
 
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap');
@@ -61,6 +106,9 @@ export function SupplierForm({ supplier, companyId }: Props) {
     email:   supplier?.email   || "",
     phone:   supplier?.phone   || "",
     address: supplier?.address || "",
+    tipo_documento:   supplier?.tipo_documento   || "",
+    numero_documento: supplier?.numero_documento || "",
+    documento_dv:     supplier?.documento_dv     || "",
   })
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
@@ -75,6 +123,9 @@ export function SupplierForm({ supplier, companyId }: Props) {
         contact: form.contact || null,
         email:   form.email   || null,
         address: form.address || null,
+        tipo_documento:   form.tipo_documento   || null,
+        numero_documento: form.numero_documento || null,
+        documento_dv:     form.documento_dv     || null,
         company_id: companyId,
       }
       const { error } = supplier
@@ -133,6 +184,27 @@ export function SupplierForm({ supplier, companyId }: Props) {
               <input id="sf-phone" className="sf-inp" type="tel" required
                 placeholder="Número de contacto"
                 value={form.phone} disabled={loading} onChange={set("phone")} />
+            </div>
+          </div>
+
+          <div className="sf-g2" style={{ marginBottom: 16 }}>
+            <div>
+              <label className="sf-lbl sf-lbl-ico">
+                <IdCard aria-hidden />Tipo de documento
+              </label>
+              <DocTypeSelect
+                value={form.tipo_documento}
+                onChange={v => setForm(f => ({ ...f, tipo_documento: v }))}
+                disabled={loading}
+              />
+            </div>
+            <div>
+              <label className="sf-lbl sf-lbl-ico" htmlFor="sf-doc-num">
+                <IdCard aria-hidden />Número de documento
+              </label>
+              <input id="sf-doc-num" className="sf-inp"
+                placeholder="Número"
+                value={form.numero_documento} disabled={loading} onChange={set("numero_documento")} />
             </div>
           </div>
 

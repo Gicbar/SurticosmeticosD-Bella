@@ -442,6 +442,10 @@ export function POSInterface({ companyId }: POSInterfaceProps) {
   const [loadingKit, setLoadingKit]             = useState(false)
   // Si el carrito proviene de un pedido del catálogo, lo marcamos como RECLAMADO al cobrar
   const [activeCatalogOrderId, setActiveCatalogOrderId] = useState<string | null>(null)
+  // Turno de caja abierto del cajero actual (opcional — el POS funciona igual
+  // sin turno abierto, solo que las ventas no quedan asociadas a ninguno).
+  // Se gestiona en /dashboard/turnos-caja; aquí solo se lee y se etiqueta.
+  const [activeTurno, setActiveTurno] = useState<{ id: string; cajaNombre: string } | null>(null)
 
   useEffect(() => {
     ;(async () => {
@@ -452,6 +456,27 @@ export function POSInterface({ companyId }: POSInterfaceProps) {
       ])
       setProducts(prod || [])
       setClients(cli || [])
+    })()
+  }, [companyId])
+
+  useEffect(() => {
+    ;(async () => {
+      const supabase = createClient()
+      const { data: { user } } = await supabase.auth.getUser()
+      if (!user) return
+      const { data: turno } = await supabase
+        .from("turnos_caja")
+        .select("id, cajas(nombre)")
+        .eq("empresa_id", companyId)
+        .eq("cajero_id", user.id)
+        .eq("estado", "abierto")
+        .order("abierto_en", { ascending: false })
+        .limit(1)
+        .maybeSingle()
+      if (turno) {
+        const cajaNombre = Array.isArray(turno.cajas) ? turno.cajas[0]?.nombre : (turno.cajas as any)?.nombre
+        setActiveTurno({ id: turno.id, cajaNombre: cajaNombre ?? "Caja" })
+      }
     })()
   }, [companyId])
 
@@ -687,7 +712,7 @@ export function POSInterface({ companyId }: POSInterfaceProps) {
       // El backend inserta venta + items + descuento FIFO de stock + movimientos
       // + rentabilidad + (deuda si es crédito) + (pedido catálogo) en una sola
       // transacción. Si algo falla, se revierte TODO: nunca queda venta parcial.
-      const { error: rpcErr } = await supabase.rpc("rpc_registrar_venta", {
+      const { data: rpcData, error: rpcErr } = await supabase.rpc("rpc_registrar_venta", {
         p_company_id:       companyId,
         p_client_id:        selectedClient,
         p_payment_method:   paymentMethod,
@@ -702,6 +727,15 @@ export function POSInterface({ companyId }: POSInterfaceProps) {
 
       // Venta confirmada por la BD → liberamos la clave para la siguiente venta.
       ventaUidRef.current = null
+
+      // Si hay un turno de caja abierto, etiqueta la venta con él (best-effort:
+      // la venta YA quedó registrada arriba; si esto falla, no se revierte nada,
+      // solo no queda asociada a un turno — igual que hoy).
+      if (activeTurno && (rpcData as any)?.sale_id) {
+        const { error: tagErr } = await supabase
+          .from("sales").update({ turno_caja_id: activeTurno.id }).eq("id", (rpcData as any).sale_id)
+        if (tagErr) console.error("No se pudo asociar la venta al turno de caja:", tagErr)
+      }
 
       // ── Estado terminal + feedback ────────────────────────────────────────
       // Guardamos el resumen y limpiamos la selección: el carrito queda vacío y
@@ -743,6 +777,17 @@ export function POSInterface({ companyId }: POSInterfaceProps) {
     <>
       <style dangerouslySetInnerHTML={{ __html: POS_CSS }} />
       <div className="pos-root">
+        {activeTurno ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", marginBottom: 14, background: "rgba(21,128,61,0.08)", border: "1px solid rgba(21,128,61,0.2)", fontSize: 12, color: "#15803d" }}>
+            <span style={{ width: 8, height: 8, borderRadius: "50%", background: "#15803d", flexShrink: 0 }} aria-hidden />
+            Turno abierto: <strong>{activeTurno.cajaNombre}</strong>
+          </div>
+        ) : (
+          <div style={{ display: "flex", alignItems: "center", gap: 8, padding: "8px 14px", marginBottom: 14, background: "var(--pos-credit-bg)", border: "1px solid rgba(180,83,9,0.2)", fontSize: 12, color: "#b45309" }}>
+            Sin turno de caja abierto — las ventas no quedarán asociadas a ningún turno.{" "}
+            <a href="/dashboard/turnos-caja" style={{ color: "inherit", textDecoration: "underline" }}>Abrir turno</a>
+          </div>
+        )}
         <div className="pos-grid">
 
           {/* ── Columna izquierda ─────────────────────────────────────────── */}

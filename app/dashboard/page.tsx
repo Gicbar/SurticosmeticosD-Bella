@@ -5,6 +5,7 @@ import {
   DollarSign, Users, CalendarDays, ArrowUpRight,
 } from "lucide-react"
 import { LowStockAlert } from "@/components/low-stock-alert"
+import { ExpiringSoonAlert } from "@/components/ExpiringSoonAlert"
 import { RecentSales } from "@/components/recent-sales"
 import { SaldosCaja } from "@/components/saldos-caja"
 import { cn } from "@/lib/utils"
@@ -169,6 +170,7 @@ export default async function DashboardPage() {
   if (!permData?.company_id) redirect("/auth/sin-empresa")
 
   const companyId = permData.company_id
+  const isDrogueria = (permData.company as any)?.tipo_negocio === "drogueria"
   const perms: UserPermissions = permData.permissions || {
     ventas: false, productos: false, inventario: false, rentabilidad: false,
     clientes: false, categorias: false, proveedores: false, gastos: false, configuracion: false,
@@ -244,6 +246,12 @@ export default async function DashboardPage() {
             {perms.rentabilidad && <StatCard label="Ganancia Neta" value={fmt(totalProfit)} sub="Utilidad real" icon={<TrendingUp />} badge="Neto" />}
             {perms.inventario && <StatCard label="Alertas de Stock" value={lowStockCount || 0} sub="Productos por agotarse" icon={<AlertTriangle />} alert={Number(lowStockCount) > 0} />}
             {perms.clientes && <StatCard label="Clientes Totales" value={clientsCount || 0} sub="Base de datos activa" icon={<Users />} />}
+          </div>
+        )}
+
+        {perms.inventario && isDrogueria && (
+          <div className="dash-grid" style={{ marginBottom: 16 }}>
+            <div className="dash-bottom-card"><ExpiringSoonAlert companyId={companyId} /></div>
           </div>
         )}
 

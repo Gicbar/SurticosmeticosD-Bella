@@ -5,7 +5,7 @@ import { useState, useEffect, useRef, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { showError, showSuccess } from "@/lib/sweetalert"
-import { Package, Truck, DollarSign, Hash, Search, Barcode, X, ChevronDown, Check, Plus } from "lucide-react"
+import { Package, Truck, DollarSign, Hash, Search, Barcode, X, ChevronDown, Check, Plus, CalendarClock, Tag } from "lucide-react"
 
 // ── CSS ───────────────────────────────────────────────────────────────────────
 const CSS = `
@@ -135,6 +135,20 @@ const CSS = `
 .pb-btn-save:disabled { opacity:.4; cursor:not-allowed; }
 .pb-spin { width:13px; height:13px; border:2px solid rgba(255,255,255,.3); border-top-color:#fff; border-radius:50%; animation:pbSpin .7s linear infinite; flex-shrink:0; }
 @keyframes pbSpin { to{ transform:rotate(360deg); } }
+
+/* Toggle "compra a crédito" */
+.pb-credit-row {
+  display:flex; align-items:center; gap:10px; padding:11px 13px;
+  border:1.5px solid rgba(26,26,24,.08); cursor:pointer; transition:border-color .14s, background .14s;
+}
+.pb-credit-row.on { border-color:var(--primary,#984ca8); background:rgba(var(--primary-rgb,152,76,168),.05); }
+.pb-credit-check {
+  width:18px; height:18px; flex-shrink:0; border:1.5px solid rgba(26,26,24,.2);
+  display:flex; align-items:center; justify-content:center; transition:background .14s, border-color .14s;
+}
+.pb-credit-row.on .pb-credit-check { background:var(--primary,#984ca8); border-color:var(--primary,#984ca8); }
+.pb-credit-check svg { width:11px; height:11px; color:#fff; }
+.pb-credit-txt { font-size:13px; color:#1a1a18; }
 `
 
 type Product  = { id: string; name: string; barcode: string | null }
@@ -201,6 +215,8 @@ export function PurchaseBatchDialog({
   const [search, setSearch]       = useState("")
   const [form, setForm]           = useState({
     product_id: "", quantity: "", purchase_price: "", supplier_id: "",
+    fecha_vencimiento: "", numero_lote_fabricante: "",
+    es_credito: false, fecha_vencimiento_credito: "",
   })
 
   // Cargar datos filtrados por empresa
@@ -229,7 +245,11 @@ export function PurchaseBatchDialog({
   const selectedProduct = products.find(p => p.id === form.product_id)
 
   const resetForm = () => {
-    setForm({ product_id: "", quantity: "", purchase_price: "", supplier_id: "" })
+    setForm({
+      product_id: "", quantity: "", purchase_price: "", supplier_id: "",
+      fecha_vencimiento: "", numero_lote_fabricante: "",
+      es_credito: false, fecha_vencimiento_credito: "",
+    })
     setSearch("")
   }
 
@@ -241,20 +261,45 @@ export function PurchaseBatchDialog({
       showError("Completa todos los campos requeridos")
       return
     }
+    if (form.es_credito && !form.supplier_id) {
+      showError("Selecciona un proveedor para registrar una compra a crédito")
+      return
+    }
     setLoading(true)
     try {
-      const { error } = await createClient().from("purchase_batches").insert({
-        product_id:         form.product_id,
-        quantity:           parseInt(form.quantity),
-        purchase_price:     parseFloat(form.purchase_price),
-        remaining_quantity: parseInt(form.quantity),
-        supplier_id:        form.supplier_id || null,
-        company_id:         companyId,
-      })
+      const supabase = createClient()
+      const quantity = parseInt(form.quantity)
+      const purchasePrice = parseFloat(form.purchase_price)
+
+      const { data: batch, error } = await supabase.from("purchase_batches").insert({
+        product_id:              form.product_id,
+        quantity:                quantity,
+        purchase_price:          purchasePrice,
+        remaining_quantity:      quantity,
+        supplier_id:             form.supplier_id || null,
+        company_id:              companyId,
+        fecha_vencimiento:       form.fecha_vencimiento || null,
+        numero_lote_fabricante:  form.numero_lote_fabricante || null,
+      }).select("id").single()
       if (error) throw error
+
+      // Compra a crédito: registra la cuenta por pagar al proveedor
+      if (form.es_credito && batch) {
+        const { error: debtError } = await supabase.from("deudas_proveedor").insert({
+          empresa_id:        companyId,
+          proveedor_id:      form.supplier_id,
+          lote_id:           batch.id,
+          monto_original:    quantity * purchasePrice,
+          fecha_vencimiento: form.fecha_vencimiento_credito || null,
+        })
+        if (debtError) throw debtError
+      }
+
       closeModal()
       await new Promise(r => setTimeout(r, 150))
-      await showSuccess("Compra registrada correctamente")
+      await showSuccess(
+        form.es_credito ? "Compra registrada como cuenta por pagar" : "Compra registrada correctamente"
+      )
       router.refresh()
     } catch (err: any) {
       showError(err.message || "Error al registrar la compra")
@@ -264,6 +309,7 @@ export function PurchaseBatchDialog({
   }
 
   const canSubmit = !!form.product_id && !!form.quantity && !!form.purchase_price
+    && (!form.es_credito || !!form.supplier_id)
 
   return (
     <>
@@ -375,6 +421,57 @@ export function PurchaseBatchDialog({
                         onChange={e => setForm(f => ({ ...f, purchase_price: e.target.value }))} />
                     </div>
                   </div>
+                </div>
+
+                {/* Vencimiento y lote del fabricante (droguería) */}
+                <div className="pb-g2">
+                  <div>
+                    <label className="pb-lbl" htmlFor="pb-venc">Fecha de vencimiento</label>
+                    <div className="pb-inp-ico">
+                      <CalendarClock aria-hidden />
+                      <input id="pb-venc" className="pb-inp" type="date" disabled={loading}
+                        value={form.fecha_vencimiento}
+                        onChange={e => setForm(f => ({ ...f, fecha_vencimiento: e.target.value }))} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="pb-lbl" htmlFor="pb-lote">N.º de lote (fabricante)</label>
+                    <div className="pb-inp-ico">
+                      <Tag aria-hidden />
+                      <input id="pb-lote" className="pb-inp" disabled={loading}
+                        placeholder="Ej: L2026-045"
+                        value={form.numero_lote_fabricante}
+                        onChange={e => setForm(f => ({ ...f, numero_lote_fabricante: e.target.value }))} />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Compra a crédito */}
+                <div>
+                  <div
+                    role="checkbox" aria-checked={form.es_credito} tabIndex={0}
+                    className={`pb-credit-row${form.es_credito ? " on" : ""}`}
+                    onClick={() => !loading && setForm(f => ({ ...f, es_credito: !f.es_credito }))}
+                    onKeyDown={e => {
+                      if ((e.key === " " || e.key === "Enter") && !loading) {
+                        setForm(f => ({ ...f, es_credito: !f.es_credito }))
+                      }
+                    }}
+                  >
+                    <div className="pb-credit-check">{form.es_credito && <Check aria-hidden />}</div>
+                    <span className="pb-credit-txt">Compra a crédito (queda como cuenta por pagar)</span>
+                  </div>
+                  {form.es_credito && (
+                    <div style={{ marginTop: 10 }}>
+                      <label className="pb-lbl" htmlFor="pb-venc-credito">Fecha de pago acordada</label>
+                      <div className="pb-inp-ico">
+                        <CalendarClock aria-hidden />
+                        <input id="pb-venc-credito" className="pb-inp" type="date" disabled={loading}
+                          value={form.fecha_vencimiento_credito}
+                          onChange={e => setForm(f => ({ ...f, fecha_vencimiento_credito: e.target.value }))} />
+                      </div>
+                    </div>
+                  )}
                 </div>
 
               </div>

@@ -11,7 +11,8 @@ import { getCompanyInitials } from "@/lib/theme"
 import {
   LayoutDashboard, Package, ShoppingCart, Users, TrendingUp, Receipt, CreditCard,
   Settings, Truck, FolderTree, DollarSign, PiggyBank, BarChart2, X, Menu,Megaphone,Layers,
-  ClipboardList, CalendarCheck,
+  ClipboardList, CalendarCheck, Wallet, Undo2, FileText, Percent, ShieldCheck, Landmark,
+  ChevronDown, Search, Building2,
 } from "lucide-react"
 
 const SIDEBAR_CSS = `
@@ -130,6 +131,39 @@ const SIDEBAR_CSS = `
   }
   @media (max-width: 768px) { .sb-close-btn { display: flex; } }
 
+  /* ── Búsqueda (sutil) ────────────────────────────────────────────── */
+  .sb-search-row {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--sb-border);
+    flex-shrink: 0;
+  }
+  .sb-search-wrap { position: relative; display: flex; align-items: center; }
+  .sb-search-icon {
+    position: absolute; left: 9px;
+    color: var(--sb-faint); pointer-events: none;
+  }
+  .sb-search-input {
+    width: 100%; height: 30px;
+    padding: 0 26px 0 27px;
+    border: 1px solid var(--sb-border);
+    border-radius: 3px;
+    background: rgba(26,26,24,0.015);
+    font-family: 'DM Sans', sans-serif;
+    font-size: 11px;
+    color: var(--sb-txt);
+    outline: none;
+    transition: border-color 0.14s, background 0.14s;
+  }
+  .sb-search-input::placeholder { color: var(--sb-faint); }
+  .sb-search-input:focus { border-color: var(--sb-p20); background: #fff; }
+  .sb-search-clear {
+    position: absolute; right: 6px;
+    width: 18px; height: 18px;
+    display: flex; align-items: center; justify-content: center;
+    background: none; border: none; cursor: pointer; color: var(--sb-faint);
+  }
+  .sb-search-clear:hover { color: var(--sb-p); }
+
   /* ── Nav ──────────────────────────────────────────────────────────── */
   .sb-nav {
     flex: 1; overflow-y: auto;
@@ -140,18 +174,26 @@ const SIDEBAR_CSS = `
   .sb-nav::-webkit-scrollbar { width: 2px; }
   .sb-nav::-webkit-scrollbar-thumb { background: var(--sb-p20); }
 
-  /* Labels de sección más coloreados */
-  .sb-section-label {
+  /* Labels de sección más coloreados — ahora clickeables para colapsar */
+  .sb-section-btn {
+    width: 100%; background: none; border: none; cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
     font-size: 8px; letter-spacing: 0.32em; text-transform: uppercase;
     color: var(--sb-p); font-weight: 700; opacity: 0.75;
     padding: 14px 10px 5px; user-select: none;
     display: flex; align-items: center; gap: 7px;
+    transition: opacity 0.14s;
   }
-  .sb-section-label::after {
-    content: '';
+  .sb-section-btn:hover { opacity: 1; }
+  .sb-section-line {
     flex: 1; height: 1px;
     background: linear-gradient(90deg, var(--sb-p20), transparent);
   }
+  .sb-section-chevron {
+    flex-shrink: 0; width: 11px; height: 11px; color: var(--sb-p);
+    transition: transform 0.18s;
+  }
+  .sb-section-chevron.collapsed { transform: rotate(-90deg); }
 
   /* Items de navegación */
   .sb-item {
@@ -206,26 +248,34 @@ const SIDEBAR_CSS = `
 interface UserPermissions {
   ventas: boolean; productos: boolean; categorias: boolean; inventario: boolean;
   rentabilidad: boolean; clientes: boolean; proveedores: boolean;
-  gastos: boolean; creditos: boolean; cierres: boolean; configuracion: boolean; campanias: boolean;
+  gastos: boolean; creditos: boolean; cuentas_por_pagar: boolean; cierres: boolean; configuracion: boolean; campanias: boolean;
   kits: boolean; pedidos_catalogo: boolean; reportes: boolean;
+  devoluciones: boolean; ordenes_compra: boolean; comisiones: boolean; control_regulatorio: boolean; cajas_turnos: boolean;
+  cajas: boolean;
   [key: string]: boolean
 }
 
 // ─── Estructura del menú ──────────────────────────────────────────────────────
-// Refleja los grupos de permisos definidos en lib/permissions.ts:
-//   • Principal  — pantallas operativas del día a día
-//   • Operación  — registro y análisis de la actividad comercial
-//   • Catálogo   — maestros del negocio
-//   • Gestión    — finanzas, clientes y promociones
-//   • Sistema    — configuración (solo admin/configuracion)
+// Reorganizado 2026-07-21 al crecer con los módulos de droguería — antes
+// "Catálogo" y "Gestión" mezclaban maestros, transaccionales y compliance en
+// una sola lista larga. Ahora cada grupo tiene un criterio único:
+//   • Principal    — lo que se usa a cada momento del día (POS + su turno)
+//   • Operación    — el ciclo de una venta: registrarla, devolverla, analizarla
+//   • Catálogo     — SOLO maestros de producto (nada transaccional aquí)
+//   • Compras      — todo lo relacionado a proveedores (maestro + flujo + deuda)
+//   • Gestión      — clientes y finanzas del negocio
+//   • Cumplimiento — trazabilidad regulatoria (hoy: droguería)
+//   • Sistema      — configuración (solo admin/configuracion)
 // "Panel General" siempre visible (key: null).
 
 const mainNav = [
   { name: "Panel General",   href: "/dashboard",        icon: LayoutDashboard, key: null },
   { name: "Punto de Venta",  href: "/dashboard/pos",    icon: ShoppingCart,    key: "ventas" },
+  { name: "Cajas y Turnos",  href: "/dashboard/turnos-caja", icon: Landmark,   key: "cajas_turnos" },
 ]
 const opNav = [
   { name: "Ventas",                href: "/dashboard/sales",              icon: Receipt,        key: "ventas" },
+  { name: "Devoluciones",          href: "/dashboard/devoluciones",       icon: Undo2,          key: "devoluciones" },
   { name: "Reportes",              href: "/dashboard/reports",            icon: BarChart2,      key: "reportes" },
   { name: "Campañas Descuento",    href: "/dashboard/campanias",          icon: Megaphone,      key: "campanias" },
   { name: "Pedidos del Catálogo",  href: "/dashboard/pedidos-catalogo",   icon: ClipboardList,  key: "pedidos_catalogo" },
@@ -234,17 +284,26 @@ const catalogNav = [
   { name: "Productos",   href: "/dashboard/products",   icon: Package,    key: "productos" },
   { name: "Categorías",  href: "/dashboard/categories", icon: FolderTree, key: "categorias" },
   { name: "Inventario",  href: "/dashboard/inventory",  icon: TrendingUp, key: "inventario" },
-  { name: "Proveedores", href: "/dashboard/suppliers",  icon: Truck,      key: "proveedores" },
   { name: "Kits Promoción",  href: "/dashboard/kits",   icon: Layers,     key: "kits" },
+]
+const purchaseNav = [
+  { name: "Proveedores",       href: "/dashboard/suppliers",       icon: Truck,     key: "proveedores" },
+  { name: "Órdenes de Compra", href: "/dashboard/purchase-orders", icon: FileText,  key: "ordenes_compra" },
+  { name: "Cuentas por Pagar", href: "/dashboard/supplier-debts",  icon: Wallet,    key: "cuentas_por_pagar" },
 ]
 const mgmtNav = [
   { name: "Clientes",     href: "/dashboard/clients",  icon: Users,      key: "clientes" },
   { name: "Créditos",     href: "/dashboard/debts",    icon: CreditCard, key: "creditos" },
   { name: "Gastos",       href: "/dashboard/expenses", icon: DollarSign, key: "gastos" },
   { name: "Rentabilidad", href: "/dashboard/profits",  icon: PiggyBank,  key: "rentabilidad" },
+  { name: "Comisiones",   href: "/dashboard/comisiones", icon: Percent,  key: "comisiones" },
   { name: "Cierre de Mes", href: "/dashboard/cierres", icon: CalendarCheck, key: "cierres" },
 ]
+const complianceNav = [
+  { name: "Control Regulatorio", href: "/dashboard/control-regulatorio", icon: ShieldCheck, key: "control_regulatorio" },
+]
 const systemNav = [
+  { name: "Cajas",         href: "/dashboard/cajas",    icon: Building2, key: "cajas" },
   { name: "Configuración", href: "/dashboard/settings", icon: Settings, key: "configuracion" },
 ]
 
@@ -256,6 +315,28 @@ export function DashboardSidebar() {
   const [loading, setLoading] = useState(true)
   const [open, setOpen]       = useState(false)
   const [isMobile, setIsMobile] = useState(false)
+  // Secciones del menú colapsadas por el usuario — persiste entre sesiones
+  // (localStorage), no solo mientras dura la navegación. Default: colapsado
+  // (ver `?? true` al leer más abajo) — solo se expande si el usuario lo
+  // abrió antes, o si la página actual pertenece a ese grupo.
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({})
+  // Búsqueda del menú — sutil, no persiste (se limpia al navegar).
+  const [search, setSearch] = useState("")
+
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("sb-collapsed-groups")
+      if (saved) setCollapsedGroups(JSON.parse(saved))
+    } catch { /* localStorage no disponible o corrupto — se ignora, todo queda expandido */ }
+  }, [])
+
+  const toggleGroup = useCallback((label: string) => {
+    setCollapsedGroups(prev => {
+      const next = { ...prev, [label]: !prev[label] }
+      try { localStorage.setItem("sb-collapsed-groups", JSON.stringify(next)) } catch { /* no-op */ }
+      return next
+    })
+  }, [])
 
   useEffect(() => {
     const check = () => setIsMobile(window.innerWidth <= 768)
@@ -264,7 +345,7 @@ export function DashboardSidebar() {
     return () => window.removeEventListener("resize", check)
   }, [])
 
-  useEffect(() => { setOpen(false) }, [pathname])
+  useEffect(() => { setOpen(false); setSearch("") }, [pathname])
 
   useEffect(() => {
     if (!isMobile) return
@@ -375,25 +456,68 @@ export function DashboardSidebar() {
           </button>
         </div>
 
+        {/* Búsqueda — sutil, filtra los ítems visibles del menú */}
+        <div className="sb-search-row">
+          <div className="sb-search-wrap">
+            <Search size={12} className="sb-search-icon" aria-hidden="true" />
+            <input
+              className="sb-search-input"
+              placeholder="Buscar en el menú…"
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              aria-label="Buscar en el menú"
+            />
+            {search && (
+              <button className="sb-search-clear" onClick={() => setSearch("")} aria-label="Limpiar búsqueda">
+                <X size={11} />
+              </button>
+            )}
+          </div>
+        </div>
+
         {/* Nav */}
         <nav className="sb-nav" aria-label="Navegación principal">
           {(() => {
             const sections: Array<{ label: string; items: typeof mainNav }> = [
-              { label: "Principal", items: mainNav },
-              { label: "Operación", items: opNav },
-              { label: "Catálogo",  items: catalogNav },
-              { label: "Gestión",   items: mgmtNav },
-              { label: "Sistema",   items: systemNav },
+              { label: "Principal",    items: mainNav },
+              { label: "Operación",    items: opNav },
+              { label: "Catálogo",     items: catalogNav },
+              { label: "Compras",      items: purchaseNav },
+              { label: "Gestión",      items: mgmtNav },
+              { label: "Cumplimiento", items: complianceNav },
+              { label: "Sistema",      items: systemNav },
             ]
+            const query = search.trim().toLowerCase()
 
             return sections.map((sec, idx) => {
-              const visible = sec.items.filter(i => can(i.key))
+              const permitted = sec.items.filter(i => can(i.key))
+              if (permitted.length === 0) return null
+              // Si el nombre del grupo coincide con la búsqueda, se muestran
+              // todos sus ítems; si no, se filtra ítem por ítem.
+              const sectionMatches = query !== "" && sec.label.toLowerCase().includes(query)
+              const visible = !query
+                ? permitted
+                : sectionMatches ? permitted : permitted.filter(i => i.name.toLowerCase().includes(query))
               if (visible.length === 0) return null
+              // Si la página actual pertenece a este grupo, se fuerza expandido
+              // aunque el usuario lo haya colapsado — nunca esconder "dónde estoy".
+              // Mientras se busca, todo queda expandido (el colapso no aplica).
+              const hasActiveItem = visible.some(item => pathname === item.href)
+              const isCollapsed = query ? false : (collapsedGroups[sec.label] ?? true) && !hasActiveItem
               return (
                 <div key={sec.label}>
                   {idx > 0 && <div className="sb-sep" />}
-                  <p className="sb-section-label">{sec.label}</p>
-                  {visible.map(item => {
+                  <button
+                    type="button"
+                    className="sb-section-btn"
+                    onClick={() => !query && toggleGroup(sec.label)}
+                    aria-expanded={!isCollapsed}
+                  >
+                    <span>{sec.label}</span>
+                    <span className="sb-section-line" aria-hidden="true" />
+                    <ChevronDown className={cn("sb-section-chevron", isCollapsed && "collapsed")} aria-hidden="true" />
+                  </button>
+                  {!isCollapsed && visible.map(item => {
                     const isActive = pathname === item.href
                     return (
                       <Link key={item.href} href={item.href}

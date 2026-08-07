@@ -33,7 +33,7 @@ export async function getUserPermissions() {
       .single(),
     supabase
       .from("user_companies")
-      .select("company_id, role, companies(id, name, slug)")
+      .select("company_id, role, companies(id, name, slug, tipo_negocio)")
       .eq("user_id", user.id)
       .single(),
   ])

@@ -7,6 +7,7 @@ import {
   ArrowLeft, Calendar, DollarSign, User, CreditCard,
   Package, TrendingUp, ShoppingCart,
 } from "lucide-react"
+import { SaleActionsPanel } from "@/components/SaleActionsPanel"
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 const COP = (n: number) =>
@@ -260,6 +261,16 @@ export default async function SaleDetailPage({
               <p className="sd-kpi-sub">Rentabilidad</p>
             </div>
           </div>
+        )}
+
+        {/* ── Acciones: devolución / nota crédito-débito ── */}
+        {permissionsData?.permissions?.devoluciones && (
+          <SaleActionsPanel
+            companyId={companyId}
+            saleId={sale.id}
+            clientId={sale.client_id}
+            items={saleItems || []}
+          />
         )}
 
         {/* ── Info general + Resumen financiero ── */}

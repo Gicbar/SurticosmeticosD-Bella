@@ -28,6 +28,7 @@ type CatalogProduct = {
   description: string | null
   sale_price: number
   image_url: string | null
+  gallery_urls: string[] | null
   category_id: string | null
   category_name: string | null
   total_inventario: number
@@ -40,6 +41,7 @@ type CatalogProduct = {
   offer_campaign_id: string | null
   has_offer: boolean
   effective_price: number
+  created_at: string
 }
 
 type CartItem = CatalogProduct & { quantity: number }
@@ -76,6 +78,19 @@ function priceOf(p: CatalogProduct) {
   return p.has_offer && p.offer_price != null ? Number(p.offer_price) : Number(p.sale_price)
 }
 
+function galleryImagesOf(p: CatalogProduct): string[] {
+  return [p.image_url, ...(p.gallery_urls ?? [])].filter((u): u is string => !!u)
+}
+
+const NEW_PRODUCT_WINDOW_MS = 30 * 24 * 60 * 60 * 1000
+
+function isNewProduct(p: CatalogProduct): boolean {
+  if (!p.created_at) return false
+  const created = new Date(p.created_at).getTime()
+  if (Number.isNaN(created)) return false
+  return Date.now() - created <= NEW_PRODUCT_WINDOW_MS
+}
+
 // ─── CSS ──────────────────────────────────────────────────────────────────────
 
 const CATALOG_CSS = `
@@ -107,9 +122,10 @@ const CATALOG_CSS = `
     --muted:  rgba(26,26,24,.45);
     --border: rgba(26,26,24,.08);
 
-    /* Color de oferta — rojo cálido para que contraste con la marca */
-    --offer: #dc2626;
-    --offer-bg: rgba(220,38,38,.08);
+    /* Color de oferta — dinámico, derivado del primary de la empresa en
+       lib/theme.ts (buildThemeCSS) y heredado desde :root. El fallback aquí
+       solo aplica si por alguna razón el <style> del theme no cargó. */
+    --offer-bg: rgba(var(--offer-rgb, 194,24,91), .08);
   }
 
   .cat-serif { font-family: 'Cormorant Garamond', Georgia, serif; }
@@ -398,6 +414,25 @@ const CATALOG_CSS = `
     border-color: var(--offer, #c47200);
   }
 
+  /* Chip especial de productos nuevos */
+  .cat-chip-new {
+    color: #ffffff;
+    border-color: transparent;
+    background: linear-gradient(120deg, var(--primary, #984ca8), #ff7ab8);
+    font-weight: 600;
+    display: inline-flex; align-items: center; gap: 5px;
+    box-shadow: 0 2px 10px rgba(var(--primary-rgb,152,76,168), .30);
+  }
+  .cat-chip-new:hover {
+    color: #ffffff;
+    opacity: .92;
+  }
+  .cat-chip-new.cat-chip-active {
+    background: linear-gradient(120deg, var(--primary, #984ca8), #ff7ab8);
+    color: white;
+    box-shadow: 0 3px 12px rgba(var(--primary-rgb,152,76,168), .40);
+  }
+
   /* ── Tarjetas de garantía / trust ───────────────────────────── */
   .cat-trust {
     background: white;
@@ -521,7 +556,7 @@ const CATALOG_CSS = `
     letter-spacing: .02em;
     padding: 6px 10px;
     border-radius: 99px;
-    box-shadow: 0 4px 14px rgba(220,38,38,.35);
+    box-shadow: 0 4px 14px rgba(var(--offer-rgb, 194,24,91), .35);
     display: inline-flex; align-items: center; gap: 4px;
     line-height: 1;
   }
@@ -539,6 +574,24 @@ const CATALOG_CSS = `
     transform: rotate(35deg);
     box-shadow: 0 2px 6px rgba(0,0,0,.18);
   }
+
+  /* Badge NUEVO — esquina superior izquierda, solo si el producto no tiene oferta */
+  .cat-new-badge {
+    position: absolute; top: 10px; left: 10px;
+    z-index: 4;
+    background: linear-gradient(120deg, var(--primary, #984ca8), #ff7ab8);
+    color: white;
+    font-weight: 800;
+    font-size: 10px;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    padding: 6px 10px;
+    border-radius: 99px;
+    box-shadow: 0 4px 14px rgba(var(--primary-rgb,152,76,168), .35);
+    display: inline-flex; align-items: center; gap: 4px;
+    line-height: 1;
+  }
+  .cat-new-badge svg { width: 11px; height: 11px; }
 
   .cat-stock-badge {
     position: absolute; top: 10px; right: 10px;
@@ -974,6 +1027,7 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
   const [cart, setCart]                           = useState<CartItem[]>([])
   const [showCart, setShowCart]                   = useState(false)
   const [selectedProduct, setSelectedProduct]     = useState<CatalogProduct | null>(null)
+  const [activeImageIdx, setActiveImageIdx]       = useState(0)
   const [showProductModal, setShowProductModal]   = useState(false)
   const [addedId, setAddedId]                     = useState<string | null>(null)
   const [scrolled, setScrolled]                   = useState(false)
@@ -1020,7 +1074,7 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
     const productId = searchParams.get("productId")
     if (productId && products) {
       const p = products.find((p) => p.id == productId)
-      if (p) { setSelectedProduct(p); setShowProductModal(true) }
+      if (p) { setSelectedProduct(p); setActiveImageIdx(0); setShowProductModal(true) }
     }
   }, [searchParams, products])
 
@@ -1062,11 +1116,13 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
     const matchCategory =
       selectedCategory === "all"     ? true :
       selectedCategory === "__offers" ? p.has_offer :
+      selectedCategory === "__new"    ? isNewProduct(p) :
       p.category_name === selectedCategory
     return matchSearch && matchCategory
   })
 
   const offerCount = products.filter((p) => p.has_offer).length
+  const newCount = products.filter(isNewProduct).length
 
   const closeModal = () => {
     setShowProductModal(false)
@@ -1307,6 +1363,16 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
               >
                 Todo
               </button>
+              {newCount > 0 && (
+                <button
+                  className={`cat-chip cat-chip-new${selectedCategory === "__new" ? " cat-chip-active" : ""}`}
+                  onClick={() => setSelectedCategory("__new")}
+                  aria-label="Solo productos nuevos"
+                >
+                  <Sparkles size={11} strokeWidth={2} />
+                  Nuevo ({newCount})
+                </button>
+              )}
               {offerCount > 0 && (
                 <button
                   className={`cat-chip cat-chip-offer${selectedCategory === "__offers" ? " cat-chip-active" : ""}`}
@@ -1408,7 +1474,7 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
                   key={product.id}
                   className="cat-card"
                   style={{ animationDelay: `${Math.min(idx * 35, 350)}ms` }}
-                  onClick={() => { setSelectedProduct(product); setShowProductModal(true) }}
+                  onClick={() => { setSelectedProduct(product); setActiveImageIdx(0); setShowProductModal(true) }}
                 >
                   <div className="cat-img-wrap">
                     {product.image_url && !imageErrors[product.id] ? (
@@ -1432,6 +1498,14 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
                         </span>
                         <span className="cat-offer-ribbon">OFERTA</span>
                       </>
+                    )}
+
+                    {/* Badge de producto nuevo (solo si no hay badge de oferta) */}
+                    {!product.has_offer && isNewProduct(product) && (
+                      <span className="cat-new-badge">
+                        <Sparkles strokeWidth={2.5} />
+                        Nuevo
+                      </span>
                     )}
 
 
@@ -1717,17 +1791,21 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
               <span className="cat-modal-handle" />
 
               <div style={{ position: "relative", aspectRatio: "1/1", overflow: "hidden", background: "rgba(var(--primary-rgb,152,76,168),.06)" }}>
-                {selectedProduct.image_url && !imageErrors[selectedProduct.id] ? (
-                  <img
-                    src={selectedProduct.image_url} alt={selectedProduct.name}
-                    style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                    onError={() => handleImageError(selectedProduct.id)}
-                  />
-                ) : (
-                  <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    <Package size={48} strokeWidth={1} style={{ color: "rgba(var(--primary-rgb,152,76,168),.3)" }} />
-                  </div>
-                )}
+                {(() => {
+                  const modalImages = galleryImagesOf(selectedProduct)
+                  const activeSrc = modalImages[activeImageIdx] ?? modalImages[0]
+                  return activeSrc && !imageErrors[selectedProduct.id] ? (
+                    <img
+                      src={activeSrc} alt={selectedProduct.name}
+                      style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                      onError={() => handleImageError(selectedProduct.id)}
+                    />
+                  ) : (
+                    <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <Package size={48} strokeWidth={1} style={{ color: "rgba(var(--primary-rgb,152,76,168),.3)" }} />
+                    </div>
+                  )
+                })()}
 
                 {selectedProduct.has_offer && (
                   <>
@@ -1749,6 +1827,29 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
                 }}>
                   <X size={14} strokeWidth={1.5} />
                 </button>
+
+                {galleryImagesOf(selectedProduct).length > 1 && (
+                  <div style={{
+                    position: "absolute", left: 12, right: 12, bottom: 12,
+                    display: "flex", gap: 8, overflowX: "auto",
+                  }}>
+                    {galleryImagesOf(selectedProduct).map((url, i) => (
+                      <button
+                        key={i}
+                        onClick={(e) => { e.stopPropagation(); setActiveImageIdx(i) }}
+                        style={{
+                          width: 44, height: 44, flexShrink: 0, padding: 0,
+                          borderRadius: 8, overflow: "hidden", cursor: "pointer",
+                          border: i === activeImageIdx ? "2px solid var(--primary, #984ca8)" : "2px solid rgba(255,255,255,.8)",
+                          boxShadow: "0 2px 8px rgba(0,0,0,.18)",
+                        }}
+                        aria-label={`Ver foto ${i + 1}`}
+                      >
+                        <img src={url} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
+                      </button>
+                    ))}
+                  </div>
+                )}
 
               </div>
 

@@ -123,7 +123,7 @@ export default async function SettingsPage() {
   const supabase = await createClient()
   const { data: { user } } = await supabase.auth.getUser()
   const { data: company } = await supabase
-    .from("companies").select("id, name, slug, domain, phone, created_at")
+    .from("companies").select("*")
     .eq("id", companyId).single()
 
   const isAdmin = permissions?.role === "admin"

@@ -906,12 +906,20 @@ export function ReportsDashboard({ sales, saleItems, profits, expenses, products
       + criticos.reduce((s, f) => s + f.margenUnit * Math.max(0, REPO_CFG.leadDias - f.diasRestantes) * f.demandaDiaria, 0)
     const capitalDormidoTotal = dormidos.reduce((s, f) => s + f.capitalDormido, 0)
 
+    // Diagnóstico: por qué el modelo no sugiere nada (datos insuficientes vs. inventario sano)
+    const diag = {
+      totalProductos: products.length,
+      conVentasEnPeriodo: completas.filter(f => f.tieneHistoria).length,
+      conStock: completas.filter(f => f.stock > 0).length,
+      ventasRegistradasEnPeriodo: fSales.length,
+    }
+
     return {
       agotados, criticos, bajos, dormidos, ventasPerdidas,
       ordenGrupos, totalOrden, unidadesOrden,
       matriz, histograma, margenTotalGlobal,
       dineroEnRiesgo, capitalDormidoTotal,
-      completas,
+      completas, diag,
     }
   }, [products, batches, fItems, fSales, days, dateFrom, dateTo])
 
@@ -1494,7 +1502,13 @@ export function ReportsDashboard({ sales, saleItems, profits, expenses, products
                   </thead>
                   <tbody>
                     {reposicion.agotados.length === 0 && reposicion.criticos.length === 0 ? (
-                      <tr><td colSpan={10} style={{ padding: 36, textAlign: "center", color: "rgba(26,26,24,.4)", fontSize: 12 }}>Nada urgente: sin agotados ni críticos.</td></tr>
+                      <tr><td colSpan={10} style={{ padding: 36, textAlign: "center", color: "rgba(26,26,24,.4)", fontSize: 12 }}>
+                        {reposicion.diag.ventasRegistradasEnPeriodo === 0
+                          ? `No hay ventas registradas en el período seleccionado (${products.length} productos, ${batches.filter(b => b.remaining_quantity > 0).length} lotes con stock). Amplía el rango de fechas arriba.`
+                          : reposicion.diag.conStock === 0
+                            ? "No hay lotes de compra con stock disponible. Ve a Inventario y registra tus compras para poder calcular reposición."
+                            : "Nada urgente: sin agotados ni críticos."}
+                      </td></tr>
                     ) : [...reposicion.agotados, ...reposicion.criticos].map((f) => {
                       const exp    = filaExpandida === f.id
                       const esAgot = f.estado === "AGOTADO"
@@ -1568,8 +1582,20 @@ export function ReportsDashboard({ sales, saleItems, profits, expenses, products
                 {reposicion.ordenGrupos.length === 0 ? (
                   <div className="rd-empty">
                     <div className="rd-empty-ico"><ShoppingBag /></div>
-                    <p className="rd-empty-t">No hay productos que reponer</p>
-                    <p className="rd-empty-s">Todo el inventario tiene cobertura suficiente</p>
+                    <p className="rd-empty-t">
+                      {reposicion.diag.ventasRegistradasEnPeriodo === 0
+                        ? "No hay ventas registradas en el período"
+                        : reposicion.diag.conStock === 0
+                          ? "No hay lotes de compra con stock"
+                          : "No hay productos que reponer"}
+                    </p>
+                    <p className="rd-empty-s">
+                      {reposicion.diag.ventasRegistradasEnPeriodo === 0
+                        ? `${products.length} productos, ${batches.filter(b => b.remaining_quantity > 0).length} lotes con stock, 0 ventas en el rango — amplía las fechas arriba`
+                        : reposicion.diag.conStock === 0
+                          ? "Ve a Inventario y registra tus compras (purchase_batches) para poder calcular reposición"
+                          : "Todo el inventario tiene cobertura suficiente"}
+                    </p>
                   </div>
                 ) : reposicion.ordenGrupos.map((g, gi) => (
                   <div key={gi} style={{ marginBottom: 18 }}>

@@ -447,6 +447,7 @@ const REPO_CFG = {
   sobrestockDiasCobertura:     90,
   sobrestockDiasSinVenta:      60,
   minHistoriaSimple:           14,                   // < este umbral: solo promedio plano, sin tendencia/CV
+  histLookbackDias:            90,                   // ventana adicional ANTES del rango elegido, para no perder productos que se agotaron justo antes del período
 }
 
 type Clase     = "A" | "B" | "C"
@@ -460,7 +461,7 @@ const TENDENCIA_LABEL: Record<Tendencia, string> = { up: "↗ Subiendo", flat: "
 
 function explicarSugerencia(f: {
   name: string; stock: number; demandaDiaria: number; diasRestantes: number;
-  clase: Clase; cobertura: number; SS: number; sugerido: number;
+  clase: Clase; cobertura: number; SS: number; sugerido: number; ventaFueraDelRango?: boolean;
 }): string {
   const vel    = f.demandaDiaria
   const dr     = isFinite(f.diasRestantes) ? Math.floor(f.diasRestantes) : null
@@ -472,7 +473,10 @@ function explicarSugerencia(f: {
     : dr !== null
       ? `se acaba en ~${dr} día${dr === 1 ? "" : "s"}`
       : "no tiene ventas recientes"
-  return `Vendes ~${vel.toFixed(1)} uds/día, tienes ${f.stock} en stock → ${estadoStock}. El proveedor tarda ${REPO_CFG.leadDias} días. Como es un producto ${claseT.toLowerCase()}, se busca ${f.cobertura} días de cobertura con nivel de servicio ${nivel}. Compra sugerida: ${f.sugerido} uds (cubre demora + ${f.cobertura} días${ss > 0 ? ` + ${ss} uds de seguridad por variabilidad` : ""}).`
+  const notaHistorial = f.ventaFueraDelRango
+    ? ` (sin ventas en el período elegido, velocidad estimada con historial de los ${REPO_CFG.histLookbackDias} días previos — probablemente se agotó antes del rango)`
+    : ""
+  return `Vendes ~${vel.toFixed(1)} uds/día${notaHistorial}, tienes ${f.stock} en stock → ${estadoStock}. El proveedor tarda ${REPO_CFG.leadDias} días. Como es un producto ${claseT.toLowerCase()}, se busca ${f.cobertura} días de cobertura con nivel de servicio ${nivel}. Compra sugerida: ${f.sugerido} uds (cubre demora + ${f.cobertura} días${ss > 0 ? ` + ${ss} uds de seguridad por variabilidad` : ""}).`
 }
 
 // ─── Sub-componentes ──────────────────────────────────────────────────────────
@@ -691,6 +695,29 @@ export function ReportsDashboard({ sales, saleItems, profits, expenses, products
       if (!s.ultimaVenta || d > s.ultimaVenta) s.ultimaVenta = d
     })
 
+    // Historial EXTENDIDO (90 días antes del rango elegido, fuera de fSales/fItems):
+    // un producto que se agotó justo antes del período seleccionado no tuvo ninguna venta
+    // "en el rango", pero sí tiene demanda real reciente — sin esto, desaparece del análisis
+    // (se confunde con "sin movimiento" / sobrestock).
+    const histFrom = new Date(dateFrom); histFrom.setUTCDate(histFrom.getUTCDate() - REPO_CFG.histLookbackDias)
+    const histFromYmd = colToYmd(histFrom)
+    const rangeFromYmd = colToYmd(dateFrom)
+    const saleDateHist: Record<string, string> = {}
+    sales.forEach(s => {
+      const d = colDateStr(s.sale_date)
+      if (d >= histFromYmd && d < rangeFromYmd) saleDateHist[s.id] = d
+    })
+    type SerieHist = { vendidas: number; ultimaVenta: string | null }
+    const porProdHist: Record<string, SerieHist> = {}
+    saleItems.forEach(i => {
+      const d = saleDateHist[i.sale_id]
+      if (!d) return
+      if (!porProdHist[i.product_id]) porProdHist[i.product_id] = { vendidas: 0, ultimaVenta: null }
+      const h = porProdHist[i.product_id]
+      h.vendidas += i.quantity
+      if (!h.ultimaVenta || d > h.ultimaVenta) h.ultimaVenta = d
+    })
+
     // Stock, último costo y proveedor por producto
     const stockPorProd:       Record<string, number> = {}
     const ultimoCostoPorProd: Record<string, number> = {}
@@ -761,7 +788,17 @@ export function ReportsDashboard({ sales, saleItems, profits, expenses, products
         if (weighted > 0) demBase = weighted
       }
       // Tendencia solo si hay historia suficiente
-      const demandaDiaria = days >= REPO_CFG.minHistoriaSimple ? demBase * (1 + slopeClamp) : meanDiario
+      const demandaDiariaPeriodo = days >= REPO_CFG.minHistoriaSimple ? demBase * (1 + slopeClamp) : meanDiario
+
+      // Fallback a historial extendido: si no vendió NADA dentro del rango elegido, puede ser
+      // porque se agotó justo antes (no porque no tenga demanda). Usamos su velocidad de los
+      // 90 días previos al rango en vez de asumir demanda 0.
+      const hist                    = porProdHist[p.id]
+      const vendidasHistPrevia      = hist?.vendidas || 0
+      const demandaDiariaHistPrevia = vendidasHistPrevia / REPO_CFG.histLookbackDias
+      const demandaDiaria           = vendidas > 0 ? demandaDiariaPeriodo : demandaDiariaHistPrevia
+      const tieneHistoria           = vendidas > 0 || vendidasHistPrevia > 0
+      const ultimaVentaEfectiva     = serie?.ultimaVenta || hist?.ultimaVenta || null
 
       // Patrón XYZ
       let patron: Patron
@@ -773,13 +810,15 @@ export function ReportsDashboard({ sales, saleItems, profits, expenses, products
       const tendencia: Tendencia = slope > 0.10 ? "up" : slope < -0.10 ? "down" : "flat"
       const diasRestantes = demandaDiaria > 0 ? stock / demandaDiaria : Infinity
 
-      // Ventas perdidas (heurística conservadora): si stock=0 y hubo ventas,
+      // Ventas perdidas (heurística conservadora): si stock=0 y hubo ventas (en el rango o antes),
       // aproximamos "días sin stock" como días desde la última venta hasta dateTo
       let diasSinStock = 0
-      if (stock === 0 && serie?.ultimaVenta) {
-        diasSinStock = Math.max(0, daysBetween(ymdToCol(serie.ultimaVenta), dateTo) - 1)
+      if (stock === 0 && ultimaVentaEfectiva) {
+        diasSinStock = Math.max(0, daysBetween(ymdToCol(ultimaVentaEfectiva), dateTo) - 1)
       }
-      const velPrevia         = (days - diasSinStock) > 0 ? vendidas / Math.max(1, days - diasSinStock) : 0
+      const velPrevia         = vendidas > 0
+        ? ((days - diasSinStock) > 0 ? vendidas / Math.max(1, days - diasSinStock) : 0)
+        : demandaDiariaHistPrevia
       const ventasPerdidasUds = Math.round(diasSinStock * velPrevia)
       const dineroPerdido     = ventasPerdidasUds * margenUnit
 
@@ -798,7 +837,8 @@ export function ReportsDashboard({ sales, saleItems, profits, expenses, products
           ? { id: p.suppliers.id, name: p.suppliers.name }
           : proveedorPorProd[p.id] || null,
         diasSinStock, ventasPerdidasUds, dineroPerdido,
-        tieneHistoria: vendidas > 0,
+        tieneHistoria,
+        ventaFueraDelRango: vendidas === 0 && vendidasHistPrevia > 0,
       }
     })
 

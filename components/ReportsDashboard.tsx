@@ -755,7 +755,10 @@ export function ReportsDashboard({ sales, saleItems, profits, expenses, products
       if (last4.length >= 1) {
         const num = last4.reduce((a, b, i) => a + b * pesos[i], 0)
         const den = pesos.reduce((a, b) => a + b, 0)
-        demBase = (num / den) / 7
+        const weighted = (num / den) / 7
+        // Si las últimas semanas no tuvieron venta pero sí hubo venta antes en el período,
+        // no colapsar la demanda a 0 (evita marcar como "Dormido" productos con venta intermitente)
+        if (weighted > 0) demBase = weighted
       }
       // Tendencia solo si hay historia suficiente
       const demandaDiaria = days >= REPO_CFG.minHistoriaSimple ? demBase * (1 + slopeClamp) : meanDiario

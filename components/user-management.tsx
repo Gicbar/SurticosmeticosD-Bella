@@ -20,6 +20,7 @@ import {
 const ICONS: Record<string, any> = {
   ShoppingCart, BarChart2, Megaphone, Package, FolderTree, TrendingUp, Truck,
   PiggyBank, Users, DollarSign, CreditCard, Layers, ClipboardList, Settings, CalendarCheck,
+  CheckCircle2,
 }
 
 // ── CSS ───────────────────────────────────────────────────────────────────────

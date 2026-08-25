@@ -12,6 +12,7 @@ import {
   Truck, ClipboardList, Download, ShoppingBag,
 } from "lucide-react"
 import * as XLSX from "xlsx"
+import { NuevaOrdenCompraModal } from "@/components/nueva-orden-compra-modal"
 
 // ─── CSS — mismo token system que dashboard, POS, Ventas ─────────────────────
 const CSS = `
@@ -530,7 +531,8 @@ function CardHd({ icon: Icon, title, sub }: { icon: any; title: string; sub?: st
 }
 
 // ─── Componente principal ─────────────────────────────────────────────────────
-export function ReportsDashboard({ sales, saleItems, profits, expenses, products, batches }: Props) {
+export function ReportsDashboard({ sales, saleItems, profits, expenses, products, batches, companyId }: Props) {
+  const [solicitudPrefill, setSolicitudPrefill] = useState<{ supplierId: string; lines: { product_id: string; name: string; cantidad: string; costo: string }[] } | null>(null)
   const [dateFrom, setDateFrom] = useState<Date>(() => colombiaMidnight(29))
   const [dateTo,   setDateTo]   = useState<Date>(() => colombiaMidnight(0))
   const [tab, setTab]     = useState<"ventas"|"rentabilidad"|"inventario"|"reposicion"|"decisiones">("ventas")
@@ -1647,7 +1649,26 @@ export function ReportsDashboard({ sales, saleItems, profits, expenses, products
                           {g.items.length} productos · {g.items.reduce((s, i) => s + i.sugerido, 0)} uds
                         </span>
                       </div>
-                      <span className="rd-money" style={{ fontWeight: 600 }}>{COP(g.subtotal)}</span>
+                      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                        <span className="rd-money" style={{ fontWeight: 600 }}>{COP(g.subtotal)}</span>
+                        <button
+                          className="rd-pbtn"
+                          style={{ height: 26, padding: "0 10px", fontSize: 10 }}
+                          disabled={!g.provId}
+                          title={!g.provId ? "Asigna un proveedor a estos productos primero (Productos → editar)" : "Precarga una solicitud de compra con estos productos y cantidades"}
+                          onClick={() => setSolicitudPrefill({
+                            supplierId: g.provId as string,
+                            lines: g.items.map(it => ({
+                              product_id: it.id,
+                              name: it.name,
+                              cantidad: String(it.sugerido),
+                              costo: it.costoUnit > 0 ? String(it.costoUnit) : "",
+                            })),
+                          })}
+                        >
+                          Crear solicitud
+                        </button>
+                      </div>
                     </div>
                     <div className="rd-scroll">
                       <table className="rd-table">
@@ -1926,6 +1947,16 @@ export function ReportsDashboard({ sales, saleItems, profits, expenses, products
         )}
 
       </div>
+
+      {solicitudPrefill && (
+        <NuevaOrdenCompraModal
+          companyId={companyId}
+          initialSupplierId={solicitudPrefill.supplierId}
+          initialLines={solicitudPrefill.lines}
+          onClose={() => setSolicitudPrefill(null)}
+          onSaved={() => setSolicitudPrefill(null)}
+        />
+      )}
     </>
   )
 }

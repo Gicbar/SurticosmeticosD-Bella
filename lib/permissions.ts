@@ -20,6 +20,7 @@ export type PermissionKey =
   | "cuentas_por_pagar"
   | "devoluciones"
   | "ordenes_compra"
+  | "aprobar_ordenes_compra"
   | "comisiones"
   | "control_regulatorio"
   | "cajas"
@@ -78,6 +79,7 @@ export const PERMISSIONS: PermissionDef[] = [
   // Compras — todo lo relacionado a proveedores (maestro + flujo + deuda)
   { key: "proveedores",       group: "compras",   label: "Proveedores",          hint: "Maestro de proveedores",                                     path: "/dashboard/suppliers",          icon: "Truck" },
   { key: "ordenes_compra",    group: "compras",   label: "Órdenes de Compra",    hint: "Pedidos a proveedores previos a la recepción de mercancía",  path: "/dashboard/purchase-orders",    icon: "FileText" },
+  { key: "aprobar_ordenes_compra", group: "compras", label: "Aprobar Órdenes de Compra", hint: "Revisar solicitudes de compra y decidir qué se compra, con cuánta unidad real", icon: "CheckCircle2" },
   { key: "cuentas_por_pagar", group: "compras",   label: "Cuentas por Pagar",    hint: "Deudas pendientes de pago a proveedores",                    path: "/dashboard/supplier-debts",     icon: "Wallet" },
 
   // Gestión — clientes y finanzas del negocio

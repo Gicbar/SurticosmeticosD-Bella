@@ -16,6 +16,7 @@ export default async function PurchaseOrdersPage() {
   if (!permissions?.permissions?.ordenes_compra) redirect("/dashboard")
   const companyId = permissions.company_id
   if (!companyId) redirect("/auth/sin-empresa")
+  const canApprove = !!permissions?.permissions?.aprobar_ordenes_compra
 
   return (
     <>
@@ -26,9 +27,9 @@ export default async function PurchaseOrdersPage() {
             <span className="ocp-title-dot" aria-hidden />
             Órdenes de compra
           </h1>
-          <p className="ocp-sub">Pedidos a proveedores · Recepción de mercancía</p>
+          <p className="ocp-sub">Solicitudes a proveedores · Aprobación y compra real</p>
         </div>
-        <OrdenesCompraInterface companyId={companyId} key="po_01" />
+        <OrdenesCompraInterface companyId={companyId} canApprove={canApprove} key="po_01" />
       </div>
     </>
   )

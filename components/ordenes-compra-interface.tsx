@@ -150,7 +150,48 @@ export function OrdenesCompraInterface({ companyId, canApprove }: { companyId: s
   const [showClosed, setShowClosed] = useState(false)
   const [filtro, setFiltro]         = useState("")
   const [foto, setFoto]             = useState<{ url: string; name: string } | null>(null)
+  const [costoEstimado, setCostoEstimado] = useState<Record<string, number>>({}) // ordenId -> costo total (real + estimado)
   const countTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+
+  // Costo total por orden: para ítems ya comprados usa el costo real que se
+  // pagó; para los pendientes usa el último costo con que se compró ese
+  // producto (purchase_batches más reciente) — sirve de base de cuánto va a
+  // costar antes de tener la factura.
+  const loadCostos = useCallback(async (lista: Orden[]) => {
+    if (lista.length === 0) { setCostoEstimado({}); return }
+    const supabase = createClient()
+    const { data: items } = await supabase
+      .from("orden_compra_items")
+      .select("orden_compra_id, producto_id, cantidad_solicitada, cantidad_recibida, costo_unitario_estimado, rechazado")
+      .in("orden_compra_id", lista.map(o => o.id))
+    if (!items || items.length === 0) { setCostoEstimado({}); return }
+
+    const productIdsSinCosto = Array.from(new Set(
+      items.filter(i => i.costo_unitario_estimado == null).map(i => i.producto_id)
+    ))
+    const ultimoCosto: Record<string, number> = {}
+    if (productIdsSinCosto.length > 0) {
+      const { data: batches } = await supabase
+        .from("purchase_batches")
+        .select("product_id, purchase_price, purchase_date")
+        .eq("company_id", companyId)
+        .in("product_id", productIdsSinCosto)
+        .order("purchase_date", { ascending: false })
+      ;(batches || []).forEach(b => {
+        if (ultimoCosto[b.product_id] === undefined) ultimoCosto[b.product_id] = Number(b.purchase_price)
+      })
+    }
+
+    const totales: Record<string, number> = {}
+    items.forEach(i => {
+      if (i.rechazado) return
+      const yaComprado = i.cantidad_recibida > 0 && i.costo_unitario_estimado != null
+      const costoUnit  = yaComprado ? Number(i.costo_unitario_estimado) : (ultimoCosto[i.producto_id] ?? 0)
+      const cantidad   = yaComprado ? i.cantidad_recibida : i.cantidad_solicitada
+      totales[i.orden_compra_id] = (totales[i.orden_compra_id] || 0) + costoUnit * cantidad
+    })
+    setCostoEstimado(totales)
+  }, [companyId])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -160,9 +201,11 @@ export function OrdenesCompraInterface({ companyId, canApprove }: { companyId: s
         .from("ordenes_compra")
         .select("id, proveedor_id, estado, fecha_esperada, notas, creado_en, suppliers(name)")
         .eq("empresa_id", companyId).order("creado_en", { ascending: false })
-      setOrdenes((data || []) as unknown as Orden[])
+      const lista = (data || []) as unknown as Orden[]
+      setOrdenes(lista)
+      loadCostos(lista)
     } finally { setLoading(false) }
-  }, [companyId])
+  }, [companyId, loadCostos])
 
   useEffect(() => { load() }, [load])
 
@@ -255,6 +298,7 @@ export function OrdenesCompraInterface({ companyId, canApprove }: { companyId: s
       await showSuccess(`${cantidad} unidades compradas — nuevo lote creado en inventario`)
       setOrdenes(prev => prev.map(o => o.id === orden.id ? { ...o, orden_compra_items: undefined, estado: nuevoEstado } : o))
       await loadItems({ ...orden, orden_compra_items: undefined })
+      loadCostos(ordenes)
       setCostos(c => ({ ...c, [item.id]: "" }))
       setContando(c => ({ ...c, [item.id]: "" }))
     } catch (err: any) {
@@ -288,6 +332,7 @@ export function OrdenesCompraInterface({ companyId, canApprove }: { companyId: s
       await showSuccess("Producto marcado como no comprado")
       setOrdenes(prev => prev.map(o => o.id === orden.id ? { ...o, orden_compra_items: undefined, estado: nuevoEstado } : o))
       await loadItems({ ...orden, orden_compra_items: undefined })
+      loadCostos(ordenes)
       setMotivos(m => ({ ...m, [item.id]: "" }))
     } catch (err: any) {
       showError(err.message || "Error al rechazar el producto")
@@ -352,6 +397,7 @@ export function OrdenesCompraInterface({ companyId, canApprove }: { companyId: s
                     <th className="oc-th">Proveedor</th>
                     <th className="oc-th">Fecha esperada</th>
                     <th className="oc-th">Estado</th>
+                    <th className="oc-th">Costo total</th>
                     <th className="oc-th" style={{ width: 32 }}></th>
                   </tr>
                 </thead>
@@ -373,11 +419,16 @@ export function OrdenesCompraInterface({ companyId, canApprove }: { companyId: s
                           </td>
                           <td className="oc-td">{orden.fecha_esperada ? fmtDate(orden.fecha_esperada) : "—"}</td>
                           <td className="oc-td"><span className={`oc-badge ${orden.estado}`}>{ESTADO_LABEL[orden.estado]}</span></td>
+                          <td className="oc-td">
+                            {costoEstimado[orden.id] != null
+                              ? <>{!isFinal && "~"}{fmt(costoEstimado[orden.id])}</>
+                              : "—"}
+                          </td>
                           <td className="oc-td">{isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</td>
                         </tr>
                         {isExpanded && (
                           <tr key={`${orden.id}-exp`}>
-                            <td colSpan={4} style={{ padding: 0 }}>
+                            <td colSpan={5} style={{ padding: 0 }}>
                               <div className="oc-expand-body">
                                 {enRevision && !canApprove && (
                                   <p className="oc-review-note" style={{ marginBottom: 8 }}>Esperando revisión de un gerente.</p>

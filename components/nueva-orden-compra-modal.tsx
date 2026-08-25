@@ -57,8 +57,11 @@ const MODAL_CSS = `
 `
 
 type Supplier = { id: string; name: string }
-type Product  = { id: string; name: string }
-type Line     = { product_id: string; name: string; cantidad: string; costo: string }
+type Product  = { id: string; name: string; supplier_id: string | null }
+type Line     = { product_id: string; name: string; cantidad: string }
+
+/** Fecha de hoy en hora Colombia (UTC-5), como "YYYY-MM-DD" para el input date. */
+const hoyColombia = () => new Date(Date.now() - 5 * 60 * 60 * 1000).toISOString().slice(0, 10)
 
 // ── Modal: nueva solicitud de compra ───────────────────────────────────────────
 // Extraído de ordenes-compra-interface.tsx para poder reutilizarlo desde la
@@ -76,7 +79,7 @@ export function NuevaOrdenCompraModal({ companyId, initialSupplierId, initialLin
   const [products, setProducts]   = useState<Product[]>([])
   const [supplierId, setSupplierId] = useState(initialSupplierId ?? "")
   const [supplierOpen, setSupplierOpen] = useState(false)
-  const [fechaEsperada, setFechaEsperada] = useState("")
+  const [fechaEsperada, setFechaEsperada] = useState(hoyColombia())
   const [notas, setNotas] = useState("")
   const [search, setSearch] = useState("")
   const [lines, setLines] = useState<Line[]>(initialLines ?? [])
@@ -86,26 +89,36 @@ export function NuevaOrdenCompraModal({ companyId, initialSupplierId, initialLin
       const supabase = createClient()
       const [{ data: sups }, { data: prods }] = await Promise.all([
         supabase.from("suppliers").select("id, name").eq("company_id", companyId).order("name"),
-        supabase.from("products").select("id, name").eq("company_id", companyId).is("deleted_at", null).order("name"),
+        supabase.from("products").select("id, name, supplier_id").eq("company_id", companyId).is("deleted_at", null).order("name"),
       ])
       setSuppliers(sups || [])
       setProducts(prods || [])
     })()
   }, [companyId])
 
+  // Solo productos que ese proveedor efectivamente vende — evita pedirle a un
+  // proveedor algo que no maneja.
+  const productsForSupplier = useMemo(() => products.filter(p => p.supplier_id === supplierId), [products, supplierId])
+
   const suggestions = useMemo(() => {
-    if (!search.trim()) return []
+    if (!supplierId || !search.trim()) return []
     const q = search.toLowerCase()
-    return products.filter(p => p.name.toLowerCase().includes(q) && !lines.some(l => l.product_id === p.id)).slice(0, 8)
-  }, [search, products, lines])
+    return productsForSupplier.filter(p => p.name.toLowerCase().includes(q) && !lines.some(l => l.product_id === p.id)).slice(0, 8)
+  }, [search, productsForSupplier, lines, supplierId])
 
   const addLine = (p: Product) => {
-    setLines(ls => [...ls, { product_id: p.id, name: p.name, cantidad: "1", costo: "" }])
+    setLines(ls => [...ls, { product_id: p.id, name: p.name, cantidad: "1" }])
     setSearch("")
   }
   const removeLine = (productId: string) => setLines(ls => ls.filter(l => l.product_id !== productId))
-  const updateLine = (productId: string, field: "cantidad" | "costo", value: string) =>
-    setLines(ls => ls.map(l => l.product_id === productId ? { ...l, [field]: value } : l))
+  const updateLine = (productId: string, value: string) =>
+    setLines(ls => ls.map(l => l.product_id === productId ? { ...l, cantidad: value } : l))
+
+  const selectSupplier = (id: string) => {
+    if (id !== supplierId) setLines([])
+    setSupplierId(id)
+    setSupplierOpen(false)
+  }
 
   const selectedSupplier = suppliers.find(s => s.id === supplierId)
 
@@ -132,7 +145,6 @@ export function NuevaOrdenCompraModal({ companyId, initialSupplierId, initialLin
         empresa_id: companyId,
         producto_id: l.product_id,
         cantidad_solicitada: parseInt(l.cantidad),
-        costo_unitario_estimado: l.costo ? parseFloat(l.costo) : null,
       }))
       const { error: itemsErr } = await supabase.from("orden_compra_items").insert(itemsPayload)
       if (itemsErr) throw itemsErr
@@ -169,7 +181,7 @@ export function NuevaOrdenCompraModal({ companyId, initialSupplierId, initialLin
                     {suppliers.length === 0
                       ? <div style={{ padding: 12, fontSize: 12, color: "var(--oc-muted)" }}>Sin proveedores registrados</div>
                       : suppliers.map(s => (
-                        <div key={s.id} className="oc-sel-opt" onClick={() => { setSupplierId(s.id); setSupplierOpen(false) }}>
+                        <div key={s.id} className="oc-sel-opt" onClick={() => selectSupplier(s.id)}>
                           {s.name}{supplierId === s.id && <Check size={11} aria-hidden />}
                         </div>
                       ))}
@@ -187,8 +199,12 @@ export function NuevaOrdenCompraModal({ companyId, initialSupplierId, initialLin
           <div>
             <label className="oc-lbl">Buscar producto para agregar</label>
             <div className="oc-srch-wrap">
-              <input className="oc-inp" placeholder="Nombre del producto…" value={search} disabled={loading}
+              <input className="oc-inp" placeholder={supplierId ? "Nombre del producto…" : "Selecciona un proveedor primero"} value={search}
+                disabled={loading || !supplierId}
                 onChange={e => setSearch(e.target.value)} />
+              {supplierId && productsForSupplier.length === 0 && (
+                <p style={{ fontSize: 11, color: "var(--oc-muted)", margin: "6px 0 0" }}>Este proveedor no tiene productos asignados — asígnalos en Productos.</p>
+              )}
               {suggestions.length > 0 && (
                 <div className="oc-sugg">
                   {suggestions.map(p => (
@@ -206,9 +222,7 @@ export function NuevaOrdenCompraModal({ companyId, initialSupplierId, initialLin
                 <div key={l.product_id} className="oc-line-item">
                   <span className="oc-line-name">{l.name}</span>
                   <input className="oc-line-inp" type="number" min={1} placeholder="Cant." value={l.cantidad} disabled={loading}
-                    onChange={e => updateLine(l.product_id, "cantidad", e.target.value)} />
-                  <input className="oc-line-inp" type="number" min={0} step="0.01" placeholder="Costo" value={l.costo} disabled={loading}
-                    onChange={e => updateLine(l.product_id, "costo", e.target.value)} />
+                    onChange={e => updateLine(l.product_id, e.target.value)} />
                   <button className="oc-line-remove" onClick={() => removeLine(l.product_id)} disabled={loading} aria-label="Quitar">
                     <X size={13} />
                   </button>

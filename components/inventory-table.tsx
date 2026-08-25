@@ -193,7 +193,7 @@ type Batch = {
   id: string; quantity: number; purchase_price: number; purchase_date: string
   remaining_quantity: number
   products: { name: string; barcode: string | null; min_stock: number } | null
-  suppliers: { name: string } | null
+  suppliers: { id: string; name: string } | null
 }
 type Sup = { id: string; name: string }
 
@@ -260,7 +260,7 @@ function EditModal({ batch, suppliers, companyId, onClose }: {
   const [form, setForm] = useState({
     quantity:       batch.quantity.toString(),
     purchase_price: batch.purchase_price.toString(),
-    supplier_id:    (batch.suppliers as any)?.id || "",
+    supplier_id:    batch.suppliers?.id || "",
   })
 
   const handleSubmit = async (e: React.FormEvent) => {

@@ -532,7 +532,7 @@ function CardHd({ icon: Icon, title, sub }: { icon: any; title: string; sub?: st
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 export function ReportsDashboard({ sales, saleItems, profits, expenses, products, batches, companyId }: Props) {
-  const [solicitudPrefill, setSolicitudPrefill] = useState<{ supplierId: string; lines: { product_id: string; name: string; cantidad: string; costo: string }[] } | null>(null)
+  const [solicitudPrefill, setSolicitudPrefill] = useState<{ supplierId: string; lines: { product_id: string; name: string; cantidad: string }[] } | null>(null)
   const [dateFrom, setDateFrom] = useState<Date>(() => colombiaMidnight(29))
   const [dateTo,   setDateTo]   = useState<Date>(() => colombiaMidnight(0))
   const [tab, setTab]     = useState<"ventas"|"rentabilidad"|"inventario"|"reposicion"|"decisiones">("ventas")
@@ -1662,7 +1662,6 @@ export function ReportsDashboard({ sales, saleItems, profits, expenses, products
                               product_id: it.id,
                               name: it.name,
                               cantidad: String(it.sugerido),
-                              costo: it.costoUnit > 0 ? String(it.costoUnit) : "",
                             })),
                           })}
                         >

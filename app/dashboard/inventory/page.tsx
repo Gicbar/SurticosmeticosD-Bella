@@ -70,7 +70,7 @@ export default async function InventoryPage() {
   const supabase = await createClient()
   const { data: allBatches } = await supabase
     .from("purchase_batches")
-    .select("*, products(name, barcode, min_stock), suppliers(name)")
+    .select("*, products(name, barcode, min_stock), suppliers(id, name)")
     .eq("company_id", companyId)
     .order("purchase_date", { ascending: false })
 

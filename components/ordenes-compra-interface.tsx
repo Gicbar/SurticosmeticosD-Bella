@@ -72,6 +72,12 @@ const OC_CSS = `
   .oc-review-note { font-size: 11px; color: var(--oc-muted); font-style: italic; }
   .oc-reject-note { font-size: 11px; color: #dc2626; }
 
+  .oc-add-wrap { position: relative; max-width: 320px; margin-top: 8px; }
+  .oc-add-inp { width: 100%; height: 36px; padding: 0 10px; border: 1px solid var(--oc-border); font-size: 12px; font-family: 'DM Sans', sans-serif; }
+  .oc-add-dd { border: 1px solid var(--oc-border); background: #fff; box-shadow: 0 8px 20px rgba(26,26,24,.08); max-height: 180px; overflow-y: auto; margin-top: 4px; }
+  .oc-add-dd-item { padding: 9px 12px; font-size: 12px; cursor: pointer; }
+  .oc-add-dd-item:hover { background: var(--oc-p10); }
+
   .oc-empty { padding: 48px 20px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 10px; }
   .oc-empty-icon { width: 48px; height: 48px; background: var(--oc-p10); border-radius: 50%; display: flex; align-items: center; justify-content: center; }
   .oc-empty-icon svg { color: var(--oc-p); opacity: .5; width: 20px; height: 20px; }
@@ -151,6 +157,10 @@ export function OrdenesCompraInterface({ companyId, canApprove }: { companyId: s
   const [filtro, setFiltro]         = useState("")
   const [foto, setFoto]             = useState<{ url: string; name: string } | null>(null)
   const [costoEstimado, setCostoEstimado] = useState<Record<string, number>>({}) // ordenId -> costo total (real + estimado)
+  const [agregandoId, setAgregandoId] = useState<string | null>(null) // ordenId con el buscador de "agregar producto" abierto
+  const [buscarNuevo, setBuscarNuevo] = useState("")
+  const [productosProveedor, setProductosProveedor] = useState<{ id: string; name: string }[]>([])
+  const [addingProduct, setAddingProduct] = useState<string | null>(null)
   const countTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
   // Costo total por orden: para ítems ya comprados usa el costo real que se
@@ -341,6 +351,45 @@ export function OrdenesCompraInterface({ companyId, canApprove }: { companyId: s
     }
   }
 
+  // Agregar un producto a una solicitud que aún no se aprobó — disponible para
+  // cualquier persona con acceso a la pantalla, no solo para quien aprueba.
+  const abrirAgregar = async (orden: Orden) => {
+    setAgregandoId(orden.id)
+    setBuscarNuevo("")
+    const supabase = createClient()
+    const { data } = await supabase
+      .from("products")
+      .select("id, name")
+      .eq("company_id", companyId)
+      .eq("supplier_id", orden.proveedor_id)
+      .is("deleted_at", null)
+      .order("name")
+    setProductosProveedor(data || [])
+  }
+
+  const handleAgregarProducto = async (orden: Orden, producto: { id: string; name: string }) => {
+    setAddingProduct(producto.id)
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.from("orden_compra_items").insert({
+        orden_compra_id: orden.id,
+        empresa_id: companyId,
+        producto_id: producto.id,
+        cantidad_solicitada: 1,
+      })
+      if (error) throw error
+      await showSuccess(`${producto.name} agregado a la solicitud`)
+      setOrdenes(prev => prev.map(o => o.id === orden.id ? { ...o, orden_compra_items: undefined } : o))
+      await loadItems({ ...orden, orden_compra_items: undefined })
+      loadCostos(ordenes)
+      setBuscarNuevo("")
+    } catch (err: any) {
+      showError(err.message || "Error al agregar el producto")
+    } finally {
+      setAddingProduct(null)
+    }
+  }
+
   const handleCancelar = async (orden: Orden) => {
     const ok = await showConfirm("Esta orden de compra se marcará como cancelada.", "¿Cancelar orden?")
     if (!ok) return
@@ -516,6 +565,44 @@ export function OrdenesCompraInterface({ companyId, canApprove }: { companyId: s
                                 {itemsFiltrados.length === 0 && (
                                   <p style={{ fontSize: 12, color: "var(--oc-muted)", padding: "10px 0" }}>Ningún producto coincide con la búsqueda.</p>
                                 )}
+
+                                {enRevision && !isFinal && agregandoId === orden.id && (
+                                  <div className="oc-add-wrap">
+                                    <input
+                                      className="oc-add-inp" autoFocus
+                                      placeholder="Buscar producto de este proveedor…"
+                                      value={buscarNuevo}
+                                      onChange={e => setBuscarNuevo(e.target.value)}
+                                    />
+                                    {buscarNuevo.trim() && (() => {
+                                      const q = buscarNuevo.toLowerCase()
+                                      const yaEnOrden = new Set(todosItems.map(i => i.producto_id))
+                                      const sugeridos = productosProveedor
+                                        .filter(p => p.name.toLowerCase().includes(q) && !yaEnOrden.has(p.id))
+                                        .slice(0, 8)
+                                      return (
+                                        <div className="oc-add-dd">
+                                          {sugeridos.length === 0
+                                            ? <div style={{ padding: 10, fontSize: 12, color: "var(--oc-muted)" }}>Sin resultados</div>
+                                            : sugeridos.map(p => (
+                                              <div key={p.id} className="oc-add-dd-item" onClick={() => handleAgregarProducto(orden, p)}>
+                                                {addingProduct === p.id ? "Agregando…" : p.name}
+                                              </div>
+                                            ))}
+                                        </div>
+                                      )
+                                    })()}
+                                    <button className="oc-mini-btn cancel" style={{ marginTop: 8 }} onClick={() => setAgregandoId(null)}>Listo</button>
+                                  </div>
+                                )}
+                                {enRevision && !isFinal && agregandoId !== orden.id && (
+                                  <div style={{ marginTop: 10 }}>
+                                    <button className="oc-mini-btn" onClick={() => abrirAgregar(orden)}>
+                                      <Plus size={11} />Agregar producto
+                                    </button>
+                                  </div>
+                                )}
+
                                 {!isFinal && (
                                   <div style={{ marginTop: 10 }}>
                                     <button className="oc-mini-btn cancel" disabled={processing === orden.id}

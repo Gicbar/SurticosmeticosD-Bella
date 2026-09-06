@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback } from "react"
 import { createClient } from "@/lib/supabase/client"
 import {
   Undo2, ShieldAlert, ChevronDown, ChevronUp, RefreshCw,
-  FileMinus2, ArrowDownCircle, ArrowUpCircle, Package,
+  FileMinus2, ArrowDownCircle, ArrowUpCircle, Package, ArrowLeftRight,
 } from "lucide-react"
 
 const DV_CSS = `
@@ -97,6 +97,16 @@ type Nota = {
   creado_en: string
 }
 
+type Cambio = {
+  id: string
+  cantidad: number
+  diferencia: number
+  creado_en: string
+  clients: { name: string } | null
+  producto_anterior: { name: string } | null
+  producto_nuevo: { name: string } | null
+}
+
 const fmt = (v: number) =>
   v.toLocaleString("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 })
 const fmtDate = (iso: string) =>
@@ -105,6 +115,7 @@ const fmtDate = (iso: string) =>
 export function DevolucionesInterface({ companyId }: { companyId: string }) {
   const [devoluciones, setDevoluciones] = useState<Devolucion[]>([])
   const [notas, setNotas]               = useState<Nota[]>([])
+  const [cambios, setCambios]           = useState<Cambio[]>([])
   const [loading, setLoading]           = useState(true)
   const [expandedId, setExpandedId]     = useState<string | null>(null)
 
@@ -112,7 +123,7 @@ export function DevolucionesInterface({ companyId }: { companyId: string }) {
     setLoading(true)
     try {
       const supabase = createClient()
-      const [{ data: devs }, { data: nc }, { data: nd }] = await Promise.all([
+      const [{ data: devs }, { data: nc }, { data: nd }, { data: cambiosData }] = await Promise.all([
         supabase.from("devoluciones")
           .select("id, venta_id, tipo, estado, motivo, monto_total, reintegra_inventario, creado_en, clients(name)")
           .eq("empresa_id", companyId).order("creado_en", { ascending: false }),
@@ -122,11 +133,15 @@ export function DevolucionesInterface({ companyId }: { companyId: string }) {
         supabase.from("notas_debito")
           .select("id, concepto, valor, creado_en")
           .eq("empresa_id", companyId).order("creado_en", { ascending: false }),
+        supabase.from("cambios_producto")
+          .select("id, cantidad, diferencia, creado_en, clients(name), producto_anterior:products!cambios_producto_producto_anterior_id_fkey(name), producto_nuevo:products!cambios_producto_producto_nuevo_id_fkey(name)")
+          .eq("empresa_id", companyId).order("creado_en", { ascending: false }),
       ])
       setDevoluciones((devs || []) as unknown as Devolucion[])
       const notasCredito: Nota[] = (nc || []).map((n: any) => ({ ...n, tipo: "credito" as const }))
       const notasDebito:  Nota[] = (nd || []).map((n: any) => ({ ...n, tipo: "debito" as const }))
       setNotas([...notasCredito, ...notasDebito].sort((a, b) => b.creado_en.localeCompare(a.creado_en)))
+      setCambios((cambiosData || []) as unknown as Cambio[])
     } finally { setLoading(false) }
   }, [companyId])
 
@@ -248,6 +263,54 @@ export function DevolucionesInterface({ companyId }: { companyId: string }) {
                       </>
                     )
                   })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+
+        <div className="dv-card">
+          <div className="dv-card-hd">
+            <div className="dv-card-hd-icon"><ArrowLeftRight /></div>
+            <p className="dv-card-title">Cambios de producto</p>
+          </div>
+          {cambios.length === 0 ? (
+            <div className="dv-empty">
+              <div className="dv-empty-icon"><ArrowLeftRight /></div>
+              <p className="dv-empty-title">No hay cambios de producto registrados</p>
+              <p className="dv-empty-sub">Se registran desde el detalle de cada venta</p>
+            </div>
+          ) : (
+            <div className="dv-table-wrap">
+              <table className="dv-table">
+                <thead>
+                  <tr>
+                    <th className="dv-th">Cliente</th>
+                    <th className="dv-th">Producto</th>
+                    <th className="dv-th dv-hide-mobile">Cant.</th>
+                    <th className="dv-th">Diferencia</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cambios.map(c => (
+                    <tr key={c.id} className="dv-tr" style={{ cursor: "default" }}>
+                      <td className="dv-td">
+                        <p style={{ margin: 0, fontWeight: 500 }}>{c.clients?.name ?? "—"}</p>
+                        <p style={{ margin: "2px 0 0", fontSize: 10, color: "var(--dv-muted)" }}>{fmtDate(c.creado_en)}</p>
+                      </td>
+                      <td className="dv-td">
+                        <span style={{ fontSize: 12 }}>
+                          {c.producto_anterior?.name ?? "—"} <span style={{ color: "var(--dv-muted)" }}>→</span> {c.producto_nuevo?.name ?? "—"}
+                        </span>
+                      </td>
+                      <td className="dv-td dv-hide-mobile">{c.cantidad}</td>
+                      <td className="dv-td">
+                        <span className="dv-amt" style={{ color: c.diferencia > 0 ? "var(--dv-warn)" : c.diferencia < 0 ? "var(--dv-ok)" : "var(--dv-muted)" }}>
+                          {c.diferencia === 0 ? "Sin diferencia" : `${c.diferencia > 0 ? "+" : ""}${fmt(Number(c.diferencia))}`}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
                 </tbody>
               </table>
             </div>

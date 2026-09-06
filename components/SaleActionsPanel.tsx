@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
 import { showError, showSuccess } from "@/lib/sweetalert"
-import { Undo2, FileMinus2, X, Package, ChevronDown, Check } from "lucide-react"
+import { Undo2, FileMinus2, X, Package, ChevronDown, Check, ArrowLeftRight, Search } from "lucide-react"
 
 const CSS = `
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:opsz,wght@9..40,400;9..40,500;9..40,600&display=swap');
@@ -68,6 +68,29 @@ const CSS = `
 .sap-btn-save:disabled { opacity:.4; cursor:not-allowed; }
 .sap-spin { width:13px; height:13px; border:2px solid rgba(255,255,255,.3); border-top-color:#fff; border-radius:50%; animation:sapSpin .7s linear infinite; }
 @keyframes sapSpin { to{ transform:rotate(360deg); } }
+
+.sap-radio-row { display:flex; align-items:center; gap:10px; padding:10px 12px; border:1.5px solid rgba(26,26,24,.08); cursor:pointer; margin-bottom:6px; transition:border-color .14s, background .14s; }
+.sap-radio-row:last-child { margin-bottom:0; }
+.sap-radio-row.on { border-color:var(--primary,#984ca8); background:rgba(var(--primary-rgb,152,76,168),.05); }
+.sap-radio-row.disabled { opacity:.4; cursor:not-allowed; }
+.sap-radio-dot { width:15px; height:15px; border-radius:50%; border:1.5px solid rgba(26,26,24,.25); flex-shrink:0; display:flex; align-items:center; justify-content:center; }
+.sap-radio-row.on .sap-radio-dot { border-color:var(--primary,#984ca8); }
+.sap-radio-dot-fill { width:7px; height:7px; border-radius:50%; background:var(--primary,#984ca8); }
+
+.sap-search-wrap { position:relative; }
+.sap-search-inp { display:flex; align-items:center; gap:8px; width:100%; padding:0 13px; height:42px; border:1px solid rgba(26,26,24,.08); background:#fff; }
+.sap-search-inp svg { color:rgba(26,26,24,.35); width:14px; height:14px; flex-shrink:0; }
+.sap-search-inp input { border:none; outline:none; flex:1; font-family:'DM Sans',sans-serif; font-size:13px; color:#1a1a18; min-width:0; }
+.sap-search-dd { position:absolute; top:calc(100% + 3px); left:0; right:0; max-height:220px; overflow-y:auto; background:#fff; border:1px solid rgba(26,26,24,.08); box-shadow:0 8px 24px rgba(26,26,24,.10); z-index:700; }
+.sap-search-opt { padding:9px 13px; cursor:pointer; display:flex; align-items:center; justify-content:space-between; gap:8px; }
+.sap-search-opt:hover { background:rgba(var(--primary-rgb,152,76,168),.08); }
+.sap-search-opt-name { font-size:12.5px; color:#1a1a18; }
+.sap-search-opt-price { font-size:11px; color:rgba(26,26,24,.45); white-space:nowrap; }
+.sap-search-empty { padding:12px 13px; font-size:12px; color:rgba(26,26,24,.4); }
+.sap-diff-box { padding:10px 13px; border:1px solid rgba(26,26,24,.08); background:rgba(26,26,24,.02); font-size:12px; display:flex; justify-content:space-between; align-items:center; }
+.sap-diff-val.up { color:#b45309; font-weight:600; }
+.sap-diff-val.down { color:#15803d; font-weight:600; }
+.sap-diff-val.zero { color:rgba(26,26,24,.5); }
 `
 
 type SaleItem = {
@@ -114,11 +137,15 @@ export function SaleActionsPanel({ companyId, saleId, clientId, items }: Props) 
   const router = useRouter()
   const [showDevolucion, setShowDevolucion] = useState(false)
   const [showNota, setShowNota] = useState(false)
+  const [showCambio, setShowCambio] = useState(false)
 
   return (
     <>
       <style dangerouslySetInnerHTML={{ __html: CSS }} />
       <div className="sap-actions">
+        <button className="sap-btn" onClick={() => setShowCambio(true)}>
+          <ArrowLeftRight aria-hidden />Cambiar producto
+        </button>
         <button className="sap-btn" onClick={() => setShowDevolucion(true)}>
           <Undo2 aria-hidden />Registrar devolución
         </button>
@@ -126,6 +153,14 @@ export function SaleActionsPanel({ companyId, saleId, clientId, items }: Props) 
           <FileMinus2 aria-hidden />Nota crédito / débito
         </button>
       </div>
+
+      {showCambio && (
+        <CambioProductoDialog
+          companyId={companyId} saleId={saleId} items={items}
+          onClose={() => setShowCambio(false)}
+          onSaved={() => { setShowCambio(false); router.refresh() }}
+        />
+      )}
 
       {showDevolucion && (
         <DevolucionDialog
@@ -146,6 +181,201 @@ export function SaleActionsPanel({ companyId, saleId, clientId, items }: Props) 
   )
 }
 
+// ── Diálogo: cambiar producto (el cliente se equivocó al comprar) ─────────────
+type ProductOption = { id: string; name: string; sale_price: number }
+
+function CambioProductoDialog({ companyId, saleId, items, onClose, onSaved }: {
+  companyId: string; saleId: string; items: SaleItem[]
+  onClose: () => void; onSaved: () => void
+}) {
+  const [loading, setLoading] = useState(false)
+  const [loadingProducts, setLoadingProducts] = useState(true)
+  const [alreadyConsumed, setAlreadyConsumed] = useState<Record<string, number>>({})
+  const [products, setProducts] = useState<ProductOption[]>([])
+  const [selectedItemId, setSelectedItemId] = useState<string>("")
+  const [qty, setQty] = useState("")
+  const [search, setSearch] = useState("")
+  const [searchOpen, setSearchOpen] = useState(false)
+  const [newProduct, setNewProduct] = useState<ProductOption | null>(null)
+  const [motivo, setMotivo] = useState("")
+
+  useEffect(() => {
+    ;(async () => {
+      const supabase = createClient()
+      const itemIds = items.map(i => i.id)
+      const [{ data: dev }, { data: cambios }, { data: prods }] = await Promise.all([
+        supabase.from("devolucion_items").select("item_venta_id, cantidad").in("item_venta_id", itemIds),
+        supabase.from("cambios_producto").select("item_venta_id, cantidad").in("item_venta_id", itemIds),
+        supabase.from("products").select("id, name, sale_price").eq("company_id", companyId).is("deleted_at", null).order("name"),
+      ])
+      const acc: Record<string, number> = {}
+      for (const row of [...(dev || []), ...(cambios || [])]) {
+        acc[row.item_venta_id] = (acc[row.item_venta_id] || 0) + row.cantidad
+      }
+      setAlreadyConsumed(acc)
+      setProducts((prods || []) as ProductOption[])
+      setLoadingProducts(false)
+    })()
+  }, [items, companyId])
+
+  const availableFor = (item: SaleItem) => item.quantity - (alreadyConsumed[item.id] || 0)
+  const selectedItem = items.find(i => i.id === selectedItemId) || null
+  const maxQty = selectedItem ? availableFor(selectedItem) : 0
+
+  const filteredProducts = useMemo(() => {
+    const term = search.trim().toLowerCase()
+    return products
+      .filter(p => p.id !== selectedItem?.product_id)
+      .filter(p => !term || p.name.toLowerCase().includes(term))
+      .slice(0, 8)
+  }, [products, search, selectedItem])
+
+  const qtyNum = parseInt(qty || "0") || 0
+  const diferencia = newProduct ? (newProduct.sale_price - Number(selectedItem?.unit_price || 0)) * qtyNum : 0
+
+  const handleSubmit = async () => {
+    if (!selectedItem) { showError("Selecciona el producto que el cliente quiere cambiar"); return }
+    if (qtyNum <= 0 || qtyNum > maxQty) { showError("Indica una cantidad válida a cambiar"); return }
+    if (!newProduct) { showError("Selecciona el producto nuevo"); return }
+    if (!motivo.trim()) { showError("Indica el motivo del cambio"); return }
+    setLoading(true)
+    try {
+      const supabase = createClient()
+      const { error } = await supabase.rpc("rpc_cambiar_producto_venta", {
+        p_company_id: companyId,
+        p_sale_id: saleId,
+        p_sale_item_id: selectedItem.id,
+        p_producto_nuevo_id: newProduct.id,
+        p_cantidad: qtyNum,
+        p_motivo: motivo.trim(),
+      })
+      if (error) throw error
+      await showSuccess("Producto cambiado correctamente")
+      onSaved()
+    } catch (err: any) {
+      showError(err.message || "Error al cambiar el producto")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="sap-bdrop" onClick={e => { if (e.target === e.currentTarget) onClose() }} role="dialog" aria-modal="true">
+      <div className="sap-modal">
+        <div className="sap-hd">
+          <p className="sap-title"><ArrowLeftRight aria-hidden />Cambiar producto</p>
+          <button className="sap-close" onClick={onClose} disabled={loading}><X size={13} /></button>
+        </div>
+        <div className="sap-body">
+          <div>
+            <span className="sap-lbl">1. Producto que el cliente quiere cambiar</span>
+            {items.map(item => {
+              const max = availableFor(item)
+              const on = selectedItemId === item.id
+              return (
+                <div
+                  key={item.id}
+                  role="radio" aria-checked={on} tabIndex={max > 0 ? 0 : -1}
+                  className={`sap-radio-row${on ? " on" : ""}${max <= 0 ? " disabled" : ""}`}
+                  onClick={() => { if (max > 0 && !loading) { setSelectedItemId(item.id); setQty("") } }}
+                  onKeyDown={e => { if ((e.key === " " || e.key === "Enter") && max > 0 && !loading) setSelectedItemId(item.id) }}
+                >
+                  <div className="sap-radio-dot">{on && <div className="sap-radio-dot-fill" />}</div>
+                  <div className="sap-item-info">
+                    <p className="sap-item-name">{item.products?.name ?? "Producto"}</p>
+                    <p className="sap-item-sub">Vendido: {item.quantity} · Disponible para cambiar: {max}</p>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+
+          {selectedItem && (
+            <>
+              <div className="sap-g2">
+                <div>
+                  <label className="sap-lbl" htmlFor="sap-cambio-qty">Cantidad a cambiar *</label>
+                  <input
+                    id="sap-cambio-qty" className="sap-inp" type="number" min={1} max={maxQty}
+                    value={qty} disabled={loading}
+                    placeholder={`Máx. ${maxQty}`}
+                    onChange={e => setQty(e.target.value)}
+                  />
+                </div>
+                <div>
+                  <span className="sap-lbl">Precio original (un.)</span>
+                  <div style={{ height: 42, display: "flex", alignItems: "center", fontSize: 13, color: "#1a1a18" }}>
+                    {Number(selectedItem.unit_price).toLocaleString("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 })}
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <span className="sap-lbl">2. Producto nuevo (reemplazo)</span>
+                <div className="sap-search-wrap">
+                  <div className="sap-search-inp">
+                    <Search aria-hidden />
+                    <input
+                      value={newProduct ? newProduct.name : search}
+                      disabled={loading || loadingProducts}
+                      placeholder={loadingProducts ? "Cargando productos…" : "Buscar producto…"}
+                      onFocus={() => setSearchOpen(true)}
+                      onBlur={() => setTimeout(() => setSearchOpen(false), 150)}
+                      onChange={e => { setNewProduct(null); setSearch(e.target.value); setSearchOpen(true) }}
+                    />
+                  </div>
+                  {searchOpen && !loadingProducts && (
+                    <div className="sap-search-dd" role="listbox">
+                      {filteredProducts.length === 0 ? (
+                        <div className="sap-search-empty">Sin resultados</div>
+                      ) : (
+                        filteredProducts.map(p => (
+                          <div
+                            key={p.id} className="sap-search-opt"
+                            onClick={() => { setNewProduct(p); setSearch(""); setSearchOpen(false) }}
+                          >
+                            <span className="sap-search-opt-name">{p.name}</span>
+                            <span className="sap-search-opt-price">
+                              {Number(p.sale_price).toLocaleString("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 })}
+                            </span>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {newProduct && qtyNum > 0 && (
+                <div className="sap-diff-box">
+                  <span>Diferencia a reflejar en la venta ({qtyNum} un.)</span>
+                  <span className={`sap-diff-val ${diferencia > 0 ? "up" : diferencia < 0 ? "down" : "zero"}`}>
+                    {diferencia === 0
+                      ? "Sin diferencia"
+                      : `${diferencia > 0 ? "+" : ""}${diferencia.toLocaleString("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 })}`}
+                  </span>
+                </div>
+              )}
+
+              <div>
+                <label className="sap-lbl" htmlFor="sap-cambio-motivo">Motivo *</label>
+                <textarea id="sap-cambio-motivo" className="sap-textarea" value={motivo} disabled={loading}
+                  onChange={e => setMotivo(e.target.value)} placeholder="Ej: cliente se equivocó de producto al comprar" />
+              </div>
+            </>
+          )}
+        </div>
+        <div className="sap-foot">
+          <button className="sap-btn-cancel" onClick={onClose} disabled={loading}>Cancelar</button>
+          <button className="sap-btn-save" onClick={handleSubmit} disabled={loading || !selectedItem}>
+            {loading ? <><div className="sap-spin" />Guardando…</> : "Confirmar cambio"}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 // ── Diálogo: registrar devolución/garantía ────────────────────────────────────
 function DevolucionDialog({ companyId, saleId, items, onClose, onSaved }: {
   companyId: string; saleId: string; items: SaleItem[]
@@ -161,12 +391,13 @@ function DevolucionDialog({ companyId, saleId, items, onClose, onSaved }: {
   useEffect(() => {
     ;(async () => {
       const supabase = createClient()
-      const { data } = await supabase
-        .from("devolucion_items")
-        .select("item_venta_id, cantidad")
-        .in("item_venta_id", items.map(i => i.id))
+      const itemIds = items.map(i => i.id)
+      const [{ data: dev }, { data: cambios }] = await Promise.all([
+        supabase.from("devolucion_items").select("item_venta_id, cantidad").in("item_venta_id", itemIds),
+        supabase.from("cambios_producto").select("item_venta_id, cantidad").in("item_venta_id", itemIds),
+      ])
       const acc: Record<string, number> = {}
-      for (const row of data || []) {
+      for (const row of [...(dev || []), ...(cambios || [])]) {
         acc[row.item_venta_id] = (acc[row.item_venta_id] || 0) + row.cantidad
       }
       setAlreadyReturned(acc)

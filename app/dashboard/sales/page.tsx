@@ -29,6 +29,12 @@ function mesActualUTC(): { firstDay: Date; nextMonth: Date } {
   return { firstDay, nextMonth }
 }
 
+/** "YYYY-MM-DD" (fecha de un <input type="date">) → medianoche Colombia expresada en UTC */
+function colDayStartUTC(dateStr: string): Date {
+  const [y, m, d] = dateStr.split("-").map(Number)
+  return new Date(Date.UTC(y, m - 1, d, 5, 0, 0))
+}
+
 // ── Helpers ──────────────────────────────────────────────────────────────────
 const fmt = (v: number) =>
   v.toLocaleString("es-CO", { style: "currency", currency: "COP", maximumFractionDigits: 0 })
@@ -259,16 +265,26 @@ export default async function SalesPage({
     "customer_debts(status, original_amount, debt_payments(amount))"
   if (showFinancials) selectQuery += ", sales_profit(profit, profit_margin)"
 
+  const hasCustomRange = Boolean(params.from || params.to)
+
   let q = supabase
     .from("sales")
     .select(selectQuery)
     .eq("company_id", companyId)
-    .gte("sale_date", firstDay.toISOString())
-    .lt("sale_date",  nextMonth.toISOString())
     .order("sale_date", { ascending: false })
 
-  if (params.from)  q = q.gte("sale_date", params.from)
-  if (params.to)    q = q.lte("sale_date", params.to)
+  if (hasCustomRange) {
+    // Rango elegido por el usuario: reemplaza el filtro de mes actual (no se suman).
+    if (params.from) q = q.gte("sale_date", colDayStartUTC(params.from).toISOString())
+    if (params.to) {
+      const toExclusive = new Date(colDayStartUTC(params.to).getTime() + 24 * 60 * 60 * 1000)
+      q = q.lt("sale_date", toExclusive.toISOString())
+    }
+  } else {
+    // Sin filtros: por defecto, mes actual.
+    q = q.gte("sale_date", firstDay.toISOString()).lt("sale_date", nextMonth.toISOString())
+  }
+
   if (params.client && params.client !== "all") q = q.eq("client_id", params.client)
 
   // ── Query 2: cartera vencida — créditos de meses anteriores aún abiertos ──
@@ -393,9 +409,13 @@ export default async function SalesPage({
           <div>
             <h1 className="sp-title">
               <span className="sp-title-dot" aria-hidden />
-              Historial de Ventas Mes Actual
+              {hasCustomRange ? "Historial de Ventas" : "Historial de Ventas Mes Actual"}
             </h1>
-            <p className="sp-sub">Gestión y seguimiento de transacciones Sobre el mes actual</p>
+            <p className="sp-sub">
+              {hasCustomRange
+                ? `Ventas filtradas${params.from ? ` desde ${params.from}` : ""}${params.to ? ` hasta ${params.to}` : ""}`
+                : "Gestión y seguimiento de transacciones sobre el mes actual"}
+            </p>
           </div>
           <ExportSalesButton sales={all} hasFinancialPermission={showFinancials} />
         </div>
@@ -405,7 +425,7 @@ export default async function SalesPage({
           <div className="sp-kpi">
             <div className="sp-kpi-ico"><ShoppingCart /></div>
             <div>
-              <p className="sp-kpi-lbl">Transacciones Mes Actual</p>
+              <p className="sp-kpi-lbl">{hasCustomRange ? "Transacciones del período" : "Transacciones Mes Actual"}</p>
               <p className="sp-kpi-val">{totalVentas}</p>
               <p className="sp-kpi-sub">
                 {ventasContado.length} contado · {all.filter(s => s.is_credit).length} crédito
@@ -417,7 +437,7 @@ export default async function SalesPage({
             <div className="sp-kpi">
               <div className="sp-kpi-ico"><DollarSign /></div>
               <div>
-                <p className="sp-kpi-lbl">Total facturado  Mes Actual</p>
+                <p className="sp-kpi-lbl">{hasCustomRange ? "Total facturado del período" : "Total facturado Mes Actual"}</p>
                 <p className="sp-kpi-val">{fmt(totalBruto)}</p>
                 <p className="sp-kpi-sub">
                   Recaudado: {fmt(totalRecaudado)} · Pendiente: {fmt(totalPorCobrar)}
@@ -511,7 +531,7 @@ export default async function SalesPage({
                 <div className="sp-card-hd-left">
                   <div className="sp-card-ico"><Clock /></div>
                   <p className="sp-card-title">
-                    Cartera financiada Mes Actual
+                    {hasCustomRange ? "Cartera financiada del período" : "Cartera financiada Mes Actual"}
                     <span className="sp-card-pill">{pct(totalPorCobrar, totalBruto)}</span>
                   </p>
                 </div>

@@ -5,7 +5,7 @@ import { notFound, redirect } from "next/navigation"
 import Link from "next/link"
 import {
   ArrowLeft, Calendar, DollarSign, User, CreditCard,
-  Package, TrendingUp, ShoppingCart,
+  Package, TrendingUp, ShoppingCart, Undo2, ArrowLeftRight,
 } from "lucide-react"
 import { SaleActionsPanel } from "@/components/SaleActionsPanel"
 
@@ -176,6 +176,20 @@ table.sd-tbl { width: 100%; border-collapse: collapse; min-width: 520px; }
   font-family: 'Cormorant Garamond', Georgia, serif;
   font-size: 15px; font-weight: 500; color: var(--p);
 }
+
+/* ── Movimientos: devuelto / cambiado / reemplazo ────── */
+.sd-tbl tbody tr.moved { background: rgba(180,83,9,.03); }
+.sd-tbl tbody tr.incoming { background: var(--p10); }
+.sd-move-badges { display: flex; flex-direction: column; gap: 3px; margin-top: 4px; }
+.sd-move-badge {
+  display: inline-flex; align-items: center; gap: 4px; width: fit-content;
+  padding: 2px 7px; font-size: 9px; font-weight: 700; letter-spacing: .04em;
+  white-space: nowrap;
+}
+.sd-move-badge svg { width: 9px; height: 9px; flex-shrink: 0; }
+.sd-move-badge.warn { background: var(--danger10); color: var(--danger); }
+.sd-move-badge.swap { background: var(--p10); color: var(--p); }
+.sd-move-badge.in   { background: var(--ok10); color: var(--ok); }
 `
 
 export default async function SaleDetailPage({
@@ -206,6 +220,44 @@ export default async function SaleDetailPage({
     .select("*, products(name, barcode), purchase_batches(created_at)")
     .eq("sale_id", id)
     .eq("company_id", companyId)
+
+  const itemIds = (saleItems || []).map((i) => i.id)
+
+  const [{ data: devItems }, { data: cambios }] = await Promise.all([
+    itemIds.length
+      ? supabase
+          .from("devolucion_items")
+          .select("item_venta_id, cantidad, devoluciones(tipo)")
+          .in("item_venta_id", itemIds)
+      : Promise.resolve({ data: [] as any[] }),
+    supabase
+      .from("cambios_producto")
+      .select(
+        "id, item_venta_id, cantidad, diferencia, " +
+        "producto_anterior:products!cambios_producto_producto_anterior_id_fkey(name), " +
+        "producto_nuevo:products!cambios_producto_producto_nuevo_id_fkey(name)"
+      )
+      .eq("venta_id", id)
+      .eq("empresa_id", companyId),
+  ])
+
+  // ── Devoluciones por ítem original (para marcar "Devuelto") ──────────────
+  const devueltoByItem = new Map<string, { cantidad: number; tipo: string }[]>()
+  for (const d of (devItems || []) as any[]) {
+    const arr = devueltoByItem.get(d.item_venta_id) || []
+    arr.push({ cantidad: d.cantidad, tipo: d.devoluciones?.tipo ?? "devolucion" })
+    devueltoByItem.set(d.item_venta_id, arr)
+  }
+
+  // ── Cambios de producto: por ítem original (salió) y por cambio_id (llegó) ─
+  const cambioSalidaByItem = new Map<string, any[]>()
+  const cambioById = new Map<string, any>()
+  for (const c of (cambios || []) as any[]) {
+    cambioById.set(c.id, c)
+    const arr = cambioSalidaByItem.get(c.item_venta_id) || []
+    arr.push(c)
+    cambioSalidaByItem.set(c.item_venta_id, arr)
+  }
 
   const profit = sale.sales_profit?.[0]
   const payMethod = sale.payment_method
@@ -374,12 +426,43 @@ export default async function SaleDetailPage({
               </thead>
               <tbody>
                 {saleItems && saleItems.length > 0 ? (
-                  saleItems.map((item) => (
-                    <tr key={item.id}>
+                  saleItems.map((item) => {
+                    const devueltos = devueltoByItem.get(item.id) || []
+                    const totalDevuelto = devueltos.reduce((s, d) => s + d.cantidad, 0)
+                    const esGarantia = devueltos.some(d => d.tipo === "garantia")
+
+                    const cambiosSalida = cambioSalidaByItem.get(item.id) || []
+                    const totalCambiado = cambiosSalida.reduce((s: number, c: any) => s + c.cantidad, 0)
+
+                    const cambioEntrada = item.cambio_origen_id ? cambioById.get(item.cambio_origen_id) : null
+
+                    const rowClass = cambioEntrada ? "incoming" : (totalDevuelto > 0 || totalCambiado > 0) ? "moved" : ""
+
+                    return (
+                    <tr key={item.id} className={rowClass || undefined}>
                       <td>
                         <div className="sd-prod-name">
                           <div className="sd-prod-ico" aria-hidden><Package /></div>
                           {item.products?.name || "N/A"}
+                        </div>
+                        <div className="sd-move-badges">
+                          {totalDevuelto > 0 && (
+                            <span className="sd-move-badge warn">
+                              <Undo2 aria-hidden />{esGarantia ? "Garantía" : "Devuelto"}: {totalDevuelto} un.
+                            </span>
+                          )}
+                          {cambiosSalida.map((c: any) => (
+                            <span key={c.id} className="sd-move-badge swap">
+                              <ArrowLeftRight aria-hidden />
+                              Cambiado {c.cantidad} un. → {c.producto_nuevo?.name ?? "producto nuevo"}
+                            </span>
+                          ))}
+                          {cambioEntrada && (
+                            <span className="sd-move-badge in">
+                              <ArrowLeftRight aria-hidden />
+                              Reemplaza a {cambioEntrada.producto_anterior?.name ?? "producto anterior"}
+                            </span>
+                          )}
                         </div>
                       </td>
                       <td className="c">
@@ -399,7 +482,8 @@ export default async function SaleDetailPage({
                         <span className="sd-subtotal">{COP(item.subtotal)}</span>
                       </td>
                     </tr>
-                  ))
+                    )
+                  })
                 ) : (
                   <tr>
                     <td colSpan={5} style={{ padding: "32px 14px", textAlign: "center", color: "var(--muted)", fontSize: 12 }}>

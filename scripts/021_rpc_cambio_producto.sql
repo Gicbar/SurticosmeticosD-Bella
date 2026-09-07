@@ -138,6 +138,22 @@ BEGIN
 
   SELECT purchase_price INTO v_costo_anterior FROM purchase_batches WHERE id = v_batch_anterior_id;
 
+  -- La diferencia de precio no depende del costo (que solo se conoce tras el FIFO),
+  -- así que se calcula ya para poder insertar cambios_producto ANTES que los
+  -- sale_items nuevos: estos referencian cambios_producto.id por FK y esa fila
+  -- debe existir primero (si no, "sale_items_cambio_origen_id_fkey" falla).
+  v_diferencia := (p_cantidad * v_precio_nuevo) - (p_cantidad * v_precio_anterior);
+
+  INSERT INTO cambios_producto (
+      id, empresa_id, venta_id, cliente_id, item_venta_id,
+      producto_anterior_id, producto_nuevo_id, cantidad,
+      precio_unitario_anterior, precio_unitario_nuevo, diferencia, motivo, creado_por
+  ) VALUES (
+      v_cambio_id, p_company_id, p_sale_id, v_client_id, p_sale_item_id,
+      v_producto_anterior_id, p_producto_nuevo_id, p_cantidad,
+      v_precio_anterior, v_precio_nuevo, v_diferencia, btrim(p_motivo), v_user_id
+  );
+
   -- 1) Reintegrar al inventario el producto anterior, al mismo lote de origen
   UPDATE purchase_batches SET remaining_quantity = remaining_quantity + p_cantidad
     WHERE id = v_batch_anterior_id AND company_id = p_company_id;
@@ -171,18 +187,7 @@ BEGIN
   INSERT INTO inventory_movements (product_id, movement_type, quantity, reason, created_by, company_id)
   VALUES (p_producto_nuevo_id, 'salida', p_cantidad, 'Cambio de producto #' || v_cambio_id || ' · producto entregado', v_user_id, p_company_id);
 
-  v_diferencia := (p_cantidad * v_precio_nuevo) - (p_cantidad * v_precio_anterior);
   v_delta_costo := v_total_cost_nuevo - (p_cantidad * COALESCE(v_costo_anterior, 0));
-
-  INSERT INTO cambios_producto (
-      id, empresa_id, venta_id, cliente_id, item_venta_id,
-      producto_anterior_id, producto_nuevo_id, cantidad,
-      precio_unitario_anterior, precio_unitario_nuevo, diferencia, motivo, creado_por
-  ) VALUES (
-      v_cambio_id, p_company_id, p_sale_id, v_client_id, p_sale_item_id,
-      v_producto_anterior_id, p_producto_nuevo_id, p_cantidad,
-      v_precio_anterior, v_precio_nuevo, v_diferencia, btrim(p_motivo), v_user_id
-  );
 
   -- 3) Ajustar el total y la rentabilidad de la venta
   UPDATE sales SET total = total + v_diferencia WHERE id = p_sale_id AND company_id = p_company_id;

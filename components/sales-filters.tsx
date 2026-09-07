@@ -46,7 +46,7 @@ const FILTERS_CSS = `
     grid-template-columns: 1fr;
   }
   @media (min-width: 640px) { .sf-grid { grid-template-columns: 1fr 1fr; } }
-  @media (min-width: 1024px) { .sf-grid { grid-template-columns: 1fr 1fr 1fr auto; align-items: end; } }
+  @media (min-width: 1024px) { .sf-grid { grid-template-columns: 1fr 1fr 1fr 1fr auto; align-items: end; } }
 
   .sf-field { display: flex; flex-direction: column; gap: 5px; }
   .sf-label {
@@ -101,6 +101,29 @@ const FILTERS_CSS = `
 
 interface SalesFiltersProps { companyId: string }
 
+/** Últimos 12 meses (incluyendo el actual) como opciones "YYYY-MM" para el selector rápido */
+function buildMonthOptions() {
+  const opts: { value: string; label: string }[] = []
+  const now = new Date()
+  for (let i = 0; i < 12; i++) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1)
+    const value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`
+    const label = d.toLocaleDateString("es-CO", { month: "long", year: "numeric" })
+    opts.push({ value, label: label.charAt(0).toUpperCase() + label.slice(1) })
+  }
+  return opts
+}
+
+/** Rango [primer día, último día] del mes "YYYY-MM" como strings "YYYY-MM-DD" */
+function monthRange(value: string): { from: string; to: string } {
+  const [y, m] = value.split("-").map(Number)
+  const lastDay = new Date(y, m, 0).getDate()
+  return {
+    from: `${y}-${String(m).padStart(2, "0")}-01`,
+    to:   `${y}-${String(m).padStart(2, "0")}-${String(lastDay).padStart(2, "0")}`,
+  }
+}
+
 export function SalesFilters({ companyId }: SalesFiltersProps) {
   const router       = useRouter()
   const searchParams = useSearchParams()
@@ -109,6 +132,7 @@ export function SalesFilters({ companyId }: SalesFiltersProps) {
   const [to,      setTo]      = useState(searchParams.get("to")     || "")
   const [client,  setClient]  = useState(searchParams.get("client") || "")
   const [clients, setClients] = useState<{ id: string; name: string }[]>([])
+  const monthOptions = useState(buildMonthOptions)[0]
 
   useEffect(() => {
     ;(async () => {
@@ -118,12 +142,21 @@ export function SalesFilters({ companyId }: SalesFiltersProps) {
     })()
   }, [companyId])
 
-  const apply = () => {
+  const pushFilters = (nextFrom: string, nextTo: string, nextClient: string) => {
     const p = new URLSearchParams()
-    if (from) p.set("from", from)
-    if (to)   p.set("to",   to)
-    if (client && client !== "all") p.set("client", client)
+    if (nextFrom) p.set("from", nextFrom)
+    if (nextTo)   p.set("to",   nextTo)
+    if (nextClient && nextClient !== "all") p.set("client", nextClient)
     router.push(`/dashboard/sales?${p.toString()}`)
+  }
+
+  const apply = () => pushFilters(from, to, client)
+
+  const applyMonth = (value: string) => {
+    if (!value) return
+    const { from: f, to: t } = monthRange(value)
+    setFrom(f); setTo(t)
+    pushFilters(f, t, client)
   }
 
   const clear = () => {
@@ -152,6 +185,13 @@ export function SalesFilters({ companyId }: SalesFiltersProps) {
         </div>
         <div className="sf-body">
           <div className="sf-grid">
+            <div className="sf-field">
+              <span className="sf-label">Mes rápido</span>
+              <select className="sf-select" value="" onChange={e => applyMonth(e.target.value)}>
+                <option value="">Ver mes anterior…</option>
+                {monthOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+              </select>
+            </div>
             <div className="sf-field">
               <span className="sf-label">Fecha inicial</span>
               <input type="date" className="sf-input" value={from} onChange={e => setFrom(e.target.value)} />

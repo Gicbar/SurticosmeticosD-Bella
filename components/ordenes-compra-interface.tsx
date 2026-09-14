@@ -4,8 +4,9 @@ import { createClient } from "@/lib/supabase/client"
 import { showError, showSuccess, showConfirm } from "@/lib/sweetalert"
 import {
   FileText, Plus, ChevronDown, ChevronUp,
-  PackageCheck, Ban, XCircle, Search, X, ImageOff, Check,
+  PackageCheck, Ban, XCircle, Search, X, ImageOff, Check, FileDown,
 } from "lucide-react"
+import * as XLSX from "xlsx"
 import { NuevaOrdenCompraModal } from "@/components/nueva-orden-compra-modal"
 
 const OC_CSS = `
@@ -161,6 +162,7 @@ export function OrdenesCompraInterface({ companyId, canApprove }: { companyId: s
   const [buscarNuevo, setBuscarNuevo] = useState("")
   const [productosProveedor, setProductosProveedor] = useState<{ id: string; name: string }[]>([])
   const [addingProduct, setAddingProduct] = useState<string | null>(null)
+  const [exportingId, setExportingId] = useState<string | null>(null)
   const countTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
 
   // Costo total por orden: para ítems ya comprados usa el costo real que se
@@ -407,6 +409,55 @@ export function OrdenesCompraInterface({ companyId, canApprove }: { companyId: s
     }
   }
 
+  const handleExportar = async (orden: Orden, e: React.MouseEvent) => {
+    e.stopPropagation()
+    setExportingId(orden.id)
+    try {
+      let items = orden.orden_compra_items
+      if (!items) {
+        const supabase = createClient()
+        const { data } = await supabase
+          .from("orden_compra_items")
+          .select("id, producto_id, cantidad_solicitada, cantidad_recibida, cantidad_contada, costo_unitario_estimado, rechazado, motivo_rechazo, products(name, image_url)")
+          .eq("orden_compra_id", orden.id)
+        items = (data || []) as unknown as OrdenItem[]
+      }
+
+      const resumen = [
+        ["Proveedor", orden.suppliers?.name ?? "—"],
+        ["Fecha de creación", fmtDate(orden.creado_en)],
+        ["Fecha esperada", orden.fecha_esperada ? fmtDate(orden.fecha_esperada) : "—"],
+        ["Estado", ESTADO_LABEL[orden.estado] ?? orden.estado],
+        ["Notas", orden.notas ?? "—"],
+        ["Costo total", costoEstimado[orden.id] != null ? fmt(costoEstimado[orden.id]) : "—"],
+      ]
+      const wsResumen = XLSX.utils.aoa_to_sheet(resumen)
+      wsResumen["!cols"] = [{ wch: 20 }, { wch: 40 }]
+
+      const filas = items.map(i => ({
+        Producto: i.products?.name ?? "Producto",
+        "Cantidad solicitada": i.cantidad_solicitada,
+        "Cantidad recibida": i.cantidad_recibida,
+        "Costo unitario": i.costo_unitario_estimado ?? "",
+        Subtotal: i.costo_unitario_estimado != null ? Number(i.costo_unitario_estimado) * i.cantidad_recibida : "",
+        Estado: i.rechazado ? `No comprado${i.motivo_rechazo ? ` — ${i.motivo_rechazo}` : ""}` : (i.cantidad_recibida >= i.cantidad_solicitada ? "Completo" : "Pendiente"),
+      }))
+      const wsItems = XLSX.utils.json_to_sheet(filas)
+
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, wsResumen, "Resumen")
+      XLSX.utils.book_append_sheet(workbook, wsItems, "Productos")
+
+      const proveedorSlug = (orden.suppliers?.name ?? "orden").replace(/[^a-z0-9]+/gi, "_").toLowerCase()
+      const fechaSlug = new Date(orden.creado_en).toISOString().slice(0, 10)
+      XLSX.writeFile(workbook, `orden_compra_${proveedorSlug}_${fechaSlug}.xlsx`)
+    } catch (err: any) {
+      showError(err.message || "Error al exportar la orden")
+    } finally {
+      setExportingId(null)
+    }
+  }
+
   const visibleOrdenes = ordenes.filter(o => showClosed || !CLOSED_STATES.includes(o.estado))
 
   return (
@@ -448,6 +499,7 @@ export function OrdenesCompraInterface({ companyId, canApprove }: { companyId: s
                     <th className="oc-th">Estado</th>
                     <th className="oc-th">Costo total</th>
                     <th className="oc-th" style={{ width: 32 }}></th>
+                    <th className="oc-th" style={{ width: 32 }}></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -473,11 +525,22 @@ export function OrdenesCompraInterface({ companyId, canApprove }: { companyId: s
                               ? <>{!isFinal && "~"}{fmt(costoEstimado[orden.id])}</>
                               : "—"}
                           </td>
+                          <td className="oc-td">
+                            <button
+                              title="Descargar en Excel"
+                              aria-label="Descargar en Excel"
+                              disabled={exportingId === orden.id}
+                              onClick={e => handleExportar(orden, e)}
+                              style={{ border: "none", background: "none", cursor: "pointer", color: "var(--oc-muted)", display: "flex", opacity: exportingId === orden.id ? .4 : 1 }}
+                            >
+                              <FileDown size={14} />
+                            </button>
+                          </td>
                           <td className="oc-td">{isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}</td>
                         </tr>
                         {isExpanded && (
                           <tr key={`${orden.id}-exp`}>
-                            <td colSpan={5} style={{ padding: 0 }}>
+                            <td colSpan={6} style={{ padding: 0 }}>
                               <div className="oc-expand-body">
                                 {enRevision && !canApprove && (
                                   <p className="oc-review-note" style={{ marginBottom: 8 }}>Esperando revisión de un gerente.</p>

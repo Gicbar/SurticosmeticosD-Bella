@@ -2,12 +2,12 @@
 
 import { useState, useMemo, useEffect, useRef } from "react"
 import {
-  Edit, Search, Package, Eye, EyeOff,
+  Edit, Search, Package, Eye, EyeOff, Trash2,
   AlertTriangle, CheckCircle, ChevronDown, Check, X,
 } from "lucide-react"
 import { createClient } from "@/lib/supabase/client"
 import { useRouter } from "next/navigation"
-import { showSuccess, showError } from "@/lib/sweetalert"
+import { showSuccess, showError, showConfirm } from "@/lib/sweetalert"
 
 // ─── CSS ──────────────────────────────────────────────────────────────────────
 const CSS = `
@@ -95,6 +95,16 @@ table.it-tbl { width:100%; border-collapse:collapse; min-width:820px; }
 .it-btn-edit:hover:not(:disabled) { border-color:var(--p); color:var(--p); background:var(--p10); }
 .it-btn-edit:disabled { opacity:.3; cursor:not-allowed; }
 .it-btn-edit svg { width:12px; height:12px; }
+
+.it-actions { display:flex; gap:6px; justify-content:flex-end; }
+.it-btn-del {
+  width:30px; height:30px; border:1px solid var(--border); background:#fff;
+  display:flex; align-items:center; justify-content:center; cursor:pointer;
+  color:var(--muted); transition:border-color .14s, color .14s, background .14s;
+}
+.it-btn-del:hover:not(:disabled) { border-color:var(--danger); color:var(--danger); background:rgba(220,38,38,.08); }
+.it-btn-del:disabled { opacity:.3; cursor:not-allowed; }
+.it-btn-del svg { width:12px; height:12px; }
 
 /* Vacío */
 .it-empty { display:flex; flex-direction:column; align-items:center; gap:10px; padding:52px 20px; text-align:center; }
@@ -371,10 +381,12 @@ function StockBadge({ status }: { status: "ok" | "low" | "out" }) {
 // ── Componente principal ──────────────────────────────────────────────────────
 // companyId viene por PROP desde el Server Component — NO usa useCompany()
 export function InventoryTable({ batches, companyId }: { batches: Batch[]; companyId: string }) {
+  const router = useRouter()
   const [search, setSearch]       = useState("")
   const [showZero, setShowZero]   = useState(false)
   const [suppliers, setSuppliers] = useState<Sup[]>([])
   const [editing, setEditing]     = useState<Batch | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
 
   useEffect(() => {
     if (!companyId) return
@@ -382,6 +394,37 @@ export function InventoryTable({ batches, companyId }: { batches: Batch[]; compa
       .eq("company_id", companyId).order("name")
       .then(({ data }) => setSuppliers(data || []))
   }, [companyId])
+
+  const handleDelete = async (b: Batch) => {
+    const ok = await showConfirm(
+      `Se eliminará el lote de "${b.products?.name}" (${b.quantity} un.) y no podrá recuperarse.`,
+      "¿Eliminar lote?",
+    )
+    if (!ok) return
+
+    setDeletingId(b.id)
+    try {
+      const supabase = createClient()
+      const { data: cur } = await supabase
+        .from("purchase_batches").select("remaining_quantity, quantity")
+        .eq("id", b.id).eq("company_id", companyId).single()
+
+      if (!cur || cur.remaining_quantity !== cur.quantity) {
+        showError("No se puede eliminar: ya se vendieron unidades de este lote")
+        return
+      }
+      const { error } = await supabase.from("purchase_batches")
+        .delete().eq("id", b.id).eq("company_id", companyId)
+
+      if (error) throw error
+      await showSuccess("Lote eliminado")
+      router.refresh()
+    } catch (err: any) {
+      showError(err.message || "No se pudo eliminar el lote")
+    } finally {
+      setDeletingId(null)
+    }
+  }
 
   const filtered = useMemo(() => {
     let r = batches
@@ -456,12 +499,20 @@ export function InventoryTable({ batches, companyId }: { batches: Batch[]; compa
                     <td style={{ fontSize: 11, color: "rgba(26,26,24,.45)" }}>{FMT(b.purchase_date)}</td>
                     <td className="c"><StockBadge status={status} /></td>
                     <td className="r">
-                      <button className="it-btn-edit" disabled={!canEdit}
-                        onClick={() => setEditing(b)}
-                        aria-label={`Editar lote de ${b.products?.name}`}
-                        title={!canEdit ? "Ya se vendieron unidades — no editable" : "Editar lote"}>
-                        <Edit aria-hidden />
-                      </button>
+                      <div className="it-actions">
+                        <button className="it-btn-edit" disabled={!canEdit}
+                          onClick={() => setEditing(b)}
+                          aria-label={`Editar lote de ${b.products?.name}`}
+                          title={!canEdit ? "Ya se vendieron unidades — no editable" : "Editar lote"}>
+                          <Edit aria-hidden />
+                        </button>
+                        <button className="it-btn-del" disabled={!canEdit || deletingId === b.id}
+                          onClick={() => handleDelete(b)}
+                          aria-label={`Eliminar lote de ${b.products?.name}`}
+                          title={!canEdit ? "Ya se vendieron unidades — no se puede eliminar" : "Eliminar lote"}>
+                          <Trash2 aria-hidden />
+                        </button>
+                      </div>
                     </td>
                   </tr>
                 )

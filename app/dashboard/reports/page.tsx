@@ -11,6 +11,22 @@ const PAGE_CSS = `
 }
 `
 
+
+// Supabase (PostgREST) devuelve máx. 1000 filas por consulta. Sin paginar, al
+// superar 1000 ventas / ítems el reporte dejaba fuera los registros nuevos
+// (ventas "sin productos", $0 en el mes). Trae todas las páginas.
+const PAGE = 1000
+async function fetchAll<T = any>(build: () => any): Promise<{ data: T[] }> {
+  const out: T[] = []
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await build().range(from, from + PAGE - 1)
+    if (error) { console.error("[reports] fetchAll:", error.message); break }
+    out.push(...(data || []))
+    if (!data || data.length < PAGE) break
+  }
+  return { data: out }
+}
+
 export default async function ReportsPage() {
   const permissions = await getUserPermissions()
   if (!permissions?.permissions?.reportes) redirect("/dashboard")
@@ -28,38 +44,56 @@ export default async function ReportsPage() {
     { data: products },
     { data: batches },
   ] = await Promise.all([
-    supabase
-      .from("sales")
-      .select("id, total, payment_method, sale_date, client_id, is_credit, clients(name), customer_debts(status, original_amount, debt_payments(amount))")
-      .eq("company_id", companyId)
-      .order("sale_date", { ascending: true }),
+    fetchAll(() =>
+      supabase
+        .from("sales")
+        .select("id, total, payment_method, sale_date, client_id, is_credit, clients(name), customer_debts(status, original_amount, debt_payments(amount))")
+        .eq("company_id", companyId)
+        .order("sale_date", { ascending: true })
+        .order("id")
+    ),
 
-    supabase
-      .from("sale_items")
-      .select("id, sale_id, product_id, quantity, unit_price, subtotal, products(name, category_id, categories(name))")
-      .eq("company_id", companyId),
+    fetchAll(() =>
+      supabase
+        .from("sale_items")
+        .select("id, sale_id, product_id, quantity, unit_price, subtotal, products(name, category_id, categories(name))")
+        .eq("company_id", companyId)
+        .order("id")
+    ),
 
-    supabase
-      .from("sales_profit")
-      .select("sale_id, total_cost, total_sale, profit, profit_margin, created_at")
-      .eq("company_id", companyId),
+    fetchAll(() =>
+      supabase
+        .from("sales_profit")
+        .select("sale_id, total_cost, total_sale, profit, profit_margin, created_at")
+        .eq("company_id", companyId)
+        .order("id")
+    ),
 
-    supabase
-      .from("expenses")
-      .select("id, description, amount, date, categories_expense(name)")
-      .eq("company_id", companyId)
-      .order("date", { ascending: true }),
+    fetchAll(() =>
+      supabase
+        .from("expenses")
+        .select("id, description, amount, date, categories_expense(name)")
+        .eq("company_id", companyId)
+        .order("date", { ascending: true })
+        .order("id")
+    ),
 
-    supabase
-      .from("products")
-      .select("id, name, sale_price, min_stock, category_id, supplier_id, categories(name), suppliers(id, name)")
-      .eq("company_id", companyId),
+    fetchAll(() =>
+      supabase
+        .from("products")
+        .select("id, name, sale_price, min_stock, category_id, supplier_id, categories(name), suppliers(id, name)")
+        .eq("company_id", companyId)
+        .order("id")
+    ),
 
-    supabase
-      .from("purchase_batches")
-      .select("id, product_id, quantity, purchase_price, purchase_date, remaining_quantity, supplier_id, products(name), suppliers(id, name)")
-      .eq("company_id", companyId)
-      .order("purchase_date", { ascending: false }),
+    fetchAll(() =>
+      supabase
+        .from("purchase_batches")
+        .select("id, product_id, quantity, purchase_price, purchase_date, remaining_quantity, supplier_id, products(name), suppliers(id, name)")
+        .eq("company_id", companyId)
+        .order("purchase_date", { ascending: false })
+        .order("id")
+    ),
   ])
   
   return (

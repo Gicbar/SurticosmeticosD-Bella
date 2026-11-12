@@ -1174,6 +1174,45 @@ export function ReportsDashboard({ sales, saleItems, profits, expenses, products
               ))}
             </div>
 
+            {/* ── Ventas por canal (de dónde llegó cada venta) ─────────── */}
+            {(() => {
+              const NOMBRES: Record<string, string> = {
+                tienda: "Tienda", whatsapp: "WhatsApp", catalogo: "Catálogo web", tiktok: "Vio TikTok",
+                facebook: "Facebook / Instagram", revendedora: "Revendedora", mayorista: "Mayorista", otro: "Otro",
+              }
+              const por: Record<string, { n: number; total: number }> = {}
+              for (const s of fSales as any[]) {
+                const k = s.canal || "sin_dato"
+                por[k] = por[k] || { n: 0, total: 0 }
+                por[k].n += 1
+                por[k].total += Number(s.total || 0)
+              }
+              const filas = Object.entries(por).sort((a, b) => b[1].total - a[1].total)
+              const tot = filas.reduce((s, [, v]) => s + v.total, 0)
+              if (!filas.length || (filas.length === 1 && filas[0][0] === "sin_dato")) return null
+              return (
+                <div className="rd-card">
+                  <CardHd icon={BarChart2} title="Ventas por canal" sub="Por dónde llegó cada venta (se marca en la caja)" />
+                  <div className="rd-card-body">
+                    {filas.map(([k, v]) => {
+                      const pct = tot ? (v.total / tot) * 100 : 0
+                      return (
+                        <div key={k} style={{ marginBottom: 10 }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", gap: 8, fontSize: 12.5, marginBottom: 4, flexWrap: "wrap" }}>
+                            <span style={{ fontWeight: 600 }}>{NOMBRES[k] ?? "Sin dato (ventas anteriores)"}</span>
+                            <span>{COP(v.total)} · {v.n} venta{v.n !== 1 ? "s" : ""} · {pct.toFixed(0)}%</span>
+                          </div>
+                          <div style={{ height: 6, background: "rgba(26,26,24,.07)", borderRadius: 99 }}>
+                            <div style={{ width: `${pct}%`, height: "100%", borderRadius: 99, background: k === "sin_dato" ? "rgba(26,26,24,.25)" : S.Ventas }} />
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              )
+            })()}
+
             {/* ── Gráfica consolidada ──────────────────────────────────── */}
             <div className="rd-card">
               <CardHd icon={BarChart2} title="Consolidado por día" sub="Ventas · Ganancia · Gastos — selecciona qué ver" />

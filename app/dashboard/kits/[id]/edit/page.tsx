@@ -18,7 +18,7 @@ export default async function EditKitPage({
   const { data: kit } = await supabase
     .from("product_kits")
     .select(`
-      id, code, name, description, is_active,
+      *,
       product_kit_items (
         product_id, quantity, unit_price_in_kit,
         products ( name, sale_price )

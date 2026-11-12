@@ -6,7 +6,7 @@ import {
   Search, X, ShoppingBag, Plus, Minus,
   Sparkles, ArrowRight, Package, Heart, Tag, AlertTriangle, Clock, Check,
   AlertCircle, CheckCircle2, Info,
-  Award, Truck, ShieldCheck, Headphones
+  Award, Truck, ShieldCheck, Headphones, Gift
 } from "lucide-react"
 import { createPublicClient } from "@/lib/supabase/public-client"
 
@@ -42,6 +42,9 @@ type CatalogProduct = {
   has_offer: boolean
   effective_price: number
   created_at: string
+  // Kits: se muestran como un producto más; al pedir se envía kit_id
+  is_kit?: boolean
+  regular_price?: number | null
 }
 
 type CartItem = CatalogProduct & { quantity: number }
@@ -1072,6 +1075,11 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
 
   useEffect(() => {
     const productId = searchParams.get("productId")
+    // Origen del cliente (link de TikTok, WhatsApp…): ?ref=tiktok — se recuerda en la sesión
+    try {
+      const ref = searchParams.get("ref") || searchParams.get("utm_source")
+      if (ref) sessionStorage.setItem("cat_ref", ref.toLowerCase())
+    } catch {}
     if (productId && products) {
       const p = products.find((p) => p.id == productId)
       if (p) { setSelectedProduct(p); setActiveImageIdx(0); setShowProductModal(true) }
@@ -1117,12 +1125,14 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
       selectedCategory === "all"     ? true :
       selectedCategory === "__offers" ? p.has_offer :
       selectedCategory === "__new"    ? isNewProduct(p) :
+      selectedCategory === "__kits"   ? !!p.is_kit :
       p.category_name === selectedCategory
     return matchSearch && matchCategory
   })
 
   const offerCount = products.filter((p) => p.has_offer).length
   const newCount = products.filter(isNewProduct).length
+  const kitCount = products.filter((p) => p.is_kit).length
 
   const closeModal = () => {
     setShowProductModal(false)
@@ -1144,7 +1154,12 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
         p_client_name:  clientName.trim() || null,
         p_client_phone: clientPhone.trim() || null,
         p_items: {
-          items: cart.map((i) => ({
+          origen: (() => { try { return sessionStorage.getItem("cat_ref") } catch { return null } })(),
+          items: cart.map((i) => i.is_kit ? ({
+            kit_id:     i.id,
+            quantity:   i.quantity,
+            unit_price: priceOf(i),
+          }) : ({
             product_id: i.id,
             quantity:   i.quantity,
             unit_price: priceOf(i),
@@ -1363,6 +1378,16 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
               >
                 Todo
               </button>
+              {kitCount > 0 && (
+                <button
+                  className={`cat-chip cat-chip-new${selectedCategory === "__kits" ? " cat-chip-active" : ""}`}
+                  onClick={() => setSelectedCategory("__kits")}
+                  aria-label="Solo kits"
+                >
+                  <Gift size={11} strokeWidth={2} />
+                  Kits ({kitCount})
+                </button>
+              )}
               {newCount > 0 && (
                 <button
                   className={`cat-chip cat-chip-new${selectedCategory === "__new" ? " cat-chip-active" : ""}`}
@@ -1500,8 +1525,16 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
                       </>
                     )}
 
+                    {/* Badge de kit */}
+                    {product.is_kit && (
+                      <span className="cat-new-badge">
+                        <Gift strokeWidth={2.5} />
+                        Kit
+                      </span>
+                    )}
+
                     {/* Badge de producto nuevo (solo si no hay badge de oferta) */}
-                    {!product.has_offer && isNewProduct(product) && (
+                    {!product.has_offer && !product.is_kit && isNewProduct(product) && (
                       <span className="cat-new-badge">
                         <Sparkles strokeWidth={2.5} />
                         Nuevo
@@ -1865,7 +1898,7 @@ export default function PublicCatalogPage({ products, categories, company }: Pub
                 </h2>
 
                 {selectedProduct.description && (
-                  <p style={{ fontSize: 13, color: "rgba(26,26,24,.6)", lineHeight: 1.65, marginBottom: 18 }}>
+                  <p style={{ fontSize: 13, color: "rgba(26,26,24,.6)", lineHeight: 1.65, marginBottom: 18, whiteSpace: "pre-line" }}>
                     {selectedProduct.description}
                   </p>
                 )}

@@ -179,6 +179,14 @@ const POS_CSS = `
   .pos-select-empty { padding: 16px 14px; font-size: 12px; color: var(--pos-muted); text-align: center; }
 
   .pos-payment-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .pos-canal-grid { display: flex; flex-wrap: wrap; gap: 6px; }
+  .pos-canal-btn {
+    padding: 7px 11px; border: 1px solid var(--pos-border, rgba(26,26,24,.12)); background: transparent;
+    font-size: 11.5px; font-weight: 500; cursor: pointer; border-radius: 99px; color: inherit;
+    font-family: inherit; transition: all .14s;
+  }
+  .pos-canal-btn:hover { border-color: var(--pos-p20); background: var(--pos-p10); }
+  .pos-canal-btn.selected { border-color: var(--pos-p); background: var(--pos-p10); color: var(--pos-p); font-weight: 700; }
   .pos-payment-btn {
     padding: 10px 8px; border: 1.5px solid var(--pos-border); background: #fff; cursor: pointer;
     display: flex; flex-direction: column; align-items: center; gap: 5px;
@@ -352,6 +360,16 @@ type CartItem = {
   fromKit?: string   // nombre del kit del que proviene (opcional)
 }
 type Product = { id: string; name: string; barcode: string | null; sale_price: number }
+const CANALES = [
+  { key: "tienda",      label: "Tienda" },
+  { key: "whatsapp",    label: "WhatsApp" },
+  { key: "catalogo",    label: "Catálogo web" },
+  { key: "tiktok",      label: "Vio TikTok" },
+  { key: "facebook",    label: "Facebook / Instagram" },
+  { key: "revendedora", label: "Revendedora" },
+  { key: "mayorista",   label: "Mayorista" },
+]
+
 type KitPreview = {
   id: string; code: number; name: string
   items: { product_id: string; name: string; quantity: number; unit_price_in_kit: number }[]
@@ -424,6 +442,8 @@ export function POSInterface({ companyId }: POSInterfaceProps) {
   const [nameSearch, setNameSearch]             = useState("")
   const [selectedClient, setSelectedClient]     = useState("")
   const [paymentMethod, setPaymentMethod]       = useState("efectivo")
+  // Por dónde llegó la venta (para medir TikTok, WhatsApp, revendedoras…)
+  const [canal, setCanal]                       = useState("tienda")
   const [isCredit, setIsCredit]                 = useState(false)    // ← NUEVO
   const [isProcessing, setIsProcessing]         = useState(false)
   // Candado síncrono anti-doble-clic: setIsProcessing (estado) es asíncrono y no
@@ -632,6 +652,16 @@ export function POSInterface({ companyId }: POSInterfaceProps) {
     // que al completar la venta se actualice catalog_status='RECLAMADO'.
     if (kit.is_catalog_order && kit.catalog_status === "PENDIENTE") {
       setActiveCatalogOrderId(kit.id)
+      setCanal("catalogo")
+      // Si el cliente llegó al catálogo desde el link de TikTok (?ref=tiktok), la venta es de TikTok
+      createClient().from("product_kits").select("origen").eq("id", kit.id).single()
+        .then(({ data }) => {
+          const o = (data as any)?.origen
+          if (o === "tiktok") setCanal("tiktok")
+          else if (o === "facebook" || o === "instagram") setCanal("facebook")
+          else if (o === "whatsapp") setCanal("whatsapp")
+          else if (o === "revendedora") setCanal("revendedora")
+        })
     }
     setKitPreview(null)
   }
@@ -667,6 +697,7 @@ export function POSInterface({ companyId }: POSInterfaceProps) {
     setCart([])
     setSelectedClient("")
     setPaymentMethod("efectivo")
+    setCanal("tienda")
     setIsCredit(false)
     setActiveCatalogOrderId(null)
     setBarcodeInput("")
@@ -728,6 +759,13 @@ export function POSInterface({ companyId }: POSInterfaceProps) {
       // Venta confirmada por la BD → liberamos la clave para la siguiente venta.
       ventaUidRef.current = null
 
+      // Canal de la venta (best-effort, igual que el turno: la venta ya quedó registrada)
+      if ((rpcData as any)?.sale_id) {
+        const { error: canalErr } = await supabase
+          .from("sales").update({ canal }).eq("id", (rpcData as any).sale_id)
+        if (canalErr) console.error("No se pudo guardar el canal de la venta:", canalErr)
+      }
+
       // Si hay un turno de caja abierto, etiqueta la venta con él (best-effort:
       // la venta YA quedó registrada arriba; si esto falla, no se revierte nada,
       // solo no queda asociada a un turno — igual que hoy).
@@ -745,6 +783,7 @@ export function POSInterface({ companyId }: POSInterfaceProps) {
       setCart([])
       setSelectedClient("")
       setPaymentMethod("efectivo")
+      setCanal("tienda")
       setIsCredit(false)
       setActiveCatalogOrderId(null)
       setSaleDone(done)
@@ -1043,6 +1082,22 @@ export function POSInterface({ companyId }: POSInterfaceProps) {
                           onClick={() => setPaymentMethod(m.key)}>
                           {m.icon}
                           <span className="pos-payment-label">{m.label}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Por dónde llegó la venta */}
+                {!saleDone && (
+                  <div>
+                    <label className="pos-label">¿Por dónde llegó esta venta?</label>
+                    <div className="pos-canal-grid">
+                      {CANALES.map(c => (
+                        <button key={c.key} type="button"
+                          className={`pos-canal-btn${canal === c.key ? " selected" : ""}`}
+                          onClick={() => setCanal(c.key)}>
+                          {c.label}
                         </button>
                       ))}
                     </div>

@@ -304,6 +304,7 @@ type KitItem = {
 
 type ExistingKit = {
   id: string; code: number; name: string; description: string | null; is_active: boolean
+  image_url?: string | null; show_in_catalog?: boolean
   product_kit_items: {
     product_id: string; quantity: number; unit_price_in_kit: number
     products: { name: string; sale_price: number } | null
@@ -331,6 +332,9 @@ export function KitBuilderForm({ companyId, existingKit }: KitBuilderFormProps) 
   const [name, setName]         = useState(existingKit?.name ?? "")
   const [description, setDesc]  = useState(existingKit?.description ?? "")
   const [isActive, setIsActive] = useState(existingKit?.is_active ?? true)
+  const [enCatalogo, setEnCatalogo] = useState(existingKit?.show_in_catalog ?? true)
+  const [fotoFile, setFotoFile]   = useState<File | null>(null)
+  const [fotoPreview, setFotoPreview] = useState<string | null>(existingKit?.image_url ?? null)
   const [items, setItems]       = useState<KitItem[]>(() => {
     if (!existingKit) return []
     return existingKit.product_kit_items.map(i => ({
@@ -427,11 +431,24 @@ export function KitBuilderForm({ companyId, existingKit }: KitBuilderFormProps) 
       const { data:{ user } } = await supabase.auth.getUser()
       if (!user) throw new Error("No autenticado")
 
+      // Foto del kit armado (se muestra en el catálogo web)
+      let imageUrl: string | null = existingKit?.image_url ?? null
+      if (fotoFile) {
+        const ext = fotoFile.name.split(".").pop() || "jpg"
+        const path = `products/${companyId}/kit-${Math.random().toString(36).slice(2)}-${Date.now()}.${ext}`
+        const { error: upErr } = await supabase.storage.from("product-images").upload(path, fotoFile)
+        if (upErr) throw new Error("Error al subir la foto: " + upErr.message)
+        imageUrl = supabase.storage.from("product-images").getPublicUrl(path).data.publicUrl
+      } else if (!fotoPreview) {
+        imageUrl = null
+      }
+      const extra = { image_url: imageUrl, show_in_catalog: enCatalogo }
+
       if (isEdit && existingKit) {
         // Actualizar kit
         const { error: kitErr } = await supabase
           .from("product_kits")
-          .update({ code: codeNum, name: name.trim(), description: description.trim() || null, is_active: isActive })
+          .update({ code: codeNum, name: name.trim(), description: description.trim() || null, is_active: isActive, ...extra })
           .eq("id", existingKit.id)
           .eq("company_id", companyId)
         if (kitErr) throw kitErr
@@ -466,6 +483,7 @@ export function KitBuilderForm({ companyId, existingKit }: KitBuilderFormProps) 
             description: description.trim() || null,
             is_active:   true,
             created_by:  user.id,
+            ...extra,
           })
           .select()
           .single()
@@ -591,6 +609,63 @@ export function KitBuilderForm({ companyId, existingKit }: KitBuilderFormProps) 
                     onChange={e => setDesc(e.target.value)}
                     maxLength={300}
                   />
+                </div>
+
+                {/* Foto del kit armado */}
+                <div className="kb-field">
+                  <label className="kb-label">Foto del kit armado (para el catálogo web)</label>
+                  <div style={{ display:"flex", alignItems:"center", gap:12, flexWrap:"wrap" }}>
+                    {fotoPreview && (
+                      <img src={fotoPreview} alt="Foto del kit"
+                        style={{ width:72, height:72, objectFit:"cover", border:"1px solid var(--border)" }} />
+                    )}
+                    <label style={{
+                      padding:"9px 13px", border:"1px dashed var(--border)", cursor:"pointer",
+                      fontSize:12, fontFamily:"'DM Sans',sans-serif",
+                    }}>
+                      {fotoPreview ? "Cambiar foto" : "Subir foto"}
+                      <input type="file" accept="image/*" style={{ display:"none" }}
+                        onChange={e => {
+                          const f = e.target.files?.[0]
+                          if (!f) return
+                          setFotoFile(f)
+                          setFotoPreview(URL.createObjectURL(f))
+                        }} />
+                    </label>
+                    {fotoPreview && (
+                      <button type="button" onClick={() => { setFotoFile(null); setFotoPreview(null) }}
+                        style={{ fontSize:12, background:"none", border:"none", color:"var(--muted)", cursor:"pointer", textDecoration:"underline" }}>
+                        Quitar
+                      </button>
+                    )}
+                  </div>
+                  <p style={{ fontSize:11, color:"var(--muted)", marginTop:6 }}>
+                    Sin foto, el catálogo muestra la del producto principal del kit.
+                  </p>
+                </div>
+
+                {/* Mostrar en el catálogo web */}
+                <div className="kb-field">
+                  <label className="kb-label">Catálogo web</label>
+                  <button
+                    type="button"
+                    onClick={() => setEnCatalogo(v => !v)}
+                    style={{
+                      display:"flex", alignItems:"center", gap:8,
+                      padding:"10px 13px", border:"1px solid var(--border)",
+                      background: enCatalogo ? "rgba(22,163,74,.06)" : "rgba(26,26,24,.03)",
+                      cursor:"pointer", width:"100%", textAlign:"left",
+                      fontFamily:"'DM Sans',sans-serif", fontSize:12,
+                      color: enCatalogo ? "var(--ok)" : "var(--muted)",
+                      fontWeight:600, transition:"all .14s",
+                    }}
+                  >
+                    <span style={{
+                      width:10, height:10, borderRadius:"50%", flexShrink:0,
+                      background: enCatalogo ? "var(--ok)" : "rgba(26,26,24,.25)",
+                    }} aria-hidden />
+                    {enCatalogo ? "Se muestra en el catálogo web (si hay stock)" : "No se muestra en el catálogo web"}
+                  </button>
                 </div>
 
                 {/* Toggle activo (solo en edición) */}

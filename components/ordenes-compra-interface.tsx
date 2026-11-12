@@ -166,6 +166,7 @@ export function OrdenesCompraInterface({ companyId, canApprove }: { companyId: s
   const [addingProduct, setAddingProduct] = useState<string | null>(null)
   const [exportingId, setExportingId] = useState<string | null>(null)
   const countTimers = useRef<Record<string, ReturnType<typeof setTimeout>>>({})
+  const [pagoCon, setPagoCon] = useState<Record<string, string>>({}) // ordenId -> efectivo | banco | sin_salida
 
   // Costo total por orden: para ítems ya comprados usa el costo real que se
   // pagó; para los pendientes usa el último costo con que se compró ese
@@ -337,7 +338,10 @@ export function OrdenesCompraInterface({ companyId, canApprove }: { companyId: s
     const lista = listosParaComprar(orden)
     if (lista.length === 0) return
     const total = lista.reduce((s, i) => s + cantidadContadaActual(i) * (parseFloat(costos[i.id] || String(i.costo_unitario_estimado ?? "")) || 0), 0)
-    const ok = await showConfirm(`Se registra la compra de ${lista.length} productos por ${fmt(total)} y entran al inventario con el proveedor de la orden.`, "¿Comprar todo lo contado?")
+    const pago = pagoCon[orden.id]
+    if (!pago) { showError("Elige con qué se pagó la factura: efectivo, banco o sin salida de caja (crédito / ya registrado)"); return }
+    const pagoTxt = pago === "efectivo" ? "Sale de la caja en EFECTIVO" : pago === "banco" ? "Sale del BANCO" : "No se registra salida de caja"
+    const ok = await showConfirm(`Se registra la compra de ${lista.length} productos por ${fmt(total)} y entran al inventario con el proveedor de la orden. ${pagoTxt}.`, "¿Comprar todo lo contado?")
     if (!ok) return
     let hechos = 0
     // el estado de la orden se recalcula ítem por ítem: se lee fresco en cada paso
@@ -348,10 +352,29 @@ export function OrdenesCompraInterface({ companyId, canApprove }: { companyId: s
       const { data: o } = await supabase.from("ordenes_compra").select("estado").eq("id", orden.id).single()
       estadoActual = o?.estado ?? estadoActual
     }
+    // Pago de la mercancía: sale de la caja (efectivo) o del banco como movimiento de caja del mes,
+    // así "Caja disponible" y el cierre de mes lo descuentan sin contarlo como gasto.
+    let pagoMsg = ""
+    if (hechos > 0 && (pago === "efectivo" || pago === "banco")) {
+      const supabase = createClient()
+      const { data: comprados } = await supabase.from("orden_compra_items")
+        .select("id, cantidad_recibida, costo_unitario_estimado").in("id", lista.map(i => i.id)).gt("cantidad_recibida", 0)
+      const pagado = (comprados || []).reduce((s, i) => s + Number(i.cantidad_recibida) * Number(i.costo_unitario_estimado || 0), 0)
+      const { data: fac } = await supabase.from("factura_propuestas").select("numero_factura")
+        .eq("orden_compra_id", orden.id).eq("estado", "aplicada").order("resuelto_en", { ascending: false }).limit(1).maybeSingle()
+      const { data: { user } } = await supabase.auth.getUser()
+      const hoy = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Bogota" }))
+      const { error } = await supabase.from("movimientos_caja").insert({
+        company_id: companyId, anio: hoy.getFullYear(), mes: hoy.getMonth() + 1, tipo: "RETIRO", monto: Math.round(pagado),
+        forma_pago: pago, created_by: user?.id ?? null,
+        descripcion: `Pago mercancía ${orden.suppliers?.name ?? ""}${fac?.numero_factura ? ` · factura ${fac.numero_factura}` : ""}`.trim(),
+      })
+      pagoMsg = error ? ` (no se pudo registrar el pago en caja: ${error.message})` : ` · Pago de ${fmt(pagado)} registrado en ${pago === "banco" ? "banco" : "efectivo"}`
+    }
     setOrdenes(prev => prev.map(o => o.id === orden.id ? { ...o, orden_compra_items: undefined, estado: estadoActual } : o))
     await loadItems({ ...orden, orden_compra_items: undefined })
     loadCostos(ordenes)
-    await showSuccess(`${hechos} de ${lista.length} productos registrados en inventario`)
+    await showSuccess(`${hechos} de ${lista.length} productos registrados en inventario${pagoMsg}`)
   }
 
   const handleNoComprar = async (orden: Orden, item: OrdenItem) => {
@@ -588,7 +611,18 @@ export function OrdenesCompraInterface({ companyId, canApprove }: { companyId: s
                                   />
                                 )}
                                 {enRevision && canApprove && listosParaComprar(orden).length > 0 && (
-                                  <div style={{ marginBottom: 10 }}>
+                                  <div style={{ marginBottom: 10, display: "flex", gap: 6, flexWrap: "wrap", alignItems: "center" }}>
+                                    <select
+                                      aria-label="Con qué se pagó la factura"
+                                      value={pagoCon[orden.id] || ""}
+                                      onChange={e => setPagoCon(p => ({ ...p, [orden.id]: e.target.value }))}
+                                      style={{ height: 32, border: "1px solid var(--oc-border)", padding: "0 8px", fontSize: 12, background: "#fff" }}
+                                    >
+                                      <option value="">¿Con qué se pagó?</option>
+                                      <option value="efectivo">Efectivo (caja)</option>
+                                      <option value="banco">Banco / transferencia</option>
+                                      <option value="sin_salida">Crédito o ya registrado</option>
+                                    </select>
                                     <button className="oc-mini-btn" onClick={() => handleComprarTodo(orden)}>
                                       <PackageCheck size={11} />Comprar todo lo contado ({listosParaComprar(orden).length})
                                     </button>

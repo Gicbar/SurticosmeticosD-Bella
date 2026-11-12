@@ -8,6 +8,7 @@ import {
 } from "lucide-react"
 import * as XLSX from "xlsx"
 import { NuevaOrdenCompraModal } from "@/components/nueva-orden-compra-modal"
+import { FacturaPropuestaPanel } from "@/components/factura-propuesta-panel"
 
 const OC_CSS = `
   @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,500;1,400&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap');
@@ -257,24 +258,25 @@ export function OrdenesCompraInterface({ companyId, canApprove }: { companyId: s
   const cantidadContadaActual = (item: OrdenItem) =>
     contando[item.id] !== undefined ? (parseInt(contando[item.id]) || 0) : item.cantidad_contada
 
-  const handleRecibirItem = async (orden: Orden, item: OrdenItem, cantidadOverride?: number) => {
+  const handleRecibirItem = async (orden: Orden, item: OrdenItem, cantidadOverride?: number, silencioso = false): Promise<boolean> => {
     const enRevision = orden.estado === "pendiente_aprobacion"
     const pendiente = item.cantidad_solicitada - item.cantidad_recibida
     const cantidad = enRevision ? (cantidadOverride ?? cantidadContadaActual(item)) : (cantidadOverride ?? pendiente)
     if (cantidad <= 0) {
-      showError(enRevision ? "Cuenta primero las unidades que compraste" : "Ingresa la cantidad que se compró")
-      return
+      if (!silencioso) showError(enRevision ? "Cuenta primero las unidades que compraste" : "Ingresa la cantidad que se compró")
+      return false
     }
     if (!enRevision && cantidad > pendiente) {
       showError(`La cantidad debe estar entre 1 y ${pendiente}`)
-      return
+      return false
     }
     let costo = item.costo_unitario_estimado ?? 0
     if (enRevision) {
-      const costoInput = parseFloat(costos[item.id] || "")
+      // el costo puede venir escrito a mano o precargado desde la factura del proveedor
+      const costoInput = parseFloat(costos[item.id] || String(item.costo_unitario_estimado ?? ""))
       if (!costoInput || costoInput <= 0) {
-        showError("Ingresa el costo real de compra")
-        return
+        if (!silencioso) showError("Ingresa el costo real de compra")
+        return false
       }
       costo = costoInput
     }
@@ -307,17 +309,48 @@ export function OrdenesCompraInterface({ companyId, canApprove }: { companyId: s
       const nuevoEstado = computeEstado(orden.estado, items)
       await supabase.from("ordenes_compra").update({ estado: nuevoEstado, actualizado_en: new Date().toISOString() }).eq("id", orden.id)
 
-      await showSuccess(`${cantidad} unidades compradas — nuevo lote creado en inventario`)
-      setOrdenes(prev => prev.map(o => o.id === orden.id ? { ...o, orden_compra_items: undefined, estado: nuevoEstado } : o))
-      await loadItems({ ...orden, orden_compra_items: undefined })
-      loadCostos(ordenes)
       setCostos(c => ({ ...c, [item.id]: "" }))
       setContando(c => ({ ...c, [item.id]: "" }))
+      if (!silencioso) {
+        await showSuccess(`${cantidad} unidades compradas — nuevo lote creado en inventario`)
+        setOrdenes(prev => prev.map(o => o.id === orden.id ? { ...o, orden_compra_items: undefined, estado: nuevoEstado } : o))
+        await loadItems({ ...orden, orden_compra_items: undefined })
+        loadCostos(ordenes)
+      }
+      return true
     } catch (err: any) {
       showError(err.message || "Error al registrar la compra")
+      return false
     } finally {
       setProcessing(null)
     }
+  }
+
+  // Registra de una vez la compra de todo lo que ya tiene cantidad contada y
+  // costo (escrito a mano o precargado desde la factura).
+  const listosParaComprar = (orden: Orden) => (orden.orden_compra_items || []).filter(i =>
+    !i.rechazado && i.cantidad_recibida === 0 && cantidadContadaActual(i) > 0 &&
+    (parseFloat(costos[i.id] || String(i.costo_unitario_estimado ?? "")) || 0) > 0)
+
+  const handleComprarTodo = async (orden: Orden) => {
+    const lista = listosParaComprar(orden)
+    if (lista.length === 0) return
+    const total = lista.reduce((s, i) => s + cantidadContadaActual(i) * (parseFloat(costos[i.id] || String(i.costo_unitario_estimado ?? "")) || 0), 0)
+    const ok = await showConfirm(`Se registra la compra de ${lista.length} productos por ${fmt(total)} y entran al inventario con el proveedor de la orden.`, "¿Comprar todo lo contado?")
+    if (!ok) return
+    let hechos = 0
+    // el estado de la orden se recalcula ítem por ítem: se lee fresco en cada paso
+    let estadoActual = orden.estado
+    for (const item of lista) {
+      if (await handleRecibirItem({ ...orden, estado: estadoActual }, item, undefined, true)) hechos++
+      const supabase = createClient()
+      const { data: o } = await supabase.from("ordenes_compra").select("estado").eq("id", orden.id).single()
+      estadoActual = o?.estado ?? estadoActual
+    }
+    setOrdenes(prev => prev.map(o => o.id === orden.id ? { ...o, orden_compra_items: undefined, estado: estadoActual } : o))
+    await loadItems({ ...orden, orden_compra_items: undefined })
+    loadCostos(ordenes)
+    await showSuccess(`${hechos} de ${lista.length} productos registrados en inventario`)
   }
 
   const handleNoComprar = async (orden: Orden, item: OrdenItem) => {
@@ -542,6 +575,24 @@ export function OrdenesCompraInterface({ companyId, canApprove }: { companyId: s
                           <tr key={`${orden.id}-exp`}>
                             <td colSpan={6} style={{ padding: 0 }}>
                               <div className="oc-expand-body">
+                                {enRevision && canApprove && (
+                                  <FacturaPropuestaPanel
+                                    ordenId={orden.id} proveedorId={orden.proveedor_id} companyId={companyId}
+                                    items={todosItems}
+                                    onApplied={async () => {
+                                      setOrdenes(prev => prev.map(o => o.id === orden.id ? { ...o, orden_compra_items: undefined } : o))
+                                      await loadItems({ ...orden, orden_compra_items: undefined })
+                                      loadCostos(ordenes)
+                                    }}
+                                  />
+                                )}
+                                {enRevision && canApprove && listosParaComprar(orden).length > 0 && (
+                                  <div style={{ marginBottom: 10 }}>
+                                    <button className="oc-mini-btn" onClick={() => handleComprarTodo(orden)}>
+                                      <PackageCheck size={11} />Comprar todo lo contado ({listosParaComprar(orden).length})
+                                    </button>
+                                  </div>
+                                )}
                                 {enRevision && !canApprove && (
                                   <p className="oc-review-note" style={{ marginBottom: 8 }}>Esperando revisión de un gerente.</p>
                                 )}
@@ -590,7 +641,7 @@ export function OrdenesCompraInterface({ companyId, canApprove }: { companyId: s
                                           />
                                           <input
                                             className="oc-mini-inp" type="number" min={0} step="0.01" placeholder="Costo real"
-                                            value={costos[item.id] || ""}
+                                            value={costos[item.id] ?? (item.costo_unitario_estimado != null ? String(item.costo_unitario_estimado) : "")}
                                             onChange={e => setCostos(c => ({ ...c, [item.id]: e.target.value }))}
                                           />
                                           <button className="oc-mini-btn" disabled={processing === item.id}

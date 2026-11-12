@@ -76,6 +76,20 @@ const CSS = `
   .fp-dd { border: 1px solid rgba(0,0,0,.12); background: #fff; max-height: 180px; overflow-y: auto; margin-top: 4px; }
   .fp-dd-item { padding: 6px 8px; font-size: 12px; cursor: pointer; }
   .fp-dd-item:hover { background: rgba(152,76,168,.08); }
+  /* Celular: una columna, botones grandes y campos a todo el ancho */
+  @media (max-width: 640px) {
+    .fp-box { padding: 10px 8px; margin-left: -8px; margin-right: -8px; }
+    .fp-hd { flex-direction: column; align-items: stretch; }
+    .fp-hd .fp-actions { width: 100%; }
+    .fp-hd .fp-actions .fp-btn { flex: 1; justify-content: center; height: 40px; font-size: 11px; }
+    .fp-row { grid-template-columns: 1fr; }
+    .fp-row .fp-actions { justify-content: flex-end; }
+    .fp-btn { height: 36px; }
+    .fp-edit { flex-direction: column; }
+    .fp-inp { width: 100% !important; min-width: 0 !important; height: 38px; font-size: 14px; }
+    .fp-desc { font-size: 13px; }
+    .fp-line { font-size: 12px; }
+  }
 `
 
 export function FacturaPropuestaPanel({ ordenId, proveedorId, companyId, items, onApplied }: {

@@ -51,6 +51,7 @@ const OC_CSS = `
   .oc-badge.cancelada            { background: var(--oc-cancel-bg); color: var(--oc-cancel); }
 
   .oc-expand-body { padding: 14px 20px; border-top: 1px solid var(--oc-border); background: rgba(26,26,24,0.015); }
+  @media (max-width: 640px) { .oc-expand-body { padding: 12px 10px; } .oc-td, .oc-th { padding-left: 10px; padding-right: 10px; } }
   .oc-filtro-wrap { position: relative; margin-bottom: 10px; }
   .oc-filtro-wrap svg { position: absolute; left: 10px; top: 50%; transform: translateY(-50%); color: var(--oc-muted); pointer-events: none; }
   .oc-filtro { width: 100%; height: 36px; padding: 0 12px 0 32px; border: 1px solid var(--oc-border); font-size: 12px; font-family: 'DM Sans', sans-serif; }

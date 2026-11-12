@@ -253,6 +253,11 @@ export function FacturaPropuestaPanel({ ordenId, proveedorId, companyId, items, 
                 <button className="fp-btn danger" disabled={busy} onClick={() => descartarFactura(p)}><X size={11} />Descartar</button>
               </div>
             </div>
+            <p className="fp-line" style={{ margin: "0 0 6px" }}>
+              Esto es lo que dice la factura. Al aprobarla se completa la lista de productos de la orden (abajo): las líneas
+              «Poner costo» le ponen el costo a un producto que ya está en la orden, las demás agregan productos a la orden.
+              No se duplica nada y el inventario no cambia hasta «Comprar todo lo contado».
+            </p>
             {p.factura_propuesta_items.map(it => {
               const e = edits[it.id] || {}
               return (
@@ -261,7 +266,7 @@ export function FacturaPropuestaPanel({ ordenId, proveedorId, companyId, items, 
                     <p className="fp-desc"><span className={`fp-tag ${it.accion}`}>{ACCION_LABEL[it.accion]}</span>{it.descripcion}</p>
                     <p className="fp-line">
                       {it.cantidad} × {fmt(it.costo_unitario)} = {fmt(it.cantidad * it.costo_unitario)}
-                      {it.products?.name && it.accion !== "crear_producto" && <> · → <b>{it.products.name}</b></>}
+                      {it.products?.name && it.accion !== "crear_producto" && <> · → <b>{it.products.name}</b>{it.accion === "costo_item" && " (ya está en la orden)"}</>}
                       {it.nota && <> · {it.nota}</>}
                       {it.estado === "aplicado" && " · ✓ aplicado"}
                       {it.estado === "descartado" && " · descartado"}
